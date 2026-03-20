@@ -1,0 +1,680 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ──────────────────────────────────────────────────────────────────────────────
+
+enum GlobalRole {
+  cabinet_user
+  platform_admin
+  regulator
+  chamber
+}
+
+enum SubscriptionStatus {
+  active
+  trial
+  suspended
+  cancelled
+}
+
+enum MemberRole {
+  owner
+  admin
+  member
+}
+
+enum ComplianceItemType {
+  doc
+  text
+  radio
+  checkbox
+}
+
+enum AnswerStatus {
+  draft
+  submitted
+}
+
+enum ConditionOperator {
+  eq
+  not_eq
+  in
+  not_in
+}
+
+enum NotificationChannel {
+  email
+  in_app
+}
+
+enum ContactType {
+  prospect
+  client
+  ancien_client
+}
+
+enum InteractionType {
+  email
+  appel
+  rdv
+  note
+}
+
+enum StorageMode {
+  hosted
+  external
+}
+
+enum StorageProvider {
+  aws
+  gdrive
+  sharepoint
+  other
+}
+
+enum DocumentEntityType {
+  cabinet
+  contact
+  product
+  supplier
+  compliance_answer
+}
+
+enum ShareEntityType {
+  contact
+  document
+  collaborator_training
+  cabinet_compliance
+  cabinet
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// AUTH & CABINETS
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Miroir de auth.users — créé automatiquement via trigger Supabase (voir sql/triggers.sql)
+model User {
+  id        String     @id @db.Uuid
+  email     String     @unique
+  globalRole GlobalRole @default(cabinet_user) @map("global_role")
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  lastLogin DateTime?  @map("last_login") @db.Timestamptz
+  isActive  Boolean    @default(true) @map("is_active")
+
+  cabinetMembers         CabinetMember[]
+  complianceAnswers      CabinetComplianceAnswer[]
+  suppliersCreated       Supplier[]
+  supplierEdits          SupplierEdit[]
+  productsCreated        Product[]
+  productEdits           ProductEdit[]
+  toolsCreated           Tool[]
+  toolEdits              ToolEdit[]
+  interactions           Interaction[]
+  trainingCatalogCreated TrainingCatalog[]
+  collaboratorTrainings  CollaboratorTraining[]
+  sharesGrantedBy        Share[]                   @relation("GrantedBy")
+  sharesGrantedTo        Share[]                   @relation("GrantedTo")
+
+  @@map("users")
+}
+
+model Cabinet {
+  id                 String             @id @default(uuid()) @db.Uuid
+  name               String
+  siret              String?
+  oriasNumber        String?            @map("orias_number")
+  subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
+  settings           Json?              @db.JsonB
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  members               CabinetMember[]
+  complianceAnswers     CabinetComplianceAnswer[]
+  complianceNotifs      ComplianceNotification[]
+  cabinetSuppliers      CabinetSupplier[]
+  supplierEdits         SupplierEdit[]
+  supplierPublicRatings SupplierPublicRating[]
+  cabinetProducts       CabinetProduct[]
+  productEdits          ProductEdit[]
+  productPublicRatings  ProductPublicRating[]
+  cabinetTools          CabinetTool[]
+  toolEdits             ToolEdit[]
+  toolPublicRatings     ToolPublicRating[]
+  contacts              Contact[]
+  storageConfigs        CabinetStorageConfig[]
+  documents             Document[]
+  collaboratorTrainings CollaboratorTraining[]
+  shares                Share[]
+
+  @@map("cabinets")
+}
+
+model CabinetMember {
+  id                String    @id @default(uuid()) @db.Uuid
+  cabinetId         String    @map("cabinet_id") @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  role              MemberRole
+  canManageSuppliers Boolean  @default(false) @map("can_manage_suppliers")
+  canManageProducts  Boolean  @default(false) @map("can_manage_products")
+  canManageContacts  Boolean  @default(false) @map("can_manage_contacts")
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([cabinetId, userId])
+  @@index([cabinetId])
+  @@map("cabinet_members")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CONFORMITÉ
+// ──────────────────────────────────────────────────────────────────────────────
+
+model CompliancePhase {
+  id          String   @id @default(uuid()) @db.Uuid
+  label       String
+  description String?
+  order       Int
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  items ComplianceItem[]
+
+  @@map("compliance_phases")
+}
+
+model ComplianceItem {
+  id                 String             @id @default(uuid()) @db.Uuid
+  phaseId            String             @map("phase_id") @db.Uuid
+  label              String
+  type               ComplianceItemType
+  config             Json               @db.JsonB
+  isRequired         Boolean            @default(true) @map("is_required")
+  validityMonths     Int?               @map("validity_months")
+  alertBeforeDays    Int[]              @map("alert_before_days")
+  dueDaysAfterSignup Int?               @map("due_days_after_signup")
+  order              Int
+
+  phase      CompliancePhase           @relation(fields: [phaseId], references: [id])
+  conditions ComplianceCondition[]     @relation("ConditionedItem")
+  dependedBy ComplianceCondition[]     @relation("DependsOnItem")
+  answers    CabinetComplianceAnswer[]
+
+  @@index([phaseId])
+  @@map("compliance_items")
+}
+
+model ComplianceCondition {
+  id              String            @id @default(uuid()) @db.Uuid
+  itemId          String            @map("item_id") @db.Uuid
+  dependsOnItemId String            @map("depends_on_item_id") @db.Uuid
+  operator        ConditionOperator
+  expectedValue   String            @map("expected_value")
+
+  item      ComplianceItem @relation("ConditionedItem", fields: [itemId], references: [id])
+  dependsOn ComplianceItem @relation("DependsOnItem", fields: [dependsOnItemId], references: [id])
+
+  @@index([itemId])
+  @@map("compliance_conditions")
+}
+
+model CabinetComplianceAnswer {
+  id          String       @id @default(uuid()) @db.Uuid
+  cabinetId   String       @map("cabinet_id") @db.Uuid
+  itemId      String       @map("item_id") @db.Uuid
+  answeredBy  String       @map("answered_by") @db.Uuid
+  value       Json         @db.JsonB
+  status      AnswerStatus @default(draft)
+  submittedAt DateTime?    @map("submitted_at") @db.Timestamptz
+  expiresAt   DateTime?    @map("expires_at") @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime?    @map("deleted_at") @db.Timestamptz
+
+  cabinet       Cabinet                @relation(fields: [cabinetId], references: [id])
+  item          ComplianceItem         @relation(fields: [itemId], references: [id])
+  user          User                   @relation(fields: [answeredBy], references: [id])
+  notifications ComplianceNotification[]
+
+  @@unique([cabinetId, itemId])
+  @@index([cabinetId])
+  @@index([expiresAt])
+  @@map("cabinet_compliance_answers")
+}
+
+model ComplianceNotification {
+  id         String              @id @default(uuid()) @db.Uuid
+  cabinetId  String              @map("cabinet_id") @db.Uuid
+  answerId   String              @map("answer_id") @db.Uuid
+  daysBefore Int                 @map("days_before")
+  channel    NotificationChannel
+  sentAt     DateTime            @map("sent_at") @db.Timestamptz
+
+  cabinet Cabinet                 @relation(fields: [cabinetId], references: [id])
+  answer  CabinetComplianceAnswer @relation(fields: [answerId], references: [id])
+
+  @@index([cabinetId])
+  @@index([answerId, daysBefore])
+  @@map("compliance_notifications")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// BASE COMMUNAUTAIRE — FOURNISSEURS
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Supplier {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?
+  category        String?
+  website         String?
+  email           String?
+  phone           String?
+  createdBy       String    @map("created_by") @db.Uuid
+  avgPublicRating Float?    @map("avg_public_rating")
+  isVerified      Boolean   @default(false) @map("is_verified")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  creator          User                   @relation(fields: [createdBy], references: [id])
+  edits            SupplierEdit[]
+  cabinetSuppliers CabinetSupplier[]
+  publicRatings    SupplierPublicRating[]
+  productLinks     ProductSupplier[]
+
+  @@index([createdAt])
+  @@map("suppliers")
+}
+
+model SupplierEdit {
+  id         String   @id @default(uuid()) @db.Uuid
+  supplierId String   @map("supplier_id") @db.Uuid
+  editedBy   String   @map("edited_by") @db.Uuid
+  cabinetId  String   @map("cabinet_id") @db.Uuid
+  diff       Json     @db.JsonB
+  editedAt   DateTime @default(now()) @map("edited_at") @db.Timestamptz
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  editor   User     @relation(fields: [editedBy], references: [id])
+  cabinet  Cabinet  @relation(fields: [cabinetId], references: [id])
+
+  @@index([supplierId])
+  @@map("supplier_edits")
+}
+
+model CabinetSupplier {
+  id            String    @id @default(uuid()) @db.Uuid
+  cabinetId     String    @map("cabinet_id") @db.Uuid
+  supplierId    String    @map("supplier_id") @db.Uuid
+  isActive      Boolean   @default(true) @map("is_active")
+  privateRating Int?      @map("private_rating")
+  privateNote   String?   @map("private_note")
+  internalTags  String[]  @map("internal_tags")
+  customFields  Json?     @db.JsonB @map("custom_fields")
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+
+  cabinet  Cabinet  @relation(fields: [cabinetId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([cabinetId, supplierId])
+  @@index([cabinetId])
+  @@map("cabinet_suppliers")
+}
+
+/// 1 note publique par cabinet par fournisseur — avg_public_rating recalculé par trigger
+model SupplierPublicRating {
+  id         String   @id @default(uuid()) @db.Uuid
+  supplierId String   @map("supplier_id") @db.Uuid
+  cabinetId  String   @map("cabinet_id") @db.Uuid
+  rating     Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  cabinet  Cabinet  @relation(fields: [cabinetId], references: [id])
+
+  @@unique([supplierId, cabinetId])
+  @@index([supplierId])
+  @@map("supplier_public_ratings")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// BASE COMMUNAUTAIRE — PRODUITS
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Product {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?
+  category        String?
+  website         String?
+  createdBy       String    @map("created_by") @db.Uuid
+  avgPublicRating Float?    @map("avg_public_rating")
+  isVerified      Boolean   @default(false) @map("is_verified")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  creator         User                  @relation(fields: [createdBy], references: [id])
+  edits           ProductEdit[]
+  cabinetProducts CabinetProduct[]
+  publicRatings   ProductPublicRating[]
+  supplierLinks   ProductSupplier[]
+
+  @@index([createdAt])
+  @@map("products")
+}
+
+model ProductEdit {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  editedBy  String   @map("edited_by") @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  diff      Json     @db.JsonB
+  editedAt  DateTime @default(now()) @map("edited_at") @db.Timestamptz
+
+  product Product @relation(fields: [productId], references: [id])
+  editor  User    @relation(fields: [editedBy], references: [id])
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@index([productId])
+  @@map("product_edits")
+}
+
+model CabinetProduct {
+  id               String    @id @default(uuid()) @db.Uuid
+  cabinetId        String    @map("cabinet_id") @db.Uuid
+  productId        String    @map("product_id") @db.Uuid
+  isActive         Boolean   @default(true) @map("is_active")
+  isCommercialized Boolean   @default(false) @map("is_commercialized")
+  supplierId       String?   @map("supplier_id") @db.Uuid
+  privateRating    Int?      @map("private_rating")
+  privateNote      String?   @map("private_note")
+  internalTags     String[]  @map("internal_tags")
+  customFields     Json?     @db.JsonB @map("custom_fields")
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([cabinetId, productId])
+  @@index([cabinetId])
+  @@map("cabinet_products")
+}
+
+/// Table pivot produit ↔ fournisseur (relation communautaire)
+model ProductSupplier {
+  id         String @id @default(uuid()) @db.Uuid
+  productId  String @map("product_id") @db.Uuid
+  supplierId String @map("supplier_id") @db.Uuid
+
+  product  Product  @relation(fields: [productId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([productId, supplierId])
+  @@map("product_suppliers")
+}
+
+/// 1 note publique par cabinet par produit — avg_public_rating recalculé par trigger
+model ProductPublicRating {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  rating    Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  product Product @relation(fields: [productId], references: [id])
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@unique([productId, cabinetId])
+  @@index([productId])
+  @@map("product_public_ratings")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// BASE COMMUNAUTAIRE — OUTILS
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Tool {
+  id              String    @id @default(uuid()) @db.Uuid
+  name            String
+  description     String?
+  category        String?
+  url             String?
+  createdBy       String    @map("created_by") @db.Uuid
+  avgPublicRating Float?    @map("avg_public_rating")
+  isVerified      Boolean   @default(false) @map("is_verified")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  creator      User               @relation(fields: [createdBy], references: [id])
+  edits        ToolEdit[]
+  cabinetTools CabinetTool[]
+  publicRatings ToolPublicRating[]
+
+  @@index([createdAt])
+  @@map("tools")
+}
+
+model ToolEdit {
+  id        String   @id @default(uuid()) @db.Uuid
+  toolId    String   @map("tool_id") @db.Uuid
+  editedBy  String   @map("edited_by") @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  diff      Json     @db.JsonB
+  editedAt  DateTime @default(now()) @map("edited_at") @db.Timestamptz
+
+  tool    Tool    @relation(fields: [toolId], references: [id])
+  editor  User    @relation(fields: [editedBy], references: [id])
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@index([toolId])
+  @@map("tool_edits")
+}
+
+model CabinetTool {
+  id            String    @id @default(uuid()) @db.Uuid
+  cabinetId     String    @map("cabinet_id") @db.Uuid
+  toolId        String    @map("tool_id") @db.Uuid
+  isActive      Boolean   @default(true) @map("is_active")
+  privateRating Int?      @map("private_rating")
+  privateNote   String?   @map("private_note")
+  internalTags  String[]  @map("internal_tags")
+  customFields  Json?     @db.JsonB @map("custom_fields")
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  tool    Tool    @relation(fields: [toolId], references: [id])
+
+  @@unique([cabinetId, toolId])
+  @@index([cabinetId])
+  @@map("cabinet_tools")
+}
+
+/// 1 note publique par cabinet par outil — avg_public_rating recalculé par trigger
+model ToolPublicRating {
+  id        String   @id @default(uuid()) @db.Uuid
+  toolId    String   @map("tool_id") @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  rating    Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  tool    Tool    @relation(fields: [toolId], references: [id])
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@unique([toolId, cabinetId])
+  @@index([toolId])
+  @@map("tool_public_ratings")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CRM
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Contact {
+  id        String      @id @default(uuid()) @db.Uuid
+  cabinetId String      @map("cabinet_id") @db.Uuid
+  firstName String?     @map("first_name")
+  lastName  String      @map("last_name")
+  email     String?
+  phone     String?
+  type      ContactType
+  metadata  Json?       @db.JsonB
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt DateTime?   @map("deleted_at") @db.Timestamptz
+
+  cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
+  interactions Interaction[]
+
+  @@index([cabinetId])
+  @@map("contacts")
+}
+
+model Interaction {
+  id          String          @id @default(uuid()) @db.Uuid
+  contactId   String          @map("contact_id") @db.Uuid
+  userId      String          @map("user_id") @db.Uuid
+  type        InteractionType
+  note        String?
+  occurredAt  DateTime        @map("occurred_at") @db.Timestamptz
+  deletedAt   DateTime?       @map("deleted_at") @db.Timestamptz
+
+  contact Contact @relation(fields: [contactId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([contactId])
+  @@map("interactions")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GED
+// ──────────────────────────────────────────────────────────────────────────────
+
+model CabinetStorageConfig {
+  id        String          @id @default(uuid()) @db.Uuid
+  cabinetId String          @map("cabinet_id") @db.Uuid
+  provider  StorageProvider
+  label     String
+  baseUrl   String          @map("base_url")
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet   Cabinet    @relation(fields: [cabinetId], references: [id])
+  documents Document[]
+
+  @@index([cabinetId])
+  @@map("cabinet_storage_config")
+}
+
+model Document {
+  id               String      @id @default(uuid()) @db.Uuid
+  cabinetId        String      @map("cabinet_id") @db.Uuid
+  uploadedBy       String      @map("uploaded_by") @db.Uuid
+  name             String
+  description      String?
+  storageMode      StorageMode @map("storage_mode")
+  storagePath      String?     @map("storage_path")
+  externalConfigId String?     @map("external_config_id") @db.Uuid
+  externalPath     String?     @map("external_path")
+  mimeType         String?     @map("mime_type")
+  sizeBytes        BigInt?     @map("size_bytes")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt        DateTime?   @map("deleted_at") @db.Timestamptz
+
+  cabinet        Cabinet               @relation(fields: [cabinetId], references: [id])
+  externalConfig CabinetStorageConfig? @relation(fields: [externalConfigId], references: [id])
+  links          DocumentLink[]
+  certificates   CollaboratorTraining[]
+
+  @@index([cabinetId])
+  @@map("documents")
+}
+
+model DocumentLink {
+  id         String             @id @default(uuid()) @db.Uuid
+  documentId String             @map("document_id") @db.Uuid
+  entityType DocumentEntityType @map("entity_type")
+  entityId   String             @map("entity_id") @db.Uuid
+  label      String?
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@index([documentId])
+  @@index([entityType, entityId])
+  @@map("document_links")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// FORMATIONS
+// ──────────────────────────────────────────────────────────────────────────────
+
+model TrainingCatalog {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  organizer    String?
+  category     String?
+  defaultHours Float?   @map("default_hours")
+  createdBy    String   @map("created_by") @db.Uuid
+  isVerified   Boolean  @default(false) @map("is_verified")
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  creator               User                   @relation(fields: [createdBy], references: [id])
+  collaboratorTrainings CollaboratorTraining[]
+
+  @@map("training_catalog")
+}
+
+model CollaboratorTraining {
+  id                    String    @id @default(uuid()) @db.Uuid
+  cabinetId             String    @map("cabinet_id") @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  trainingId            String    @map("training_id") @db.Uuid
+  trainingDate          DateTime  @map("training_date") @db.Date
+  hoursCompleted        Float?    @map("hours_completed")
+  certificateDocumentId String?   @map("certificate_document_id") @db.Uuid
+  notes                 String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz
+
+  cabinet     Cabinet         @relation(fields: [cabinetId], references: [id])
+  user        User            @relation(fields: [userId], references: [id])
+  training    TrainingCatalog @relation(fields: [trainingId], references: [id])
+  certificate Document?       @relation(fields: [certificateDocumentId], references: [id])
+
+  @@index([cabinetId])
+  @@index([userId])
+  @@map("collaborator_trainings")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PARTAGE INTER-UTILISATEURS
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Share {
+  id         String          @id @default(uuid()) @db.Uuid
+  cabinetId  String          @map("cabinet_id") @db.Uuid
+  grantedBy  String          @map("granted_by") @db.Uuid
+  grantedTo  String          @map("granted_to") @db.Uuid
+  entityType ShareEntityType @map("entity_type")
+  entityId   String?         @map("entity_id") @db.Uuid
+  isActive   Boolean         @default(true) @map("is_active")
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  revokedAt  DateTime?       @map("revoked_at") @db.Timestamptz
+
+  cabinet     Cabinet @relation(fields: [cabinetId], references: [id])
+  granterUser User    @relation("GrantedBy", fields: [grantedBy], references: [id])
+  recipientUser User  @relation("GrantedTo", fields: [grantedTo], references: [id])
+
+  @@index([cabinetId])
+  @@index([grantedTo, isActive])
+  @@map("shares")
+}

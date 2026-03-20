@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker version:*)",
+      "Bash(docker compose:*)",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -c \"SELECT COUNT\\(*\\) FROM information_schema.tables WHERE table_schema=''public'';\")",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -c \"SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname=''public'' ORDER BY tablename;\")",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -c \"SELECT routine_name FROM information_schema.routines WHERE routine_schema=''auth'' AND routine_name=''cabinet_ids'';\")",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -c \"SELECT trigger_name, event_object_table FROM information_schema.triggers WHERE trigger_schema=''public'' ORDER BY event_object_table;\")",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -f packages/db/sql/rls_policies.sql)",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -c \"SELECT current_user, usesuper FROM pg_user WHERE usename = current_user;\")",
+      "Bash(npx supabase:*)",
+      "Bash(psql postgresql://supabase_admin:postgres@localhost:54322/postgres -c \"SELECT current_user, usesuper FROM pg_user WHERE usename = current_user;\")",
+      "Bash(psql postgresql://supabase_admin:postgres@localhost:54322/postgres -f packages/db/sql/rls_policies.sql)",
+      "Bash(psql postgresql://supabase_admin:postgres@localhost:54322/postgres -f packages/db/sql/triggers.sql)",
+      "Bash(npm install:*)",
+      "Bash(npx tsx:*)",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -c \"\\\\d cabinet_suppliers\")",
+      "Bash(psql postgresql://supabase_admin:postgres@localhost:54322/postgres -c \":*)",
+      "Bash(psql postgresql://postgres:postgres@localhost:54322/postgres -c \"\\\\d supplier_public_ratings\")",
+      "Bash(npx next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(SEED_ADMIN_EMAIL=tpilon@odc.fr SEED_ADMIN_PASSWORD=Admin1234! npx tsx --env-file=apps/api/.env scripts/seed-compliance.ts)",
+      "Bash(SEED_ADMIN_EMAIL=tpilon@odc.fr npx tsx --env-file=apps/api/.env scripts/seed-compliance.ts)"
+    ]
+  }
+}

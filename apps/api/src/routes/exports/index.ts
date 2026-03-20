@@ -1,0 +1,122 @@
+import { FastifyPluginAsync } from 'fastify'
+import { authMiddleware } from '../../middleware/auth'
+import { cabinetMiddleware } from '../../middleware/cabinet'
+import { prisma } from '../../lib/prisma'
+import { toCsv, csvReply } from '../../lib/csv'
+
+export const exportRoutes: FastifyPluginAsync = async (app) => {
+  // ── GET /api/v1/exports/contacts ──────────────────────────────────────────
+  app.get('/contacts', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const contacts = await prisma.contact.findMany({
+      where: { cabinetId: request.cabinetId, deletedAt: null },
+      orderBy: { lastName: 'asc' },
+    })
+
+    const rows = contacts.map((c) => ({
+      id: c.id,
+      type: c.type,
+      civilite: c.salutation ?? '',
+      nom: c.lastName,
+      prenom: c.firstName ?? '',
+      email: c.email ?? '',
+      telephone: c.phone ?? '',
+      ville: c.city ?? '',
+      code_postal: c.postalCode ?? '',
+      orias: c.oriasNumber ?? '',
+      date_creation: c.createdAt.toISOString(),
+    }))
+
+    return csvReply(reply, 'contacts.csv', toCsv(rows))
+  })
+
+  // ── GET /api/v1/exports/suppliers ─────────────────────────────────────────
+  app.get('/suppliers', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const cabinetSuppliers = await prisma.cabinetSupplier.findMany({
+      where: { cabinetId: request.cabinetId },
+      include: { supplier: true },
+      orderBy: { supplier: { name: 'asc' } },
+    })
+
+    const rows = cabinetSuppliers.map((cs) => ({
+      id: cs.supplier.id,
+      nom: cs.supplier.name,
+      categorie: cs.supplier.category ?? '',
+      note_publique: cs.supplier.avgPublicRating ?? '',
+      score_global: cs.scoreGlobal ?? '',
+      statut: cs.status ?? '',
+      note_privee: cs.privateNote ?? '',
+      date_creation: cs.supplier.createdAt.toISOString(),
+    }))
+
+    return csvReply(reply, 'fournisseurs.csv', toCsv(rows))
+  })
+
+  // ── GET /api/v1/exports/documents ─────────────────────────────────────────
+  app.get('/documents', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const documents = await prisma.document.findMany({
+      where: { cabinetId: request.cabinetId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const rows = documents.map((d) => ({
+      id: d.id,
+      nom: d.name,
+      mode_stockage: d.storageMode,
+      type_mime: d.mimeType ?? '',
+      taille_octets: d.sizeBytes?.toString() ?? '',
+      description: d.description ?? '',
+      chemin: d.storagePath ?? '',
+      chemin_externe: d.externalPath ?? '',
+      date_upload: d.createdAt.toISOString(),
+    }))
+
+    return csvReply(reply, 'documents.csv', toCsv(rows))
+  })
+
+  // ── GET /api/v1/exports/trainings ─────────────────────────────────────────
+  app.get('/trainings', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const trainings = await prisma.collaboratorTraining.findMany({
+      where: { cabinetId: request.cabinetId, deletedAt: null },
+      include: {
+        training: true,
+        user: { select: { email: true } },
+      },
+      orderBy: { trainingDate: 'desc' },
+    })
+
+    const rows = trainings.map((t) => ({
+      id: t.id,
+      collaborateur: t.user.email,
+      formation: t.training.name,
+      organisateur: t.training.organizer ?? '',
+      categorie: t.training.category ?? '',
+      date: t.trainingDate.toISOString().split('T')[0],
+      heures: t.hoursCompleted ?? '',
+      notes: t.notes ?? '',
+    }))
+
+    return csvReply(reply, 'formations.csv', toCsv(rows))
+  })
+
+  // ── GET /api/v1/exports/compliance ────────────────────────────────────────
+  app.get('/compliance', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const answers = await prisma.cabinetComplianceAnswer.findMany({
+      where: { cabinetId: request.cabinetId, deletedAt: null },
+      include: {
+        item: { include: { phase: { select: { name: true } } } },
+      },
+      orderBy: { item: { phase: { order: 'asc' } } },
+    })
+
+    const rows = answers.map((a) => ({
+      phase: a.item.phase.name,
+      item: a.item.label,
+      type: a.item.type,
+      statut: a.status,
+      soumis_le: a.submittedAt?.toISOString() ?? '',
+      expire_le: a.expiresAt?.toISOString() ?? '',
+    }))
+
+    return csvReply(reply, 'conformite.csv', toCsv(rows))
+  })
+}

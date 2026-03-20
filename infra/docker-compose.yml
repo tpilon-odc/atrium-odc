@@ -1,0 +1,88 @@
+version: '3.8'
+
+# CGP Platform — Services locaux
+# Supabase est géré séparément via la CLI : `supabase start`
+# Lancer ce fichier : `docker compose -f infra/docker-compose.yml up -d`
+
+services:
+
+  # ── Redis ── Cache · Sessions · Rate limiting
+  redis:
+    image: redis:alpine
+    container_name: cgp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO ── Stockage S3 compatible (GED)
+  minio:
+    image: minio/minio
+    container_name: cgp-minio
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── MinIO Init ── Crée le bucket cgp-documents au premier démarrage
+  minio-init:
+    image: minio/mc
+    container_name: cgp-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minioadmin};
+        mc mb --ignore-existing local/${MINIO_BUCKET:-cgp-documents};
+        mc anonymous set download local/${MINIO_BUCKET:-cgp-documents};
+        echo 'Bucket ${MINIO_BUCKET:-cgp-documents} prêt.';
+        exit 0;
+      "
+    restart: "no"
+
+  # ── Mailpit ── SMTP local + UI web emails
+  mailpit:
+    image: axllent/mailpit
+    container_name: cgp-mailpit
+    ports:
+      - "8025:8025"   # Interface web : http://localhost:8025
+      - "1025:1025"   # SMTP
+    restart: unless-stopped
+
+  # ── Trigger.dev ── Jobs planifiés (activé à l'étape 13)
+  # trigger:
+  #   image: ghcr.io/triggerdotdev/trigger.dev:latest
+  #   container_name: cgp-trigger
+  #   ports:
+  #     - "3040:3000"
+  #   environment:
+  #     DATABASE_URL: ${TRIGGER_DATABASE_URL}
+  #     REDIS_URL: redis://redis:6379
+  #     SECRET_KEY: ${TRIGGER_SECRET_KEY}
+  #     LOGIN_ORIGIN: http://localhost:3040
+  #     APP_ORIGIN: http://localhost:3040
+  #   depends_on:
+  #     - redis
+  #   restart: unless-stopped
+
+volumes:
+  redis_data:
+  minio_data:

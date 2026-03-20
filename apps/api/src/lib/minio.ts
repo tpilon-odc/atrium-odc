@@ -1,0 +1,73 @@
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { Client as MinioNativeClient } from 'minio'
+import { randomUUID } from 'crypto'
+
+// AWS SDK — utilisé pour upload/delete
+export const s3 = new S3Client({
+  endpoint: `http://${process.env.MINIO_ENDPOINT || 'localhost'}:${process.env.MINIO_PORT || '9000'}`,
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+    secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+  },
+  forcePathStyle: true,
+})
+
+// Client MinIO natif — utilisé pour les URLs presignées (évite x-amz-checksum-mode)
+export const minioNative = new MinioNativeClient({
+  endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+  port: parseInt(process.env.MINIO_PORT || '9000'),
+  useSSL: false,
+  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+})
+
+export const BUCKET = process.env.MINIO_BUCKET || 'cgp-documents'
+
+// Types MIME autorisés — validation côté serveur (specs section 10)
+export const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/csv',
+])
+
+export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
+// Génère le chemin de stockage : cabinets/{cabinetId}/{uuid}/{filename}
+export function buildStoragePath(cabinetId: string, filename: string): string {
+  return `cabinets/${cabinetId}/${randomUUID()}/${filename}`
+}
+
+export async function uploadToMinio(
+  key: string,
+  body: Buffer,
+  contentType: string
+): Promise<void> {
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
+  )
+}
+
+export async function deleteFromMinio(key: string): Promise<void> {
+  await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
+}
+
+// URL de téléchargement directe (bucket public en local)
+export function getPresignedUrl(key: string): string {
+  const endpoint = process.env.MINIO_ENDPOINT || 'localhost'
+  const port = process.env.MINIO_PORT || '9000'
+  return `http://${endpoint}:${port}/${BUCKET}/${key}`
+}
