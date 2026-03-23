@@ -25,7 +25,10 @@ import {
   X,
   AlertTriangle,
   AlertCircle,
+  Sun,
+  Moon,
 } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { authApi, complianceApi, notificationApi, displayName, type AppNotification } from '@/lib/api'
@@ -98,6 +101,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   partage: 'Partage',
   parametres: 'Paramètres',
   notifications: 'Notifications',
+  profil: 'Mon profil',
   admin: 'Admin',
   nouveau: 'Nouveau',
   modifier: 'Modifier',
@@ -117,9 +121,36 @@ function getBreadcrumbs(pathname: string) {
   return crumbs
 }
 
+// ── Theme toggle ────────────────────────────────────────────────────────────
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme()
+  return (
+    <button
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+      title={resolvedTheme === 'dark' ? 'Passer en clair' : 'Passer en sombre'}
+    >
+      {resolvedTheme === 'dark'
+        ? <Sun className="h-3.5 w-3.5" />
+        : <Moon className="h-3.5 w-3.5" />
+      }
+    </button>
+  )
+}
+
 // ── Avatar initiales ────────────────────────────────────────────────────────
 
-function UserAvatar({ name }: { name: string }) {
+function UserAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        className="h-7 w-7 rounded-full object-cover shrink-0"
+      />
+    )
+  }
   const initials = name.includes(' ')
     ? name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
     : name.slice(0, 2).toUpperCase()
@@ -359,13 +390,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Sidebar (desktop) ────────────────────────────────────────────── */}
       <aside className="hidden md:flex w-60 flex-col bg-card border-r border-border shrink-0">
         {/* Logo */}
-        <div className="px-4 py-3.5 border-b border-border">
-          <div className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="text-sm font-semibold">CGP Platform</span>
-          </div>
+        <div className="px-4 py-3.5 border-b border-border flex justify-center">
+          <Link href="/dashboard">
+            <img src="/logo.png" alt="Logo" className="h-10 w-auto dark:brightness-0 dark:invert" />
+          </Link>
         </div>
 
         {/* Nav groupée */}
@@ -417,12 +445,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Footer utilisateur */}
         <div className="px-2.5 py-3 border-t border-border">
-          <div className="flex items-center gap-2.5 px-2 py-1.5 mb-1 min-w-0">
-            <UserAvatar name={user ? displayName(user) : 'U'} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate">{user ? displayName(user) : 'U'}</p>
+          <div className="flex items-center gap-2 px-2 py-1.5 mb-1 min-w-0">
+            <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} />
+            <Link href="/profil" className="flex-1 min-w-0 rounded-md hover:bg-accent px-1 py-0.5 transition-colors">
+              <p className="text-xs font-medium truncate">{user ? displayName(user) : '…'}</p>
               <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
-            </div>
+            </Link>
+            <ThemeToggle />
           </div>
           <Button
             variant="ghost"
@@ -442,24 +471,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Header mobile (md:hidden) */}
         <header className="md:hidden h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="text-sm font-semibold">CGP Platform</span>
+            <Link href="/dashboard">
+              <img src="/logo.png" alt="Logo" className="h-10 w-auto dark:brightness-0 dark:invert" />
+            </Link>
           </div>
           <div className="flex items-center gap-1">
             {token && <NotificationBell token={token} />}
-            <UserAvatar name={user ? displayName(user) : 'U'} />
+            <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} />
           </div>
         </header>
 
         {/* Header desktop (hidden md:flex) */}
         <header className="hidden md:flex h-12 border-b border-border bg-card items-center px-6 gap-4 shrink-0">
           <nav className="flex items-center gap-1 text-sm flex-1 min-w-0">
-            {breadcrumbs.length === 0 && (
-              <span className="text-muted-foreground">CGP Platform</span>
-            )}
-            {breadcrumbs.map((crumb, i) => (
+            {/* Breadcrumb uniquement en profondeur (≥2 segments) pour éviter la redondance avec le titre de page */}
+            {breadcrumbs.length > 1 && breadcrumbs.map((crumb, i) => (
               <span key={crumb.href} className="flex items-center gap-1 min-w-0">
                 {i > 0 && (
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />

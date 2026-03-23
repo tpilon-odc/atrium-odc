@@ -68,7 +68,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     const dbUser = await prisma.user.findUnique({
       where: { id: data.user.id },
-      select: { firstName: true, lastName: true },
+      select: { firstName: true, lastName: true, avatarUrl: true },
     })
 
     return reply.send({
@@ -79,6 +79,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           globalRole: (data.user.app_metadata?.global_role as string) ?? 'cabinet_user',
           firstName: dbUser?.firstName ?? null,
           lastName: dbUser?.lastName ?? null,
+          avatarUrl: dbUser?.avatarUrl ?? null,
         },
         session: data.session,
       },
@@ -96,7 +97,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.get('/me', { preHandler: [authMiddleware] }, async (request, reply) => {
     const dbUser = await prisma.user.findUnique({
       where: { id: request.user.id },
-      select: { firstName: true, lastName: true },
+      select: { firstName: true, lastName: true, avatarUrl: true },
     })
     return reply.send({
       data: {
@@ -104,6 +105,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           ...request.user,
           firstName: dbUser?.firstName ?? null,
           lastName: dbUser?.lastName ?? null,
+          avatarUrl: dbUser?.avatarUrl ?? null,
         },
       },
     })

@@ -108,6 +108,7 @@ model User {
   email      String     @unique
   firstName  String?    @map("first_name")
   lastName   String?    @map("last_name")
+  avatarUrl  String?    @map("avatar_url")
   globalRole GlobalRole @default(cabinet_user) @map("global_role")
   createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
   lastLogin  DateTime?  @map("last_login") @db.Timestamptz

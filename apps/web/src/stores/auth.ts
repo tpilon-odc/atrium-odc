@@ -6,6 +6,7 @@ type User = {
   globalRole: string
   firstName?: string | null
   lastName?: string | null
+  avatarUrl?: string | null
 }
 
 type Cabinet = {

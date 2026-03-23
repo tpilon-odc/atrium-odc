@@ -65,9 +65,67 @@
     /* ── Sidebar ──────────────────────────────────────────────────────────── */
     --sidebar-width: 240px;
   }
+
+  .dark {
+    /* ── Neutrals ─────────────────────────────────────────────────────────── */
+    --background: 222 25% 8%;
+    --foreground: 210 25% 94%;
+
+    --card: 222 25% 11%;
+    --card-foreground: 210 25% 94%;
+
+    --popover: 222 25% 11%;
+    --popover-foreground: 210 25% 94%;
+
+    --muted: 220 20% 16%;
+    --muted-foreground: 220 12% 58%;
+
+    --border: 220 18% 19%;
+    --input: 220 18% 19%;
+
+    --accent: 220 20% 15%;
+    --accent-foreground: 210 25% 94%;
+
+    /* ── Primary — bleu plus lumineux sur fond sombre ─────────────────────── */
+    --primary: 222 72% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    /* ── Secondary ────────────────────────────────────────────────────────── */
+    --secondary: 220 20% 16%;
+    --secondary-foreground: 210 25% 85%;
+
+    /* ── Statuts sémantiques (ton réduit sur fond sombre) ─────────────────── */
+    --success: 152 50% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-subtle: 152 30% 14%;
+    --success-subtle-foreground: 152 50% 65%;
+
+    --warning: 38 85% 52%;
+    --warning-foreground: 38 80% 10%;
+    --warning-subtle: 38 50% 14%;
+    --warning-subtle-foreground: 38 85% 68%;
+
+    --danger: 4 75% 58%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 4 50% 14%;
+    --danger-subtle-foreground: 4 75% 72%;
+
+    --info: 205 70% 50%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 205 45% 14%;
+    --info-subtle-foreground: 205 70% 68%;
+
+    /* ── Destructive ──────────────────────────────────────────────────────── */
+    --destructive: 4 75% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Ring ─────────────────────────────────────────────────────────────── */
+    --ring: 222 72% 58%;
+  }
 }
 
 @layer base {
+
   * {
     @apply border-border;
   }

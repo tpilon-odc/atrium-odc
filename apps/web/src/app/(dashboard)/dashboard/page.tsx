@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { complianceApi, supplierApi, contactApi, documentApi, type PhaseProgress } from '@/lib/api'
+import { complianceApi, supplierApi, contactApi, documentApi, displayName, type PhaseProgress } from '@/lib/api'
 
 // ── KPI card ───────────────────────────────────────────────────────────────
 
@@ -154,7 +154,7 @@ export default function DashboardPage() {
       <div>
         <h2 className="text-2xl font-semibold">Tableau de bord</h2>
         <p className="text-muted-foreground mt-1">
-          {cabinet?.name ?? '—'} · Bonjour, {user?.email?.split('@')[0]}
+          {cabinet?.name ?? '—'} · Bonjour, {user ? displayName(user) : '—'}
         </p>
       </div>
 

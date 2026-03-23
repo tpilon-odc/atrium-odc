@@ -54,6 +54,7 @@ type UserInfo = {
   globalRole: string
   firstName?: string | null
   lastName?: string | null
+  avatarUrl?: string | null
 }
 
 export function displayName(user: Pick<UserInfo, 'email' | 'firstName' | 'lastName'>): string {
@@ -68,6 +69,22 @@ export const userApi = {
       body: JSON.stringify(data),
       token,
     }),
+
+  uploadAvatar: async (file: File, token: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${API_URL}/api/v1/users/me/avatar`, {
+      method: 'POST',
+      body: form,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+    if (!res.ok) throw new ApiError(json.error ?? 'Erreur API', json.code ?? 'UNKNOWN', res.status)
+    return json as { data: { user: UserInfo } }
+  },
+
+  deleteAvatar: (token: string) =>
+    call<unknown>('/api/v1/users/me/avatar', { method: 'DELETE', token }),
 }
 
 export const authApi = {
