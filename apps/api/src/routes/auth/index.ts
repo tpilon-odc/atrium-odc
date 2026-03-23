@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import { authMiddleware } from '../../middleware/auth'
 import { supabaseAdmin } from '../../lib/supabase'
+import { prisma } from '../../lib/prisma'
 import { signupBody, loginBody } from './schemas'
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
@@ -65,7 +66,23 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       })
     }
 
-    return reply.send({ data: { user: data.user, session: data.session } })
+    const dbUser = await prisma.user.findUnique({
+      where: { id: data.user.id },
+      select: { firstName: true, lastName: true },
+    })
+
+    return reply.send({
+      data: {
+        user: {
+          id: data.user.id,
+          email: data.user.email!,
+          globalRole: (data.user.app_metadata?.global_role as string) ?? 'cabinet_user',
+          firstName: dbUser?.firstName ?? null,
+          lastName: dbUser?.lastName ?? null,
+        },
+        session: data.session,
+      },
+    })
   })
 
   // POST /api/v1/auth/logout
@@ -77,6 +94,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /api/v1/auth/me
   app.get('/me', { preHandler: [authMiddleware] }, async (request, reply) => {
-    return reply.send({ data: { user: request.user } })
+    const dbUser = await prisma.user.findUnique({
+      where: { id: request.user.id },
+      select: { firstName: true, lastName: true },
+    })
+    return reply.send({
+      data: {
+        user: {
+          ...request.user,
+          firstName: dbUser?.firstName ?? null,
+          lastName: dbUser?.lastName ?? null,
+        },
+      },
+    })
   })
 }

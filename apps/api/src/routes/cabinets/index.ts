@@ -102,7 +102,7 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const members = await prisma.cabinetMember.findMany({
         where: { cabinetId: request.cabinetId, deletedAt: null },
-        include: { user: { select: { id: true, email: true, globalRole: true } } },
+        include: { user: { select: { id: true, email: true, firstName: true, lastName: true, globalRole: true } } },
         orderBy: { cabinet: { createdAt: 'asc' } },
       })
       return reply.send({ data: { members } })

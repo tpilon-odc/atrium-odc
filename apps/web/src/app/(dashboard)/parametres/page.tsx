@@ -5,9 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Trash2, Plus, X, ShieldCheck, UserCheck, Building } from 'lucide-react'
+import { Pencil, Trash2, Plus, X, ShieldCheck, UserCheck, Building, User } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { cabinetApi, memberApi, storageConfigApi, type CabinetMember, type StorageConfig } from '@/lib/api'
+import { cabinetApi, memberApi, storageConfigApi, userApi, displayName, type CabinetMember, type StorageConfig } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,6 +24,81 @@ const PROVIDER_LABELS: Record<string, string> = {
   gdrive: 'Google Drive',
   sharepoint: 'SharePoint',
   other: 'Autre',
+}
+
+// ── Section profil ────────────────────────────────────────────────────────────
+
+const profileSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+})
+type ProfileForm = z.infer<typeof profileSchema>
+
+function ProfileSection() {
+  const { token, user, setAuth } = useAuthStore()
+  const [editing, setEditing] = useState(false)
+
+  const { register, handleSubmit, reset } = useForm<ProfileForm>({
+    values: { firstName: user?.firstName ?? '', lastName: user?.lastName ?? '' },
+  })
+
+  const mutation = useMutation({
+    mutationFn: (d: ProfileForm) => userApi.updateProfile(d, token!),
+    onSuccess: (res) => {
+      const updated = res.data.user
+      setAuth(token!, { ...user!, firstName: updated.firstName, lastName: updated.lastName })
+      setEditing(false)
+    },
+  })
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium flex items-center gap-2">
+          <User className="h-4 w-4" />
+          Mon profil
+        </h3>
+        {!editing && (
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+
+      {editing ? (
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Prénom</Label>
+              <Input {...register('firstName')} placeholder="Jean" className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Nom</Label>
+              <Input {...register('lastName')} placeholder="Dupont" className="text-sm" />
+            </div>
+          </div>
+          {mutation.isError && <p className="text-xs text-destructive">{(mutation.error as Error).message}</p>}
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => { reset(); setEditing(false) }}>Annuler</Button>
+          </div>
+        </form>
+      ) : (
+        <dl className="space-y-2 text-sm">
+          <div>
+            <dt className="text-xs text-muted-foreground">Email</dt>
+            <dd className="font-medium">{user?.email}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Nom complet</dt>
+            <dd>{user?.firstName || user?.lastName ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() : <span className="text-muted-foreground italic">Non renseigné</span>}</dd>
+          </div>
+        </dl>
+      )}
+    </div>
+  )
 }
 
 // ── Section cabinet ───────────────────────────────────────────────────────────
@@ -229,7 +304,10 @@ function MembersSection() {
           {members.map((m) => (
             <li key={m.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{m.user.email}</p>
+                {(m.user.firstName || m.user.lastName) && (
+                  <p className="text-sm font-medium truncate">{`${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim()}</p>
+                )}
+                <p className={cn('truncate', m.user.firstName || m.user.lastName ? 'text-xs text-muted-foreground' : 'text-sm font-medium')}>{m.user.email}</p>
                 <div className="flex gap-1.5 flex-wrap mt-0.5">
                   <span className={cn(
                     'text-xs px-2 py-0.5 rounded-full font-medium',
@@ -376,6 +454,7 @@ export default function ParametresPage() {
         <h2 className="text-2xl font-semibold">Paramètres</h2>
         <p className="text-muted-foreground mt-1">Gérez votre cabinet, vos membres et vos configurations.</p>
       </div>
+      <ProfileSection />
       <CabinetSection />
       <MembersSection />
       <StorageSection />

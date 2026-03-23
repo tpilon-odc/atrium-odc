@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { supabaseAdmin } from '../lib/supabase'
 import { GlobalRole } from '@cgp/db'
+import { prisma } from '../lib/prisma'
 
 export async function authMiddleware(
   request: FastifyRequest,
@@ -21,6 +22,13 @@ export async function authMiddleware(
 
   // global_role est stocké dans app_metadata lors de la création du compte
   const globalRole = (user.app_metadata?.global_role as GlobalRole) ?? GlobalRole.cabinet_user
+
+  // S'assure que l'utilisateur existe dans la DB (première connexion, invitation, etc.)
+  await prisma.user.upsert({
+    where: { id: user.id },
+    create: { id: user.id, email: user.email!, globalRole },
+    update: { email: user.email!, globalRole },
+  })
 
   request.user = {
     id: user.id,

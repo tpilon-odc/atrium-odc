@@ -104,12 +104,14 @@ enum ShareEntityType {
 
 /// Miroir de auth.users — créé automatiquement via trigger Supabase (voir sql/triggers.sql)
 model User {
-  id        String     @id @db.Uuid
-  email     String     @unique
+  id         String     @id @db.Uuid
+  email      String     @unique
+  firstName  String?    @map("first_name")
+  lastName   String?    @map("last_name")
   globalRole GlobalRole @default(cabinet_user) @map("global_role")
-  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  lastLogin DateTime?  @map("last_login") @db.Timestamptz
-  isActive  Boolean    @default(true) @map("is_active")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  lastLogin  DateTime?  @map("last_login") @db.Timestamptz
+  isActive   Boolean    @default(true) @map("is_active")
 
   cabinetMembers         CabinetMember[]
   complianceAnswers      CabinetComplianceAnswer[]
@@ -124,6 +126,7 @@ model User {
   collaboratorTrainings  CollaboratorTraining[]
   sharesGrantedBy        Share[]                   @relation("GrantedBy")
   sharesGrantedTo        Share[]                   @relation("GrantedTo")
+  notifications          Notification[]
 
   @@map("users")
 }
@@ -154,6 +157,7 @@ model Cabinet {
   documents             Document[]
   collaboratorTrainings CollaboratorTraining[]
   shares                Share[]
+  notifications         Notification[]
 
   @@map("cabinets")
 }
@@ -677,4 +681,28 @@ model Share {
   @@index([cabinetId])
   @@index([grantedTo, isActive])
   @@map("shares")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// NOTIFICATIONS IN-APP
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id         String   @id @default(uuid()) @db.Uuid
+  cabinetId  String   @map("cabinet_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  type       String   // "compliance_expiring" | "compliance_expired"
+  title      String
+  message    String
+  entityType String   @map("entity_type")  // "compliance_answer"
+  entityId   String   @map("entity_id") @db.Uuid
+  isRead     Boolean  @default(false) @map("is_read")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([cabinetId])
+  @@index([userId, isRead])
+  @@map("notifications")
 }

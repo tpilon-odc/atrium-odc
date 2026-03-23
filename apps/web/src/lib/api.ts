@@ -27,6 +27,10 @@ async function call<T>(
     },
   })
 
+  if (res.status === 204) {
+    return {} as ApiResponse<T>
+  }
+
   const json = await res.json()
 
   if (!res.ok) {
@@ -48,6 +52,22 @@ type UserInfo = {
   id: string
   email: string
   globalRole: string
+  firstName?: string | null
+  lastName?: string | null
+}
+
+export function displayName(user: Pick<UserInfo, 'email' | 'firstName' | 'lastName'>): string {
+  const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
+  return name || user.email.split('@')[0]
+}
+
+export const userApi = {
+  updateProfile: (data: { firstName?: string | null; lastName?: string | null }, token: string) =>
+    call<{ user: UserInfo }>('/api/v1/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
 }
 
 export const authApi = {
@@ -466,12 +486,23 @@ export type ComplianceItem = {
   config: Record<string, unknown>
   isRequired: boolean
   validityMonths: number | null
+  alertBeforeDays: number[]
+  dueDaysAfterSignup: number | null
   order: number
+  conditions: ComplianceCondition[]
+}
+
+export type ComplianceCondition = {
+  id: string
+  itemId: string
+  dependsOnItemId: string
+  operator: 'eq' | 'not_eq' | 'in' | 'not_in'
+  expectedValue: string
 }
 
 export const adminComplianceApi = {
-  getPhases: (token: string) =>
-    call<{ phases: CompliancePhase[] }>('/api/v1/compliance/phases', { token }),
+  getPhases: (token: string, all = false) =>
+    call<{ phases: CompliancePhase[] }>(`/api/v1/compliance/phases${all ? '?all=true' : ''}`, { token }),
 
   createPhase: (data: { label: string; description?: string; order: number }, token: string) =>
     call<{ phase: CompliancePhase }>('/api/v1/compliance/phases', {
@@ -490,14 +521,21 @@ export const adminComplianceApi = {
   deletePhase: (phaseId: string, token: string) =>
     call<unknown>(`/api/v1/compliance/phases/${phaseId}`, { method: 'DELETE', token }),
 
-  createItem: (phaseId: string, data: { label: string; type: string; config: Record<string, unknown>; isRequired: boolean; order: number; validityMonths?: number | null }, token: string) =>
+  createItem: (phaseId: string, data: {
+    label: string; type: string; config: Record<string, unknown>; isRequired: boolean; order: number
+    validityMonths?: number | null; alertBeforeDays?: number[]; dueDaysAfterSignup?: number | null
+  }, token: string) =>
     call<{ item: ComplianceItem }>(`/api/v1/compliance/phases/${phaseId}/items`, {
       method: 'POST',
       body: JSON.stringify(data),
       token,
     }),
 
-  updateItem: (itemId: string, data: Partial<{ label: string; type: string; isRequired: boolean; order: number; validityMonths: number | null }>, token: string) =>
+  updateItem: (itemId: string, data: Partial<{
+    label: string; type: string; isRequired: boolean; order: number
+    validityMonths: number | null; alertBeforeDays: number[]; dueDaysAfterSignup: number | null
+    config: Record<string, unknown>
+  }>, token: string) =>
     call<{ item: ComplianceItem }>(`/api/v1/compliance/items/${itemId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -506,6 +544,19 @@ export const adminComplianceApi = {
 
   deleteItem: (itemId: string, token: string) =>
     call<unknown>(`/api/v1/compliance/items/${itemId}`, { method: 'DELETE', token }),
+
+  addCondition: (data: { itemId: string; dependsOnItemId: string; operator: string; expectedValue: string }, token: string) =>
+    call<{ condition: ComplianceCondition }>('/api/v1/compliance/conditions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  removeCondition: (conditionId: string, token: string) =>
+    call<unknown>(`/api/v1/compliance/conditions/${conditionId}`, { method: 'DELETE', token }),
+
+  getItemAnswerCount: (itemId: string, token: string) =>
+    call<{ count: number }>(`/api/v1/compliance/items/${itemId}/answer-count`, { token }),
 }
 
 // ── Formations ────────────────────────────────────────────────────────────────
@@ -613,7 +664,7 @@ export type CabinetMember = {
   canManageProducts: boolean
   canManageContacts: boolean
   createdAt: string
-  user: { id: string; email: string; globalRole: string }
+  user: { id: string; email: string; firstName?: string | null; lastName?: string | null; globalRole: string }
 }
 
 export type StorageConfig = {
@@ -735,6 +786,47 @@ export const documentApi = {
   removeLink: (documentId: string, linkId: string, token: string) =>
     call<unknown>(`/api/v1/documents/${documentId}/links/${linkId}`, {
       method: 'DELETE',
+      token,
+    }),
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export type AppNotification = {
+  id: string
+  cabinetId: string
+  userId: string
+  type: 'compliance_expiring' | 'compliance_expired' | string
+  title: string
+  message: string
+  entityType: string
+  entityId: string
+  isRead: boolean
+  createdAt: string
+}
+
+export const notificationApi = {
+  list: (token: string, params?: { all?: boolean; cursor?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.all) q.set('all', 'true')
+    if (params?.cursor) q.set('cursor', params.cursor)
+    return call<{ notifications: AppNotification[]; unreadCount: number; nextCursor: string | null }>(
+      `/api/v1/notifications?${q}`,
+      { token }
+    )
+  },
+
+  markRead: (id: string, token: string) =>
+    call<{ notification: AppNotification }>(`/api/v1/notifications/${id}/read`, {
+      method: 'PATCH',
+      body: JSON.stringify({}),
+      token,
+    }),
+
+  markAllRead: (token: string) =>
+    call<{ message: string }>('/api/v1/notifications/read-all', {
+      method: 'PATCH',
+      body: JSON.stringify({}),
       token,
     }),
 }

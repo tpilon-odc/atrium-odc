@@ -4,16 +4,37 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Plus, Search, Star, BadgeCheck, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { supplierApi, type Supplier } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+function StarRating({ rating }: { rating: number }) {
+  const rounded = Math.round(rating)
+  return (
+    <span className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          className={cn(
+            'h-3.5 w-3.5',
+            i <= rounded
+              ? 'fill-yellow-400 text-yellow-400'
+              : 'fill-muted text-muted-foreground/30'
+          )}
+        />
+      ))}
+      <span className="text-xs text-muted-foreground ml-1 tabular-nums">{rating.toFixed(1)}</span>
+    </span>
+  )
+}
+
 function SupplierCard({ supplier }: { supplier: Supplier }) {
   return (
     <Link
       href={`/fournisseurs/${supplier.id}`}
-      className="flex items-center gap-4 bg-card border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors group"
+      className="flex items-center gap-4 bg-card border border-border rounded-lg p-4 hover:bg-accent/40 transition-colors group"
     >
       <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
         {supplier.name.slice(0, 2).toUpperCase()}
@@ -23,7 +44,10 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm truncate">{supplier.name}</span>
           {supplier.isVerified && (
-            <BadgeCheck className="h-4 w-4 text-blue-500 shrink-0" />
+            <span className="inline-flex items-center gap-1 text-xs bg-info-subtle text-info-subtle-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
+              <BadgeCheck className="h-3 w-3" />
+              Vérifié
+            </span>
           )}
           {supplier.category && (
             <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full shrink-0">
@@ -31,7 +55,7 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
             </span>
           )}
           {supplier.cabinetData?.isActive && (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full shrink-0">
+            <span className="text-xs bg-success-subtle text-success-subtle-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
               Partenaire
             </span>
           )}
@@ -39,17 +63,14 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
         {supplier.description && (
           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{supplier.description}</p>
         )}
+        {supplier.avgPublicRating ? (
+          <div className="mt-1">
+            <StarRating rating={supplier.avgPublicRating} />
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
-        {supplier.avgPublicRating ? (
-          <span className="flex items-center gap-0.5">
-            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-            <span className="text-xs font-medium">{supplier.avgPublicRating.toFixed(1)}</span>
-          </span>
-        ) : null}
-        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-      </div>
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
     </Link>
   )
 }
@@ -88,7 +109,6 @@ export default function FournisseursPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* En-tête */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Fournisseurs</h2>
@@ -102,7 +122,6 @@ export default function FournisseursPage() {
         </Link>
       </div>
 
-      {/* Recherche */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -117,7 +136,6 @@ export default function FournisseursPage() {
         <Button variant="outline" onClick={handleSearch}>Rechercher</Button>
       </div>
 
-      {/* Liste */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
@@ -125,7 +143,7 @@ export default function FournisseursPage() {
           ))}
         </div>
       ) : allItems.length === 0 ? (
-        <div className="bg-card border border-border rounded-lg p-8 text-center">
+        <div className="bg-card border border-border rounded-lg p-10 text-center">
           <p className="font-medium">Aucun fournisseur trouvé</p>
           <p className="text-sm text-muted-foreground mt-1">
             {search ? 'Aucun résultat pour cette recherche.' : 'Soyez le premier à ajouter un fournisseur.'}
@@ -138,12 +156,7 @@ export default function FournisseursPage() {
           ))}
           {data?.data.hasMore && (
             <div className="pt-2 text-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCursor(data.data.nextCursor)}
-                disabled={isFetching}
-              >
+              <Button variant="outline" size="sm" onClick={() => setCursor(data.data.nextCursor)} disabled={isFetching}>
                 {isFetching ? 'Chargement…' : 'Charger plus'}
               </Button>
             </div>

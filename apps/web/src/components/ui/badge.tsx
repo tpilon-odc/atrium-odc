@@ -1,13 +1,15 @@
 import { cn } from '@/lib/utils'
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'destructive' | 'muted'
+export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'muted' | 'destructive'
 
 const variants: Record<BadgeVariant, string> = {
-  default: 'bg-blue-100 text-blue-700',
-  success: 'bg-green-100 text-green-700',
-  warning: 'bg-orange-100 text-orange-700',
-  destructive: 'bg-red-100 text-red-700',
-  muted: 'bg-muted text-muted-foreground',
+  default:     'bg-primary/10 text-primary',
+  success:     'bg-success-subtle text-success-subtle-foreground',
+  warning:     'bg-warning-subtle text-warning-subtle-foreground',
+  danger:      'bg-danger-subtle text-danger-subtle-foreground',
+  destructive: 'bg-danger-subtle text-danger-subtle-foreground',
+  info:        'bg-info-subtle text-info-subtle-foreground',
+  muted:       'bg-muted text-muted-foreground',
 }
 
 export function Badge({
@@ -20,7 +22,13 @@ export function Badge({
   className?: string
 }) {
   return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', variants[variant], className)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+        variants[variant],
+        className,
+      )}
+    >
       {children}
     </span>
   )

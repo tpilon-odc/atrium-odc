@@ -4,26 +4,65 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* ── Neutrals ─────────────────────────────────────────────────────────── */
+    --background: 0 0% 98%;
+    --foreground: 222 25% 10%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 25% 10%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --popover-foreground: 222 25% 10%;
+
+    --muted: 220 20% 96%;
+    --muted-foreground: 220 12% 48%;
+
+    --border: 220 18% 91%;
+    --input: 220 18% 91%;
+
+    --accent: 220 20% 95%;
+    --accent-foreground: 222 25% 10%;
+
+    /* ── Primary — Navy professionnel ─────────────────────────────────────── */
+    --primary: 222 72% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    /* ── Secondary — bleu-gris doux ───────────────────────────────────────── */
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 222 30% 25%;
+
+    /* ── Statuts sémantiques ──────────────────────────────────────────────── */
+    --success: 152 55% 38%;
+    --success-foreground: 0 0% 100%;
+    --success-subtle: 152 50% 95%;
+    --success-subtle-foreground: 152 55% 30%;
+
+    --warning: 38 90% 48%;
+    --warning-foreground: 38 80% 12%;
+    --warning-subtle: 38 90% 95%;
+    --warning-subtle-foreground: 38 80% 30%;
+
+    --danger: 4 82% 55%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 4 80% 96%;
+    --danger-subtle-foreground: 4 82% 40%;
+
+    --info: 205 75% 42%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 205 70% 95%;
+    --info-subtle-foreground: 205 75% 30%;
+
+    /* ── Destructive (alias danger — shadcn compat) ───────────────────────── */
+    --destructive: 4 82% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Ring ─────────────────────────────────────────────────────────────── */
+    --ring: 222 72% 42%;
+
+    /* ── Radius — 6 px, corporate tight ──────────────────────────────────── */
+    --radius: 0.375rem;
+
+    /* ── Sidebar ──────────────────────────────────────────────────────────── */
     --sidebar-width: 240px;
   }
 }
@@ -32,8 +71,20 @@
   * {
     @apply border-border;
   }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Focus ring cohérent partout */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }

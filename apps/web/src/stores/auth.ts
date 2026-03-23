@@ -4,6 +4,8 @@ type User = {
   id: string
   email: string
   globalRole: string
+  firstName?: string | null
+  lastName?: string | null
 }
 
 type Cabinet = {

@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { adminMiddleware } from '../../middleware/admin'
 import { prisma } from '../../lib/prisma'
+import { runComplianceNotificationsJob } from '../../jobs/compliance-notifications'
 import { calculateItemStatus, calculatePhaseProgress } from './helpers'
 import {
   createPhaseBody,
@@ -20,8 +21,12 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
 
   // GET /api/v1/compliance/phases — structure complète
   app.get('/phases', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { all } = request.query as { all?: string }
+    const isAdmin = (request.user as any)?.globalRole === 'platform_admin'
+    const includeInactive = all === 'true' && isAdmin
+
     const phases = await prisma.compliancePhase.findMany({
-      where: { isActive: true },
+      where: includeInactive ? {} : { isActive: true },
       orderBy: { order: 'asc' },
       include: {
         items: {
@@ -213,7 +218,33 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: [authMiddleware, adminMiddleware] },
     async (request, reply) => {
       const { phaseId } = request.params as { phaseId: string }
-      await prisma.compliancePhase.update({ where: { id: phaseId }, data: { isActive: false } })
+
+      await prisma.$transaction(async (tx) => {
+        const items = await tx.complianceItem.findMany({
+          where: { phaseId },
+          select: { id: true },
+        })
+        const itemIds = items.map((i) => i.id)
+
+        if (itemIds.length > 0) {
+          const answers = await tx.cabinetComplianceAnswer.findMany({
+            where: { itemId: { in: itemIds } },
+            select: { id: true },
+          })
+          const answerIds = answers.map((a) => a.id)
+
+          if (answerIds.length > 0) {
+            await tx.complianceNotification.deleteMany({ where: { answerId: { in: answerIds } } })
+          }
+          await tx.cabinetComplianceAnswer.deleteMany({ where: { itemId: { in: itemIds } } })
+          await tx.complianceCondition.deleteMany({ where: { itemId: { in: itemIds } } })
+          await tx.complianceCondition.deleteMany({ where: { dependsOnItemId: { in: itemIds } } })
+          await tx.complianceItem.deleteMany({ where: { phaseId } })
+        }
+
+        await tx.compliancePhase.delete({ where: { id: phaseId } })
+      })
+
       return reply.status(204).send()
     }
   )
@@ -285,6 +316,38 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
       const { conditionId } = request.params as { conditionId: string }
       await prisma.complianceCondition.delete({ where: { id: conditionId } })
       return reply.status(204).send()
+    }
+  )
+
+  // ── Nombre de réponses pour un item (avant suppression) ───────────────────
+
+  app.get(
+    '/items/:itemId/answer-count',
+    { preHandler: [authMiddleware, adminMiddleware] },
+    async (request, reply) => {
+      const { itemId } = request.params as { itemId: string }
+      const count = await prisma.cabinetComplianceAnswer.count({
+        where: { itemId, deletedAt: null },
+      })
+      return reply.send({ data: { count } })
+    }
+  )
+
+  // ── POST /api/v1/compliance/admin/run-notifications ──────────────────────
+  // Déclenche manuellement le job de notifications (platform_admin uniquement)
+  app.post(
+    '/admin/run-notifications',
+    { preHandler: [authMiddleware, adminMiddleware] },
+    async (_request, reply) => {
+      try {
+        await runComplianceNotificationsJob()
+        return reply.send({ data: { message: 'Job exécuté avec succès' } })
+      } catch (err) {
+        return reply.status(500).send({
+          error: 'Erreur lors de l\'exécution du job',
+          code: 'JOB_ERROR',
+        })
+      }
     }
   )
 }

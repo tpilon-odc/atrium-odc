@@ -4,32 +4,58 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Plus, Search, Star, BadgeCheck, ChevronRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { toolApi, type Tool } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+function StarRating({ rating }: { rating: number }) {
+  const rounded = Math.round(rating)
+  return (
+    <span className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          className={cn(
+            'h-3.5 w-3.5',
+            i <= rounded
+              ? 'fill-yellow-400 text-yellow-400'
+              : 'fill-muted text-muted-foreground/30'
+          )}
+        />
+      ))}
+      <span className="text-xs text-muted-foreground ml-1 tabular-nums">{rating.toFixed(1)}</span>
+    </span>
+  )
+}
+
 function ToolCard({ tool }: { tool: Tool }) {
   return (
     <Link
       href={`/outils/${tool.id}`}
-      className="flex items-center gap-4 bg-card border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors group"
+      className="flex items-center gap-4 bg-card border border-border rounded-lg p-4 hover:bg-accent/40 transition-colors group"
     >
-      <div className="h-10 w-10 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center font-semibold text-sm shrink-0">
+      <div className="h-10 w-10 rounded-lg bg-warning-subtle text-warning flex items-center justify-center font-semibold text-sm shrink-0">
         {tool.name.slice(0, 2).toUpperCase()}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm truncate">{tool.name}</span>
-          {tool.isVerified && <BadgeCheck className="h-4 w-4 text-blue-500 shrink-0" />}
+          {tool.isVerified && (
+            <span className="inline-flex items-center gap-1 text-xs bg-info-subtle text-info-subtle-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
+              <BadgeCheck className="h-3 w-3" />
+              Vérifié
+            </span>
+          )}
           {tool.category && (
             <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full shrink-0">
               {tool.category}
             </span>
           )}
           {tool.cabinetData?.isActive && (
-            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full shrink-0">
+            <span className="text-xs bg-success-subtle text-success-subtle-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
               Utilisé
             </span>
           )}
@@ -37,17 +63,14 @@ function ToolCard({ tool }: { tool: Tool }) {
         {tool.description && (
           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{tool.description}</p>
         )}
+        {tool.avgPublicRating ? (
+          <div className="mt-1">
+            <StarRating rating={tool.avgPublicRating} />
+          </div>
+        ) : null}
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
-        {tool.avgPublicRating ? (
-          <span className="flex items-center gap-0.5">
-            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-            <span className="text-xs font-medium">{tool.avgPublicRating.toFixed(1)}</span>
-          </span>
-        ) : null}
-        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-      </div>
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
     </Link>
   )
 }
@@ -120,7 +143,7 @@ export default function OutilsPage() {
           ))}
         </div>
       ) : allItems.length === 0 ? (
-        <div className="bg-card border border-border rounded-lg p-8 text-center">
+        <div className="bg-card border border-border rounded-lg p-10 text-center">
           <p className="font-medium">Aucun outil trouvé</p>
           <p className="text-sm text-muted-foreground mt-1">
             {search ? 'Aucun résultat pour cette recherche.' : 'Soyez le premier à ajouter un outil.'}
@@ -133,12 +156,7 @@ export default function OutilsPage() {
           ))}
           {data?.data.hasMore && (
             <div className="pt-2 text-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCursor(data.data.nextCursor)}
-                disabled={isFetching}
-              >
+              <Button variant="outline" size="sm" onClick={() => setCursor(data.data.nextCursor)} disabled={isFetching}>
                 {isFetching ? 'Chargement…' : 'Charger plus'}
               </Button>
             </div>

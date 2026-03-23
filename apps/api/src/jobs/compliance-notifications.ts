@@ -4,28 +4,42 @@ import { sendComplianceExpiryEmail } from '../lib/mailer'
 /**
  * Job nuit à 6h UTC — envoie les notifications d'expiration conformité.
  * Logique :
- * - Récupère toutes les réponses soumises avec expiresAt futur
- * - Pour chaque seuil dans item.alertBeforeDays, vérifie si expiresAt = today + N jours
+ * - Récupère toutes les réponses soumises avec expiresAt défini
+ * - Pour chaque seuil dans item.alertBeforeDays, vérifie si expiresAt = today + N jours (±12h)
  * - Évite les doublons via compliance_notifications (même answerId + daysBefore dans les 24h)
+ * - Crée une notification in-app ET envoie un email pour chaque owner/admin du cabinet
  */
 export async function runComplianceNotificationsJob(): Promise<void> {
   const now = new Date()
 
-  // Answers soumises, non expirées, avec expiresAt défini
+  // Answers soumises avec expiresAt défini (y compris expirées pour les alertes J=0)
   const answers = await prisma.cabinetComplianceAnswer.findMany({
     where: {
       status: 'submitted',
-      expiresAt: { gt: now },
+      expiresAt: { not: null },
       deletedAt: null,
     },
     include: {
-      item: { select: { label: true, alertBeforeDays: true } },
+      item: {
+        select: {
+          label: true,
+          alertBeforeDays: true,
+          phaseId: true,
+          phase: { select: { label: true } },
+        },
+      },
       cabinet: {
         select: {
+          id: true,
           name: true,
           members: {
-            where: { role: 'owner', leftAt: null },
-            include: { user: { select: { email: true } } },
+            where: {
+              role: { in: ['owner', 'admin'] },
+              deletedAt: null,
+            },
+            include: {
+              user: { select: { id: true, email: true, firstName: true, lastName: true } },
+            },
           },
         },
       },
@@ -40,13 +54,11 @@ export async function runComplianceNotificationsJob(): Promise<void> {
     if (!alertDays.length || !answer.expiresAt) continue
 
     for (const daysBefore of alertDays) {
-      // Vérifie si expiresAt tombe dans la fenêtre today+N (± 12h pour absorber les décalages)
       const target = new Date(now)
       target.setDate(target.getDate() + daysBefore)
 
       const diffMs = Math.abs(answer.expiresAt.getTime() - target.getTime())
       const diffHours = diffMs / (1000 * 60 * 60)
-
       if (diffHours > 12) continue
 
       // Anti-doublon : notification déjà envoyée dans les 24h ?
@@ -64,19 +76,46 @@ export async function runComplianceNotificationsJob(): Promise<void> {
         continue
       }
 
-      // Récupère l'email de l'owner du cabinet
-      const ownerMember = answer.cabinet.members[0]
-      if (!ownerMember?.user?.email) continue
+      const isExpired = daysBefore === 0
+      const type = isExpired ? 'compliance_expired' : 'compliance_expiring'
+      const title = isExpired
+        ? `${answer.item.label} a expiré`
+        : `${answer.item.label} expire dans ${daysBefore} jour${daysBefore > 1 ? 's' : ''}`
+      const message = isExpired
+        ? `L'item "${answer.item.label}" (${answer.item.phase.label}) a expiré. Renouvelez-le dès que possible.`
+        : `L'item "${answer.item.label}" (${answer.item.phase.label}) expire le ${answer.expiresAt.toLocaleDateString('fr-FR')}. Pensez à le renouveler.`
+
+      const recipients = answer.cabinet.members
+      if (!recipients.length) continue
 
       try {
-        await sendComplianceExpiryEmail({
-          to: ownerMember.user.email,
-          cabinetName: answer.cabinet.name,
-          itemLabel: answer.item.label,
-          expiresAt: answer.expiresAt,
-          daysBefore,
+        // Crée une notification in-app pour chaque owner/admin
+        await prisma.notification.createMany({
+          data: recipients.map((m) => ({
+            cabinetId: answer.cabinetId,
+            userId: m.user.id,
+            type,
+            title,
+            message,
+            entityType: 'compliance_phase',
+            entityId: answer.item.phaseId,
+          })),
+          skipDuplicates: true,
         })
 
+        // Envoie un email à chaque owner/admin
+        for (const member of recipients) {
+          await sendComplianceExpiryEmail({
+            to: member.user.email,
+            cabinetName: answer.cabinet.name,
+            itemLabel: answer.item.label,
+            phaseLabel: answer.item.phase.label,
+            expiresAt: answer.expiresAt,
+            daysBefore,
+          })
+        }
+
+        // Trace l'envoi dans compliance_notifications
         await prisma.complianceNotification.create({
           data: {
             cabinetId: answer.cabinetId,
@@ -89,7 +128,7 @@ export async function runComplianceNotificationsJob(): Promise<void> {
 
         sent++
       } catch (err) {
-        console.error(`[compliance-notifications] Erreur envoi pour answer ${answer.id}:`, err)
+        console.error(`[compliance-notifications] Erreur pour answer ${answer.id}:`, err)
       }
     }
   }

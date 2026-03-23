@@ -20,6 +20,8 @@ import { trainingRoutes } from './routes/trainings'
 import { shareRoutes } from './routes/shares'
 import { webhookRoutes } from './routes/webhooks'
 import { exportRoutes } from './routes/exports'
+import { userRoutes } from './routes/users'
+import { notificationRoutes } from './routes/notifications'
 
 const app = Fastify({
   logger: {
@@ -78,6 +80,8 @@ const start = async () => {
   app.register(shareRoutes, { prefix: '/api/v1/shares' })
   app.register(webhookRoutes, { prefix: '/api/v1/webhooks' })
   app.register(exportRoutes, { prefix: '/api/v1/exports' })
+  app.register(userRoutes, { prefix: '/api/v1/users' })
+  app.register(notificationRoutes, { prefix: '/api/v1/notifications' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))
