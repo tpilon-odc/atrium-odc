@@ -91,3 +91,75 @@ export async function sendComplianceExpiryEmail(params: {
 
   await sendEmail({ to, subject, html })
 }
+
+// ── Template RGPD — notification admin ───────────────────────────────────────
+
+export async function sendGdprRequestAdminEmail(params: {
+  cabinetName: string
+  cabinetId: string
+  type: 'ACCESS' | 'ERASURE'
+  message?: string | null
+  requestId: string
+}): Promise<void> {
+  const { cabinetName, cabinetId, type, message, requestId } = params
+  const adminUrl = `${process.env.FRONTEND_URL}/admin/rgpd`
+  const typeLabel = type === 'ACCESS' ? "Droit d'accès" : "Droit à l'effacement"
+  const subject = `[RGPD] Nouvelle demande ${typeLabel} — ${cabinetName}`
+
+  const html = `
+    <p>Bonjour,</p>
+    <p>
+      Le cabinet <strong>${cabinetName}</strong> (id: <code>${cabinetId}</code>)
+      a soumis une demande RGPD de type <strong>${typeLabel}</strong>.
+    </p>
+    ${message ? `<p><strong>Message :</strong> ${message}</p>` : ''}
+    <p>ID de la demande : <code>${requestId}</code></p>
+    <p style="margin-top:24px">
+      <a href="${adminUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600">
+        Traiter la demande
+      </a>
+    </p>
+    <p>— CGP Platform</p>
+  `
+
+  const to = process.env.GDPR_ADMIN_EMAIL
+  if (!to) return
+  await sendEmail({ to, subject, html })
+}
+
+// ── Template RGPD — confirmation cabinet ─────────────────────────────────────
+
+export async function sendGdprRequestConfirmEmail(params: {
+  to: string
+  cabinetName: string
+  type: 'ACCESS' | 'ERASURE'
+  status: 'DONE' | 'REJECTED'
+  response?: string | null
+  downloadUrl?: string | null
+}): Promise<void> {
+  const { to, cabinetName, type, status, response, downloadUrl } = params
+  const typeLabel = type === 'ACCESS' ? "Droit d'accès" : "Droit à l'effacement"
+  const subject = status === 'DONE'
+    ? `[RGPD] Demande ${typeLabel} traitée — ${cabinetName}`
+    : `[RGPD] Demande ${typeLabel} refusée — ${cabinetName}`
+
+  const html = `
+    <p>Bonjour,</p>
+    <p>
+      Votre demande RGPD de type <strong>${typeLabel}</strong>
+      pour le cabinet <strong>${cabinetName}</strong>
+      a été <strong>${status === 'DONE' ? 'traitée' : 'refusée'}</strong>.
+    </p>
+    ${response ? `<p><strong>Note :</strong> ${response}</p>` : ''}
+    ${downloadUrl ? `
+      <p style="margin-top:16px">
+        <a href="${downloadUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600">
+          Télécharger vos données (lien valable 7 jours)
+        </a>
+      </p>
+    ` : ''}
+    <p>— CGP Platform</p>
+  `
+
+  await sendEmail({ to, subject, html })
+}

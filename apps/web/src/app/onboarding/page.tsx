@@ -40,7 +40,7 @@ export default function OnboardingPage() {
     try {
       const { data: result } = await cabinetApi.create(data.name, token)
       setCabinet({ id: result.cabinet.id, name: result.cabinet.name })
-      router.push('/dashboard')
+      router.push('/consent')
     } catch (err) {
       setError('root', {
         message: err instanceof ApiError ? err.message : 'Une erreur est survenue',
@@ -51,15 +51,14 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-primary">CGP Platform</h1>
-          <p className="text-sm text-muted-foreground mt-1">Bienvenue ! Configurons votre cabinet.</p>
+        <div className="flex justify-center mb-8">
+          <img src="/logo.png" alt="Logo" className="h-12 w-auto dark:brightness-0 dark:invert" />
         </div>
 
         <div className="bg-card rounded-xl shadow-sm border border-border p-8">
           <h2 className="text-xl font-semibold mb-2">Créer votre cabinet</h2>
           <p className="text-sm text-muted-foreground mb-6">
-            Donnez un nom à votre cabinet. Vous pourrez le modifier plus tard dans les paramètres.
+            Bienvenue ! Donnez un nom à votre cabinet. Vous pourrez le modifier dans les paramètres.
           </p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

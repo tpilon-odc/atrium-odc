@@ -17,6 +17,7 @@ import {
   updateDocumentBody,
   createDocumentLinkBody,
   listDocumentsQuery,
+  addDocumentTagBody,
 } from './schemas'
 
 export const documentRoutes: FastifyPluginAsync = async (app) => {
@@ -108,7 +109,7 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: query.error.errors[0].message, code: 'VALIDATION_ERROR' })
     }
 
-    const { cursor, limit, entityType, entityId } = query.data
+    const { cursor, limit, entityType, entityId, folderId, tagId } = query.data
 
     const documents = await prisma.document.findMany({
       take: limit + 1,
@@ -120,9 +121,11 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
         ...(entityType && entityId
           ? { links: { some: { entityType: entityType as any, entityId } } }
           : {}),
+        ...(folderId !== undefined ? { folderId } : {}),
+        ...(tagId ? { tags: { some: { tagId } } } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      include: { links: true },
+      include: { links: true, tags: { include: { tag: true } } },
     })
 
     const hasMore = documents.length > limit
@@ -257,6 +260,68 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
     }
 
     await prisma.documentLink.delete({ where: { id: linkId } })
+    return reply.status(204).send()
+  })
+
+  // ── POST /api/v1/documents/:id/tags ──────────────────────────────────────
+  app.post('/:id/tags', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const existing = await prisma.document.findFirst({
+      where: { id, cabinetId: request.cabinetId, deletedAt: null },
+    })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
+    }
+
+    const result = addDocumentTagBody.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    const { tagId } = result.data
+
+    // Vérifie que le tag est accessible (système ou appartient au cabinet)
+    const tag = await prisma.tag.findFirst({
+      where: {
+        id: tagId,
+        OR: [{ cabinetId: null, isSystem: true }, { cabinetId: request.cabinetId }],
+      },
+    })
+    if (!tag) {
+      return reply.status(404).send({ error: 'Tag introuvable', code: 'NOT_FOUND' })
+    }
+
+    const documentTag = await prisma.documentTag.upsert({
+      where: { documentId_tagId: { documentId: id, tagId } },
+      create: { documentId: id, tagId },
+      update: {},
+      include: { tag: true },
+    })
+
+    return reply.status(201).send({ data: { documentTag } })
+  })
+
+  // ── DELETE /api/v1/documents/:id/tags/:tagId ─────────────────────────────
+  app.delete('/:id/tags/:tagId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, tagId } = request.params as { id: string; tagId: string }
+
+    const existing = await prisma.document.findFirst({
+      where: { id, cabinetId: request.cabinetId, deletedAt: null },
+    })
+    if (!existing) {
+      return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
+    }
+
+    const documentTag = await prisma.documentTag.findFirst({
+      where: { documentId: id, tagId },
+    })
+    if (!documentTag) {
+      return reply.status(404).send({ error: 'Tag non attaché à ce document', code: 'NOT_FOUND' })
+    }
+
+    await prisma.documentTag.delete({ where: { documentId_tagId: { documentId: id, tagId } } })
+
     return reply.status(204).send()
   })
 }

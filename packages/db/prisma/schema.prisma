@@ -75,6 +75,19 @@ enum StorageMode {
   external
 }
 
+enum EventType {
+  RDV
+  CALL
+  TASK
+  COMPLIANCE
+}
+
+enum EventStatus {
+  PLANNED
+  DONE
+  CANCELLED
+}
+
 enum StorageProvider {
   aws
   gdrive
@@ -88,6 +101,32 @@ enum DocumentEntityType {
   product
   supplier
   compliance_answer
+  message
+}
+
+enum ClusterRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ChannelType {
+  ASYNC
+  REALTIME
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+  EXPIRED
 }
 
 enum ShareEntityType {
@@ -96,6 +135,18 @@ enum ShareEntityType {
   collaborator_training
   cabinet_compliance
   cabinet
+}
+
+enum GdprRequestType {
+  ACCESS
+  ERASURE
+}
+
+enum GdprRequestStatus {
+  PENDING
+  PROCESSING
+  DONE
+  REJECTED
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -109,10 +160,11 @@ model User {
   firstName  String?    @map("first_name")
   lastName   String?    @map("last_name")
   avatarUrl  String?    @map("avatar_url")
-  globalRole GlobalRole @default(cabinet_user) @map("global_role")
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  lastLogin  DateTime?  @map("last_login") @db.Timestamptz
-  isActive   Boolean    @default(true) @map("is_active")
+  globalRole          GlobalRole @default(cabinet_user) @map("global_role")
+  gdprAnonymizedAt    DateTime?  @map("gdpr_anonymized_at") @db.Timestamptz
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  lastLogin           DateTime?  @map("last_login") @db.Timestamptz
+  isActive            Boolean    @default(true) @map("is_active")
 
   cabinetMembers         CabinetMember[]
   complianceAnswers      CabinetComplianceAnswer[]
@@ -128,6 +180,16 @@ model User {
   sharesGrantedBy        Share[]                   @relation("GrantedBy")
   sharesGrantedTo        Share[]                   @relation("GrantedTo")
   notifications          Notification[]
+  eventsCreated          Event[]
+  clustersCreated        Cluster[]
+  channelsCreated        Channel[]
+  messages               Message[]         @relation("MessageAuthor")
+  messageReactions       MessageReaction[]
+  messageReports         MessageReport[]
+  exportJobsRequested    ExportJob[]
+  consentRecords         ConsentRecord[]
+  gdprRequestsMade       GdprRequest[]   @relation("RequestedBy")
+  gdprRequestsProcessed  GdprRequest[]   @relation("ProcessedBy")
 
   @@map("users")
 }
@@ -139,7 +201,10 @@ model Cabinet {
   oriasNumber        String?            @map("orias_number")
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   settings           Json?              @db.JsonB
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  icsToken                String             @unique @default(uuid()) @map("ics_token") @db.Uuid
+  deletionRequestedAt     DateTime?          @map("deletion_requested_at") @db.Timestamptz
+  deletionScheduledAt     DateTime?          @map("deletion_scheduled_at") @db.Timestamptz
+  createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz
 
   members               CabinetMember[]
   complianceAnswers     CabinetComplianceAnswer[]
@@ -159,6 +224,14 @@ model Cabinet {
   collaboratorTrainings CollaboratorTraining[]
   shares                Share[]
   notifications         Notification[]
+  events                Event[]
+  clusterMembers        ClusterMember[]
+  messagesAuthored      Message[]         @relation("MessageCabinet")
+  messageReactions      MessageReaction[]
+  folders               Folder[]
+  tags                  Tag[]
+  exportJobs            ExportJob[]
+  gdprRequests          GdprRequest[]
 
   @@map("cabinets")
 }
@@ -179,6 +252,42 @@ model CabinetMember {
   @@unique([cabinetId, userId])
   @@index([cabinetId])
   @@map("cabinet_members")
+}
+
+model ConsentRecord {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  version     String
+  acceptedAt  DateTime @default(now()) @map("accepted_at") @db.Timestamptz
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("consent_records")
+}
+
+model GdprRequest {
+  id           String            @id @default(uuid()) @db.Uuid
+  cabinetId    String            @map("cabinet_id") @db.Uuid
+  requestedBy  String            @map("requested_by") @db.Uuid
+  type         GdprRequestType
+  status       GdprRequestStatus @default(PENDING)
+  message      String?
+  processedBy  String?           @map("processed_by") @db.Uuid
+  processedAt  DateTime?         @map("processed_at") @db.Timestamptz
+  response     String?
+  exportPath   String?           @map("export_path")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet     Cabinet @relation(fields: [cabinetId], references: [id])
+  requester   User    @relation("RequestedBy", fields: [requestedBy], references: [id])
+  processor   User?   @relation("ProcessedBy", fields: [processedBy], references: [id])
+
+  @@index([cabinetId])
+  @@index([status])
+  @@map("gdpr_requests")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -249,6 +358,7 @@ model CabinetComplianceAnswer {
   item          ComplianceItem         @relation(fields: [itemId], references: [id])
   user          User                   @relation(fields: [answeredBy], references: [id])
   notifications ComplianceNotification[]
+  events        Event[]
 
   @@unique([cabinetId, itemId])
   @@index([cabinetId])
@@ -540,6 +650,7 @@ model Contact {
 
   cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
   interactions Interaction[]
+  events       Event[]
 
   @@index([cabinetId])
   @@map("contacts")
@@ -592,15 +703,19 @@ model Document {
   externalPath     String?     @map("external_path")
   mimeType         String?     @map("mime_type")
   sizeBytes        BigInt?     @map("size_bytes")
+  folderId         String?     @map("folder_id") @db.Uuid
   createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
   deletedAt        DateTime?   @map("deleted_at") @db.Timestamptz
 
   cabinet        Cabinet               @relation(fields: [cabinetId], references: [id])
   externalConfig CabinetStorageConfig? @relation(fields: [externalConfigId], references: [id])
+  folder         Folder?               @relation(fields: [folderId], references: [id])
   links          DocumentLink[]
   certificates   CollaboratorTraining[]
+  tags           DocumentTag[]
 
   @@index([cabinetId])
+  @@index([folderId])
   @@map("documents")
 }
 
@@ -616,6 +731,80 @@ model DocumentLink {
   @@index([documentId])
   @@index([entityType, entityId])
   @@map("document_links")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// GED — DOSSIERS & TAGS
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Arborescence de dossiers par cabinet. is_system = true → créé à l'onboarding, non supprimable.
+model Folder {
+  id        String   @id @default(uuid()) @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  name      String
+  parentId  String?  @map("parent_id") @db.Uuid
+  isSystem  Boolean  @default(false) @map("is_system")
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet   Cabinet    @relation(fields: [cabinetId], references: [id])
+  parent    Folder?    @relation("tree", fields: [parentId], references: [id])
+  children  Folder[]   @relation("tree")
+  documents Document[]
+
+  @@index([cabinetId])
+  @@index([parentId])
+  @@map("folders")
+}
+
+/// Tags du cabinet (cabinet_id nullable = tag système géré par platform_admin)
+model Tag {
+  id        String   @id @default(uuid()) @db.Uuid
+  cabinetId String?  @map("cabinet_id") @db.Uuid
+  name      String
+  color     String?
+  isSystem  Boolean  @default(false) @map("is_system")
+
+  cabinet      Cabinet?      @relation(fields: [cabinetId], references: [id])
+  documentTags DocumentTag[]
+
+  @@unique([cabinetId, name])
+  @@index([cabinetId])
+  @@map("tags")
+}
+
+model DocumentTag {
+  documentId String @map("document_id") @db.Uuid
+  tagId      String @map("tag_id") @db.Uuid
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, tagId])
+  @@map("document_tags")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// EXPORT GLOBAL
+// ──────────────────────────────────────────────────────────────────────────────
+
+model ExportJob {
+  id          String       @id @default(uuid()) @db.Uuid
+  cabinetId   String       @map("cabinet_id") @db.Uuid
+  requestedBy String       @map("requested_by") @db.Uuid
+  status      ExportStatus @default(PENDING)
+  storagePath String?      @map("storage_path")
+  expiresAt   DateTime?    @map("expires_at") @db.Timestamptz
+  error       String?
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  completedAt DateTime?    @map("completed_at") @db.Timestamptz
+
+  cabinet   Cabinet @relation(fields: [cabinetId], references: [id])
+  requester User    @relation(fields: [requestedBy], references: [id])
+
+  @@index([cabinetId])
+  @@index([status])
+  @@map("export_jobs")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -706,4 +895,150 @@ model Notification {
   @@index([cabinetId])
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// AGENDA
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Event {
+  id                 String      @id @default(uuid()) @db.Uuid
+  cabinetId          String      @map("cabinet_id") @db.Uuid
+  createdBy          String      @map("created_by") @db.Uuid
+  contactId          String?     @map("contact_id") @db.Uuid
+  title              String
+  description        String?
+  type               EventType
+  status             EventStatus @default(PLANNED)
+  startAt            DateTime    @map("start_at") @db.Timestamptz
+  endAt              DateTime    @map("end_at") @db.Timestamptz
+  allDay             Boolean     @default(false) @map("all_day")
+  location           String?
+  complianceAnswerId String?     @map("compliance_answer_id") @db.Uuid
+  isRecurring        Boolean     @default(false) @map("is_recurring")
+  recurrenceRule     String?     @map("recurrence_rule")
+  deletedAt          DateTime?   @map("deleted_at") @db.Timestamptz
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet          Cabinet                  @relation(fields: [cabinetId], references: [id])
+  creator          User                     @relation(fields: [createdBy], references: [id])
+  contact          Contact?                 @relation(fields: [contactId], references: [id])
+  complianceAnswer CabinetComplianceAnswer? @relation(fields: [complianceAnswerId], references: [id])
+
+  @@index([cabinetId])
+  @@index([startAt])
+  @@index([contactId])
+  @@map("events")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CLUSTERS — espaces communautaires inter-cabinets
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Cluster {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  createdBy   String   @map("created_by") @db.Uuid
+  isPublic    Boolean  @default(true) @map("is_public")
+  isVerified  Boolean  @default(false) @map("is_verified")
+  avatarUrl   String?  @map("avatar_url")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  creator  User            @relation(fields: [createdBy], references: [id])
+  members  ClusterMember[]
+  channels Channel[]
+
+  @@index([isPublic])
+  @@map("clusters")
+}
+
+model ClusterMember {
+  id        String      @id @default(uuid()) @db.Uuid
+  clusterId String      @map("cluster_id") @db.Uuid
+  cabinetId String      @map("cabinet_id") @db.Uuid
+  role      ClusterRole @default(MEMBER)
+  joinedAt  DateTime    @default(now()) @map("joined_at") @db.Timestamptz
+  invitedBy String?     @map("invited_by") @db.Uuid
+
+  cluster Cluster @relation(fields: [clusterId], references: [id])
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@unique([clusterId, cabinetId])
+  @@index([cabinetId])
+  @@map("cluster_members")
+}
+
+model Channel {
+  id            String      @id @default(uuid()) @db.Uuid
+  clusterId     String      @map("cluster_id") @db.Uuid
+  name          String
+  type          ChannelType @default(ASYNC)
+  isPrivate     Boolean     @default(false) @map("is_private")
+  createdBy     String      @map("created_by") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  lastMessageAt DateTime?   @map("last_message_at") @db.Timestamptz
+
+  cluster  Cluster   @relation(fields: [clusterId], references: [id])
+  creator  User      @relation(fields: [createdBy], references: [id])
+  messages Message[]
+
+  @@index([clusterId])
+  @@map("channels")
+}
+
+model Message {
+  id              String    @id @default(uuid()) @db.Uuid
+  channelId       String    @map("channel_id") @db.Uuid
+  authorUserId    String    @map("author_user_id") @db.Uuid
+  authorCabinetId String    @map("author_cabinet_id") @db.Uuid
+  content         String
+  parentId        String?   @map("parent_id") @db.Uuid
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  channel       Channel           @relation(fields: [channelId], references: [id])
+  authorUser    User              @relation("MessageAuthor", fields: [authorUserId], references: [id])
+  authorCabinet Cabinet           @relation("MessageCabinet", fields: [authorCabinetId], references: [id])
+  parent        Message?          @relation("Thread", fields: [parentId], references: [id])
+  replies       Message[]         @relation("Thread")
+  reactions     MessageReaction[]
+  reports       MessageReport[]
+
+  @@index([channelId])
+  @@index([parentId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model MessageReaction {
+  id        String @id @default(uuid()) @db.Uuid
+  messageId String @map("message_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  cabinetId String @map("cabinet_id") @db.Uuid
+  emoji     String
+
+  message Message @relation(fields: [messageId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+model MessageReport {
+  id         String       @id @default(uuid()) @db.Uuid
+  messageId  String       @map("message_id") @db.Uuid
+  reportedBy String       @map("reported_by") @db.Uuid
+  reason     String
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  message  Message @relation(fields: [messageId], references: [id])
+  reporter User    @relation(fields: [reportedBy], references: [id])
+
+  @@index([status])
+  @@map("message_reports")
 }

@@ -11,10 +11,30 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
+  CalendarDays,
+  Phone,
+  CheckSquare,
+  ShieldAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { complianceApi, supplierApi, contactApi, documentApi, displayName, type PhaseProgress } from '@/lib/api'
+import { complianceApi, supplierApi, contactApi, documentApi, eventApi, displayName, type PhaseProgress, type CalendarEvent, type EventType } from '@/lib/api'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+
+const EVENT_COLORS: Record<EventType, string> = {
+  RDV:        'text-blue-500',
+  CALL:       'text-green-500',
+  TASK:       'text-orange-500',
+  COMPLIANCE: 'text-red-500',
+}
+
+const EVENT_ICONS: Record<EventType, React.ElementType> = {
+  RDV:        CalendarDays,
+  CALL:       Phone,
+  TASK:       CheckSquare,
+  COMPLIANCE: ShieldAlert,
+}
 
 // ── KPI card ───────────────────────────────────────────────────────────────
 
@@ -90,7 +110,7 @@ function PhaseBar({ phase }: { phase: PhaseProgress }) {
 export default function DashboardPage() {
   const { token, user, cabinet } = useAuthStore()
 
-  const [complianceQ, suppliersQ, contactsQ, documentsQ] = useQueries({
+  const [complianceQ, suppliersQ, contactsQ, documentsQ, upcomingQ] = useQueries({
     queries: [
       {
         queryKey: ['compliance-progress', token],
@@ -112,8 +132,16 @@ export default function DashboardPage() {
         queryFn: () => documentApi.list(token!, { limit: 1 }),
         enabled: !!token,
       },
+      {
+        queryKey: ['events-upcoming', token],
+        queryFn: () => eventApi.upcoming(token!),
+        enabled: !!token,
+        staleTime: 60_000,
+      },
     ],
   })
+
+  const upcomingEvents = upcomingQ.data?.data.events ?? []
 
   const complianceData = complianceQ.data?.data
   const overallPct = complianceData?.globalProgress ?? 0
@@ -322,6 +350,58 @@ export default function DashboardPage() {
               </Link>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Prochains événements */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          <h3 className="font-medium">Prochains événements</h3>
+        </div>
+
+        {upcomingQ.isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-muted animate-pulse rounded-lg" />)}
+          </div>
+        ) : upcomingEvents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun événement à venir.</p>
+        ) : (
+          <ul className="space-y-1">
+            {upcomingEvents.slice(0, 5).map((ev: CalendarEvent) => {
+              const Icon = EVENT_ICONS[ev.type]
+              return (
+                <li key={ev.id}>
+                  <Link
+                    href="/agenda"
+                    className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-accent transition-colors text-sm"
+                  >
+                    <Icon className={cn('h-4 w-4 shrink-0', EVENT_COLORS[ev.type])} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{ev.title}</p>
+                      {ev.contact && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[ev.contact.firstName, ev.contact.lastName].filter(Boolean).join(' ')}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                      {ev.allDay
+                        ? format(new Date(ev.startAt), 'd MMM', { locale: fr })
+                        : format(new Date(ev.startAt), 'd MMM HH:mm', { locale: fr })}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        <div className="mt-4 pt-3 border-t border-border">
+          <Link href="/agenda" className="flex items-center gap-1.5 text-xs text-primary font-medium hover:underline">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Voir l'agenda complet
+          </Link>
         </div>
       </div>
     </div>

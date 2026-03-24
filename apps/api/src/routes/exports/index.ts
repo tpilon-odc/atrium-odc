@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { toCsv, csvReply } from '../../lib/csv'
+import { getPresignedUrl } from '../../lib/minio'
 
 export const exportRoutes: FastifyPluginAsync = async (app) => {
   // ── GET /api/v1/exports/contacts ──────────────────────────────────────────
@@ -118,5 +119,62 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     }))
 
     return csvReply(reply, 'conformite.csv', toCsv(rows))
+  })
+
+  // ── POST /api/v1/exports/jobs ─────────────────────────────────────────────
+  // Crée un job d'export global du cabinet (traité de manière asynchrone)
+  app.post('/jobs', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    // Vérifie qu'il n'y a pas déjà un job en cours pour ce cabinet
+    const pending = await prisma.exportJob.findFirst({
+      where: {
+        cabinetId: request.cabinetId,
+        status: { in: ['PENDING', 'PROCESSING'] },
+      },
+    })
+    if (pending) {
+      return reply.status(409).send({
+        error: 'Un export est déjà en cours pour ce cabinet',
+        code: 'EXPORT_ALREADY_PENDING',
+      })
+    }
+
+    const job = await prisma.exportJob.create({
+      data: {
+        cabinetId: request.cabinetId,
+        requestedBy: request.user.id,
+        status: 'PENDING',
+      },
+    })
+
+    return reply.status(201).send({ data: { job } })
+  })
+
+  // ── GET /api/v1/exports/jobs ──────────────────────────────────────────────
+  app.get('/jobs', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const jobs = await prisma.exportJob.findMany({
+      where: { cabinetId: request.cabinetId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })
+    return reply.send({ data: { jobs } })
+  })
+
+  // ── GET /api/v1/exports/jobs/:id ──────────────────────────────────────────
+  app.get('/jobs/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const job = await prisma.exportJob.findFirst({
+      where: { id, cabinetId: request.cabinetId },
+    })
+    if (!job) {
+      return reply.status(404).send({ error: 'Job introuvable', code: 'NOT_FOUND' })
+    }
+
+    let downloadUrl: string | null = null
+    if (job.status === 'DONE' && job.storagePath) {
+      downloadUrl = getPresignedUrl(job.storagePath)
+    }
+
+    return reply.send({ data: { job, downloadUrl } })
   })
 }

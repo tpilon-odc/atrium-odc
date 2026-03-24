@@ -3,6 +3,9 @@ import './types' // Augmentations Fastify
 import Fastify from 'fastify'
 import cron from 'node-cron'
 import { runComplianceNotificationsJob } from './jobs/compliance-notifications'
+import { runExportCabinetDataJob } from './jobs/export-cabinet-data'
+import { runGdprExportJob } from './jobs/gdpr-export'
+import { runGdprErasureJob, runGdprPurgeFinalJob } from './jobs/gdpr-erasure'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import swagger from '@fastify/swagger'
@@ -22,6 +25,15 @@ import { webhookRoutes } from './routes/webhooks'
 import { exportRoutes } from './routes/exports'
 import { userRoutes } from './routes/users'
 import { notificationRoutes } from './routes/notifications'
+import { eventRoutes } from './routes/events'
+import { calendarRoutes } from './routes/calendar'
+import { clusterRoutes } from './routes/clusters'
+import { messageRoutes } from './routes/messages'
+import { adminRoutes } from './routes/admin'
+import { folderRoutes } from './routes/folders'
+import { tagRoutes } from './routes/tags'
+import { consentRoutes } from './routes/consent'
+import { gdprRoutes } from './routes/gdpr'
 
 const app = Fastify({
   logger: {
@@ -82,6 +94,15 @@ const start = async () => {
   app.register(exportRoutes, { prefix: '/api/v1/exports' })
   app.register(userRoutes, { prefix: '/api/v1/users' })
   app.register(notificationRoutes, { prefix: '/api/v1/notifications' })
+  app.register(eventRoutes, { prefix: '/api/v1/events' })
+  app.register(calendarRoutes, { prefix: '/api/v1/calendar' })
+  app.register(clusterRoutes, { prefix: '/api/v1/clusters' })
+  app.register(messageRoutes, { prefix: '/api/v1' })
+  app.register(adminRoutes, { prefix: '/api/v1/admin' })
+  app.register(folderRoutes, { prefix: '/api/v1/folders' })
+  app.register(tagRoutes, { prefix: '/api/v1/tags' })
+  app.register(consentRoutes, { prefix: '/api/v1/consent' })
+  app.register(gdprRoutes, { prefix: '/api/v1/gdpr' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))
@@ -93,6 +114,38 @@ const start = async () => {
     )
   })
   app.log.info('Job compliance-notifications planifié (0 6 * * *)')
+
+  // Job toutes les 5 minutes — traitement des exports cabinet
+  cron.schedule('*/5 * * * *', () => {
+    runExportCabinetDataJob().catch((err) =>
+      app.log.error({ err }, '[export-cabinet-data] Erreur job')
+    )
+  })
+  app.log.info('Job export-cabinet-data planifié (*/5 * * * *)')
+
+  // Job toutes les 5 minutes — exports RGPD ACCESS
+  cron.schedule('*/5 * * * *', () => {
+    runGdprExportJob().catch((err) =>
+      app.log.error({ err }, '[gdpr-export] Erreur job')
+    )
+  })
+  app.log.info('Job gdpr-export planifié (*/5 * * * *)')
+
+  // Job toutes les 5 minutes — effacement RGPD ERASURE
+  cron.schedule('*/5 * * * *', () => {
+    runGdprErasureJob().catch((err) =>
+      app.log.error({ err }, '[gdpr-erasure] Erreur job')
+    )
+  })
+  app.log.info('Job gdpr-erasure planifié (*/5 * * * *)')
+
+  // Cron quotidien — purge définitive des cabinets effacés depuis > 30 jours
+  cron.schedule('0 2 * * *', () => {
+    runGdprPurgeFinalJob().catch((err) =>
+      app.log.error({ err }, '[gdpr-purge] Erreur job')
+    )
+  })
+  app.log.info('Job gdpr-purge planifié (0 2 * * *)')
 
   const port = parseInt(process.env.PORT || '3001')
   await app.listen({ port, host: '0.0.0.0' })

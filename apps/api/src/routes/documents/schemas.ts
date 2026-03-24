@@ -11,6 +11,11 @@ export const externalDocumentBody = z.object({
 export const updateDocumentBody = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
+  folderId: z.string().uuid().nullable().optional(),
+})
+
+export const addDocumentTagBody = z.object({
+  tagId: z.string().uuid('ID de tag invalide'),
 })
 
 export const createDocumentLinkBody = z.object({
@@ -24,4 +29,6 @@ export const listDocumentsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   entityType: z.enum(['cabinet', 'contact', 'product', 'supplier', 'compliance_answer']).optional(),
   entityId: z.string().uuid().optional(),
+  folderId: z.string().uuid().optional(),
+  tagId: z.string().uuid().optional(),
 })

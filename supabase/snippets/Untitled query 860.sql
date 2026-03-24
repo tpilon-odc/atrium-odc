@@ -1,0 +1,1 @@
+DELETE FROM _prisma_migrations WHERE migration_name = '20260324072210_add_clusters_fix';

@@ -4,10 +4,28 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare } from 'lucide-react'
+import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { contactApi, type ContactType, type InteractionType, type Interaction } from '@/lib/api'
+import { contactApi, eventApi, type ContactType, type InteractionType, type Interaction, type CalendarEvent, type EventType } from '@/lib/api'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+
+const EVENT_TYPE_COLORS: Record<EventType, string> = {
+  RDV:        'text-blue-500',
+  CALL:       'text-green-500',
+  TASK:       'text-orange-500',
+  COMPLIANCE: 'text-red-500',
+}
+const EVENT_TYPE_ICONS: Record<EventType, React.ElementType> = {
+  RDV:        CalendarDays,
+  CALL:       PhoneIcon,
+  TASK:       CheckSquare,
+  COMPLIANCE: ShieldAlert,
+}
+const EVENT_TYPE_LABELS: Record<EventType, string> = {
+  RDV: 'RDV', CALL: 'Appel', TASK: 'Tâche', COMPLIANCE: 'Conformité',
+}
 import { EntityDocuments } from '@/components/entity-documents'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -149,11 +167,21 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   const queryClient = useQueryClient()
   const router = useRouter()
   const { id } = params
+  const [activeTab, setActiveTab] = useState<'interactions' | 'agenda'>('interactions')
+  const [showNewEvent, setShowNewEvent] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['contact', id, token],
     queryFn: () => contactApi.get(id, token!),
     enabled: !!token,
+  })
+
+  const { data: eventsData } = useQuery({
+    queryKey: ['events-contact', id, token],
+    queryFn: () => eventApi.list(token!, {}),
+    enabled: !!token && activeTab === 'agenda',
+    select: (res) => res.data.events.filter((e) => e.contactId === id),
+    staleTime: 30_000,
   })
 
   const contact = data?.data.contact
@@ -245,29 +273,98 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
             <EntityDocuments entityType="contact" entityId={id} />
           </div>
 
-          {/* Timeline interactions */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Interactions ({interactions.length})
-              </h3>
+          {/* Onglets Interactions / Agenda */}
+          <div>
+            <div className="flex border-b border-border mb-4">
+              {([
+                { key: 'interactions', label: `Interactions (${interactions.length})`, icon: MessageSquare },
+                { key: 'agenda', label: 'Agenda', icon: CalendarDays },
+              ] as const).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setActiveTab(key)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+                    activeTab === key
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <AddInteractionForm contactId={id} />
+            {activeTab === 'interactions' && (
+              <div className="space-y-4">
+                <AddInteractionForm contactId={id} />
+                {interactions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucune interaction enregistrée.</p>
+                ) : (
+                  <div className="mt-2">
+                    {interactions.map((interaction) => (
+                      <InteractionItem
+                        key={interaction.id}
+                        interaction={interaction}
+                        contactId={id}
+                        onDelete={(iid) => deleteInteraction.mutate(iid)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {interactions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucune interaction enregistrée.</p>
-            ) : (
-              <div className="mt-4">
-                {interactions.map((interaction) => (
-                  <InteractionItem
-                    key={interaction.id}
-                    interaction={interaction}
-                    contactId={id}
-                    onDelete={(iid) => deleteInteraction.mutate(iid)}
-                  />
-                ))}
+            {activeTab === 'agenda' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Link
+                    href={`/agenda?contactId=${id}`}
+                    className="inline-flex items-center gap-1.5 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Créer un événement
+                  </Link>
+                  <Link
+                    href="/agenda"
+                    className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+                  >
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    Ouvrir l'agenda complet
+                  </Link>
+                </div>
+
+                {!eventsData?.length ? (
+                  <p className="text-sm text-muted-foreground">Aucun événement lié à ce contact.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {eventsData.map((ev: CalendarEvent) => {
+                      const Icon = EVENT_TYPE_ICONS[ev.type]
+                      return (
+                        <li key={ev.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent transition-colors">
+                          <Icon className={cn('h-4 w-4 shrink-0', EVENT_TYPE_COLORS[ev.type])} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{ev.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {EVENT_TYPE_LABELS[ev.type]} · {ev.allDay
+                                ? format(new Date(ev.startAt), 'd MMM yyyy', { locale: fr })
+                                : format(new Date(ev.startAt), 'd MMM yyyy HH:mm', { locale: fr })}
+                            </p>
+                          </div>
+                          <span className={cn(
+                            'text-xs px-2 py-0.5 rounded-full font-medium',
+                            ev.status === 'DONE' ? 'bg-green-100 text-green-700' :
+                            ev.status === 'CANCELLED' ? 'bg-muted text-muted-foreground' :
+                            'bg-blue-100 text-blue-700'
+                          )}>
+                            {ev.status === 'DONE' ? 'Réalisé' : ev.status === 'CANCELLED' ? 'Annulé' : 'Planifié'}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
               </div>
             )}
           </div>

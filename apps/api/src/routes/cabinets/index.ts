@@ -33,6 +33,13 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
 
     const { name, siret, oriasNumber } = result.data
 
+    const SYSTEM_FOLDERS = [
+      { name: 'Général',           order: 0 },
+      { name: 'Contrats',          order: 1 },
+      { name: 'Pièces d\'identité', order: 2 },
+      { name: 'Conformité',        order: 3 },
+    ]
+
     const data = await prisma.$transaction(async (tx) => {
       const cabinet = await tx.cabinet.create({
         data: { name, siret, oriasNumber },
@@ -46,6 +53,14 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
           canManageProducts: true,
           canManageContacts: true,
         },
+      })
+      await tx.folder.createMany({
+        data: SYSTEM_FOLDERS.map((f) => ({
+          cabinetId: cabinet.id,
+          name: f.name,
+          order: f.order,
+          isSystem: true,
+        })),
       })
       return { cabinet, member }
     })
@@ -88,7 +103,8 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
 
       const cabinet = await prisma.cabinet.update({
         where: { id: request.cabinetId },
-        data: result.data,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        data: result.data as any,
       })
 
       return reply.send({ data: { cabinet } })
@@ -130,22 +146,53 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
       const { email, role, canManageSuppliers, canManageProducts, canManageContacts } =
         result.data
 
-      // Cherche si l'utilisateur existe déjà
+      // Cherche si l'utilisateur existe déjà dans notre DB
       let targetUserId: string
+      let inviteUrl: string | null = null
       const existingUser = await prisma.user.findUnique({ where: { email } })
 
       if (existingUser) {
         targetUserId = existingUser.id
       } else {
-        // Invite via Supabase Auth (envoie un email — visible dans Mailpit :54324)
-        const { data: invited, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        // generateLink crée l'utilisateur dans Supabase Auth s'il n'existe pas,
+        // ou régénère un lien pour un utilisateur déjà invité non confirmé.
+        const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'invite',
           email,
-          { redirectTo: `${process.env.FRONTEND_URL}/accept-invite` }
-        )
-        if (error || !invited.user) {
-          return reply.status(500).send({ error: "Échec de l'invitation", code: 'INVITE_ERROR' })
+          options: { redirectTo: `${process.env.FRONTEND_URL}/accept-invite` },
+        })
+        if (error || !linkData?.user) {
+          console.error('[invite] generateLink error:', error)
+          // L'utilisateur existe peut-être déjà dans Supabase Auth (tentative précédente)
+          // → on récupère son ID via l'API admin
+          const { data: listData } = await supabaseAdmin.auth.admin.listUsers()
+          const authUser = listData?.users?.find((u) => u.email === email)
+          if (!authUser) {
+            return reply.status(500).send({ error: "Échec de l'invitation", code: 'INVITE_ERROR' })
+          }
+          targetUserId = authUser.id
+          await prisma.user.upsert({
+            where: { id: targetUserId },
+            create: { id: targetUserId, email },
+            update: {},
+          })
+          // Génère un magic link pour notifier l'utilisateur existant
+          const { data: magicData } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'magiclink',
+            email,
+            options: { redirectTo: `${process.env.FRONTEND_URL}/accept-invite` },
+          })
+          inviteUrl = magicData?.properties?.action_link ?? null
+        } else {
+          targetUserId = linkData.user.id
+          inviteUrl = linkData.properties?.action_link ?? null
+          await prisma.user.upsert({
+            where: { id: targetUserId },
+            create: { id: targetUserId, email },
+            update: {},
+          })
         }
-        targetUserId = invited.user.id
+
       }
 
       // Vérifie qu'il n'est pas déjà membre
@@ -159,19 +206,31 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
-      const member = await prisma.cabinetMember.create({
-        data: {
-          cabinetId: request.cabinetId,
-          userId: targetUserId,
-          role: role as MemberRole,
-          canManageSuppliers,
-          canManageProducts,
-          canManageContacts,
-        },
-        include: { user: { select: { id: true, email: true } } },
-      })
+      let member
+      try {
+        member = await prisma.cabinetMember.create({
+          data: {
+            cabinetId: request.cabinetId,
+            userId: targetUserId,
+            role: role as MemberRole,
+            canManageSuppliers,
+            canManageProducts,
+            canManageContacts,
+          },
+          include: { user: { select: { id: true, email: true } } },
+        })
+      } catch (err: unknown) {
+        const code = (err as { code?: string }).code
+        if (code === 'P2002') {
+          return reply.status(409).send({
+            error: 'Cet utilisateur est déjà membre du cabinet',
+            code: 'ALREADY_MEMBER',
+          })
+        }
+        throw err
+      }
 
-      return reply.status(201).send({ data: { member } })
+      return reply.status(201).send({ data: { member, inviteUrl } })
     }
   )
 

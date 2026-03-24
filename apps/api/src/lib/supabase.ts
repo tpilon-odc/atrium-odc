@@ -15,3 +15,28 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     persistSession: false,
   },
 })
+
+// ── Realtime broadcast ────────────────────────────────────────────────────────
+
+type ChannelEvent = 'message:new' | 'message:delete' | 'reaction:toggle'
+
+/**
+ * Diffuse un événement sur le canal Supabase Realtime d'un channel.
+ * Appelé côté API après chaque mutation de message ou réaction.
+ * Non-critique : une erreur ici ne fait pas échouer la requête.
+ */
+export async function broadcastToChannel(
+  channelId: string,
+  event: ChannelEvent,
+  payload: unknown
+): Promise<void> {
+  try {
+    await supabaseAdmin.channel(`channel:${channelId}`).send({
+      type: 'broadcast',
+      event,
+      payload,
+    })
+  } catch {
+    // Realtime down ou erreur réseau — ne pas bloquer la réponse API
+  }
+}

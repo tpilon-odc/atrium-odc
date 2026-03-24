@@ -732,6 +732,36 @@ export const storageConfigApi = {
 
 // ── Documents ─────────────────────────────────────────────────────────────────
 
+export type Tag = {
+  id: string
+  cabinetId: string | null
+  name: string
+  color: string | null
+  isSystem: boolean
+}
+
+export type Folder = {
+  id: string
+  cabinetId: string
+  name: string
+  parentId: string | null
+  isSystem: boolean
+  order: number
+  createdAt: string
+}
+
+export type ExportJob = {
+  id: string
+  cabinetId: string
+  requestedBy: string
+  status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED' | 'EXPIRED'
+  storagePath: string | null
+  expiresAt: string | null
+  error: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
 export type Document = {
   id: string
   name: string
@@ -739,8 +769,10 @@ export type Document = {
   storageMode: 'hosted' | 'external'
   mimeType: string | null
   sizeBytes: string | null
+  folderId: string | null
   createdAt: string
   links: DocumentLink[]
+  tags?: { tag: Tag }[]
 }
 
 export type DocumentLink = {
@@ -752,12 +784,14 @@ export type DocumentLink = {
 }
 
 export const documentApi = {
-  list: (token: string, params?: { limit?: number; cursor?: string; entityType?: string; entityId?: string }) => {
+  list: (token: string, params?: { limit?: number; cursor?: string; entityType?: string; entityId?: string; folderId?: string; tagId?: string }) => {
     const q = new URLSearchParams()
     if (params?.limit) q.set('limit', String(params.limit))
     if (params?.cursor) q.set('cursor', params.cursor)
     if (params?.entityType) q.set('entityType', params.entityType)
     if (params?.entityId) q.set('entityId', params.entityId)
+    if (params?.folderId !== undefined) q.set('folderId', params.folderId)
+    if (params?.tagId) q.set('tagId', params.tagId)
     return call<{ documents: Document[]; nextCursor: string | null; hasMore: boolean }>(
       `/api/v1/documents?${q}`,
       { token }
@@ -783,6 +817,13 @@ export const documentApi = {
     return json as { data: { document: Document } }
   },
 
+  patch: (id: string, data: { name?: string; description?: string | null; folderId?: string | null }, token: string) =>
+    call<{ document: Document }>(`/api/v1/documents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
   delete: (id: string, token: string) =>
     call<unknown>(`/api/v1/documents/${id}`, { method: 'DELETE', token }),
 
@@ -792,6 +833,16 @@ export const documentApi = {
       body: JSON.stringify({ name }),
       token,
     }),
+
+  addTag: (documentId: string, tagId: string, token: string) =>
+    call<{ documentTag: unknown }>(`/api/v1/documents/${documentId}/tags`, {
+      method: 'POST',
+      body: JSON.stringify({ tagId }),
+      token,
+    }),
+
+  removeTag: (documentId: string, tagId: string, token: string) =>
+    call<unknown>(`/api/v1/documents/${documentId}/tags/${tagId}`, { method: 'DELETE', token }),
 
   addLink: (documentId: string, entityType: string, entityId: string, token: string) =>
     call<{ link: DocumentLink }>(`/api/v1/documents/${documentId}/links`, {
@@ -804,6 +855,283 @@ export const documentApi = {
     call<unknown>(`/api/v1/documents/${documentId}/links/${linkId}`, {
       method: 'DELETE',
       token,
+    }),
+}
+
+export const folderApi = {
+  list: (token: string) =>
+    call<{ folders: Folder[] }>('/api/v1/folders', { token }),
+
+  create: (data: { name: string; parentId?: string; order?: number }, token: string) =>
+    call<{ folder: Folder }>('/api/v1/folders', { method: 'POST', body: JSON.stringify(data), token }),
+
+  update: (id: string, data: { name?: string; parentId?: string | null; order?: number }, token: string) =>
+    call<{ folder: Folder }>(`/api/v1/folders/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+
+  delete: (id: string, token: string) =>
+    call<unknown>(`/api/v1/folders/${id}`, { method: 'DELETE', token }),
+}
+
+export const tagApi = {
+  list: (token: string) =>
+    call<{ tags: Tag[] }>('/api/v1/tags', { token }),
+
+  create: (data: { name: string; color?: string }, token: string) =>
+    call<{ tag: Tag }>('/api/v1/tags', { method: 'POST', body: JSON.stringify(data), token }),
+
+  delete: (id: string, token: string) =>
+    call<unknown>(`/api/v1/tags/${id}`, { method: 'DELETE', token }),
+}
+
+export const exportJobApi = {
+  create: (token: string) =>
+    call<{ job: ExportJob }>('/api/v1/exports/jobs', { method: 'POST', body: '{}', token }),
+
+  list: (token: string) =>
+    call<{ jobs: ExportJob[] }>('/api/v1/exports/jobs', { token }),
+
+  get: (id: string, token: string) =>
+    call<{ job: ExportJob; downloadUrl: string | null }>(`/api/v1/exports/jobs/${id}`, { token }),
+}
+
+// ── Agenda ────────────────────────────────────────────────────────────────────
+
+export type EventType = 'RDV' | 'CALL' | 'TASK' | 'COMPLIANCE'
+export type EventStatus = 'PLANNED' | 'DONE' | 'CANCELLED'
+
+export type CalendarEvent = {
+  id: string
+  cabinetId: string
+  createdBy: string
+  contactId: string | null
+  title: string
+  description: string | null
+  type: EventType
+  status: EventStatus
+  startAt: string
+  endAt: string
+  allDay: boolean
+  location: string | null
+  complianceAnswerId: string | null
+  isRecurring: boolean
+  recurrenceRule: string | null
+  createdAt: string
+  updatedAt: string
+  contact: { id: string; firstName: string | null; lastName: string; type: string } | null
+}
+
+export const eventApi = {
+  list: (token: string, params?: { start?: string; end?: string; type?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.start) q.set('start', params.start)
+    if (params?.end) q.set('end', params.end)
+    if (params?.type) q.set('type', params.type)
+    return call<{ events: CalendarEvent[] }>(`/api/v1/events?${q}`, { token })
+  },
+
+  upcoming: (token: string) =>
+    call<{ events: CalendarEvent[] }>('/api/v1/events/upcoming', { token }),
+
+  create: (data: {
+    title: string; type: 'RDV' | 'CALL' | 'TASK'; startAt: string; endAt: string
+    contactId?: string | null; description?: string | null; location?: string | null
+    allDay?: boolean; isRecurring?: boolean; recurrenceRule?: string | null
+    status?: EventStatus
+  }, token: string) =>
+    call<{ event: CalendarEvent }>('/api/v1/events', {
+      method: 'POST', body: JSON.stringify(data), token,
+    }),
+
+  update: (id: string, data: Partial<{
+    title: string; type: 'RDV' | 'CALL' | 'TASK'; startAt: string; endAt: string
+    contactId: string | null; description: string | null; location: string | null
+    allDay: boolean; isRecurring: boolean; recurrenceRule: string | null; status: EventStatus
+  }>, token: string) =>
+    call<{ event: CalendarEvent }>(`/api/v1/events/${id}`, {
+      method: 'PATCH', body: JSON.stringify(data), token,
+    }),
+
+  updateStatus: (id: string, status: EventStatus, token: string) =>
+    call<{ event: CalendarEvent }>(`/api/v1/events/${id}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status }), token,
+    }),
+
+  delete: (id: string, token: string) =>
+    call<unknown>(`/api/v1/events/${id}`, { method: 'DELETE', token }),
+
+  getIcsUrl: (cabinetId: string, icsToken: string) =>
+    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/calendar/${cabinetId}/feed.ics?token=${icsToken}`,
+
+  regenerateToken: (token: string) =>
+    call<{ icsToken: string }>('/api/v1/calendar/regenerate-token', {
+      method: 'POST', body: JSON.stringify({}), token,
+    }),
+}
+
+// ── Clusters ──────────────────────────────────────────────────────────────────
+
+export type ClusterRole = 'OWNER' | 'ADMIN' | 'MEMBER'
+export type ChannelType = 'ASYNC' | 'REALTIME'
+
+export type Cluster = {
+  id: string
+  name: string
+  description: string | null
+  isPublic: boolean
+  isVerified: boolean
+  avatarUrl: string | null
+  createdAt: string
+  createdBy: string
+  creator: { id: string; firstName: string | null; lastName: string | null; email: string }
+  _count: { members: number; channels: number }
+  isMember: boolean
+}
+
+export type ClusterDetail = Cluster & {
+  channels: Channel[]
+  role: ClusterRole | null
+}
+
+export type Channel = {
+  id: string
+  clusterId: string
+  name: string
+  type: ChannelType
+  isPrivate: boolean
+  createdAt: string
+  lastMessageAt: string | null
+}
+
+export type ClusterMessage = {
+  id: string
+  channelId: string
+  authorUserId: string
+  authorCabinetId: string
+  content: string
+  parentId: string | null
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+  authorUser: { id: string; firstName: string | null; lastName: string | null; email: string; avatarUrl: string | null }
+  authorCabinet: { id: string; name: string }
+  reactions: { emoji: string; userId: string; cabinetId: string }[]
+  _count: { replies: number }
+}
+
+export const channelApi = {
+  get: (channelId: string, token: string) =>
+    call<{ channel: Channel & { clusterId: string } }>(`/api/v1/channels/${channelId}`, { token }),
+}
+
+export const clusterApi = {
+  list: (token: string, params?: { search?: string; cursor?: string; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.search) q.set('search', params.search)
+    if (params?.cursor) q.set('cursor', params.cursor)
+    if (params?.limit) q.set('limit', String(params.limit))
+    return call<{ clusters: Cluster[]; nextCursor: string | null; hasMore: boolean }>(
+      `/api/v1/clusters?${q}`, { token }
+    )
+  },
+
+  get: (id: string, token: string) =>
+    call<{ cluster: ClusterDetail }>(`/api/v1/clusters/${id}`, { token }),
+
+  create: (data: { name: string; description?: string; isPublic?: boolean; avatarUrl?: string }, token: string) =>
+    call<{ cluster: { id: string; name: string } }>('/api/v1/clusters', {
+      method: 'POST', body: JSON.stringify(data), token,
+    }),
+
+  update: (id: string, data: Partial<{ name: string; description: string; isPublic: boolean; avatarUrl: string }>, token: string) =>
+    call<{ cluster: Cluster }>(`/api/v1/clusters/${id}`, {
+      method: 'PATCH', body: JSON.stringify(data), token,
+    }),
+
+  delete: (id: string, token: string) =>
+    call<unknown>(`/api/v1/clusters/${id}`, { method: 'DELETE', token }),
+
+  join: (id: string, token: string) =>
+    call<{ role: ClusterRole }>(`/api/v1/clusters/${id}/join`, { method: 'POST', body: '{}', token }),
+
+  leave: (id: string, token: string) =>
+    call<unknown>(`/api/v1/clusters/${id}/leave`, { method: 'POST', body: '{}', token }),
+
+  createChannel: (id: string, data: { name: string; type: ChannelType; isPrivate?: boolean }, token: string) =>
+    call<{ channel: Channel }>(`/api/v1/clusters/${id}/channels`, {
+      method: 'POST', body: JSON.stringify(data), token,
+    }),
+
+  updateChannel: (clusterId: string, channelId: string, data: Partial<{ name: string; isPrivate: boolean }>, token: string) =>
+    call<{ channel: Channel }>(`/api/v1/clusters/${clusterId}/channels/${channelId}`, {
+      method: 'PATCH', body: JSON.stringify(data), token,
+    }),
+
+  deleteChannel: (clusterId: string, channelId: string, token: string) =>
+    call<unknown>(`/api/v1/clusters/${clusterId}/channels/${channelId}`, { method: 'DELETE', token }),
+}
+
+export const messageApi = {
+  list: (channelId: string, token: string, params?: { parentId?: string; cursor?: string; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.parentId) q.set('parentId', params.parentId)
+    if (params?.cursor) q.set('cursor', params.cursor)
+    if (params?.limit) q.set('limit', String(params.limit))
+    return call<{ messages: ClusterMessage[]; nextCursor: string | null; hasMore: boolean }>(
+      `/api/v1/channels/${channelId}/messages?${q}`, { token }
+    )
+  },
+
+  create: (channelId: string, data: { content: string; parentId?: string }, token: string) =>
+    call<{ message: ClusterMessage }>(`/api/v1/channels/${channelId}/messages`, {
+      method: 'POST', body: JSON.stringify(data), token,
+    }),
+
+  update: (messageId: string, content: string, token: string) =>
+    call<{ message: ClusterMessage }>(`/api/v1/messages/${messageId}`, {
+      method: 'PATCH', body: JSON.stringify({ content }), token,
+    }),
+
+  delete: (messageId: string, token: string) =>
+    call<unknown>(`/api/v1/messages/${messageId}`, { method: 'DELETE', token }),
+
+  react: (messageId: string, emoji: string, token: string) =>
+    call<{ action: 'added' | 'removed'; emoji: string }>(`/api/v1/messages/${messageId}/reactions`, {
+      method: 'POST', body: JSON.stringify({ emoji }), token,
+    }),
+
+  report: (messageId: string, reason: string, token: string) =>
+    call<{ report: unknown }>(`/api/v1/messages/${messageId}/report`, {
+      method: 'POST', body: JSON.stringify({ reason }), token,
+    }),
+}
+
+export type MessageReport = {
+  id: string
+  reason: string
+  status: 'PENDING' | 'REVIEWED' | 'DISMISSED'
+  createdAt: string
+  reporter: { id: string; firstName: string | null; lastName: string | null; email: string }
+  message: {
+    id: string
+    content: string
+    deletedAt: string | null
+    createdAt: string
+    authorUser: { id: string; firstName: string | null; lastName: string | null; email: string }
+    authorCabinet: { id: string; name: string }
+    channel: { id: string; name: string; cluster: { id: string; name: string } }
+  }
+}
+
+export const adminClusterApi = {
+  listReports: (token: string, status?: string) => {
+    const q = new URLSearchParams()
+    if (status) q.set('status', status)
+    return call<{ reports: MessageReport[] }>(`/api/v1/admin/reports?${q}`, { token })
+  },
+
+  updateReport: (id: string, status: 'REVIEWED' | 'DISMISSED', token: string) =>
+    call<{ status: string }>(`/api/v1/admin/reports/${id}`, {
+      method: 'PATCH', body: JSON.stringify({ status }), token,
     }),
 }
 
@@ -844,6 +1172,72 @@ export const notificationApi = {
     call<{ message: string }>('/api/v1/notifications/read-all', {
       method: 'PATCH',
       body: JSON.stringify({}),
+      token,
+    }),
+}
+
+// ── Consentement ──────────────────────────────────────────────────────────────
+
+export type ConsentRecord = {
+  id: string
+  userId: string
+  version: string
+  acceptedAt: string
+  ipAddress: string | null
+  userAgent: string | null
+}
+
+export const consentApi = {
+  accept: (version: string, token: string) =>
+    call<ConsentRecord>('/api/v1/consent', {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+      token,
+    }),
+
+  list: (token: string) =>
+    call<ConsentRecord[]>('/api/v1/consent', { token }),
+}
+
+// ── RGPD ──────────────────────────────────────────────────────────────────────
+
+export type GdprRequest = {
+  id: string
+  type: 'ACCESS' | 'ERASURE'
+  status: 'PENDING' | 'PROCESSING' | 'DONE' | 'REJECTED'
+  message: string | null
+  response: string | null
+  exportPath: string | null
+  createdAt: string
+  processedAt: string | null
+  requester?: { id: string; firstName: string | null; lastName: string | null; email: string }
+  cabinet?: { id: string; name: string }
+  processor?: { id: string; firstName: string | null; lastName: string | null; email: string } | null
+}
+
+export const gdprApi = {
+  createRequest: (type: 'ACCESS' | 'ERASURE', message: string | undefined, token: string) =>
+    call<GdprRequest>('/api/v1/gdpr/requests', {
+      method: 'POST',
+      body: JSON.stringify({ type, message }),
+      token,
+    }),
+
+  listRequests: (token: string) =>
+    call<GdprRequest[]>('/api/v1/gdpr/requests', { token }),
+}
+
+export const adminGdprApi = {
+  listRequests: (token: string, status?: string) => {
+    const q = new URLSearchParams()
+    if (status) q.set('status', status)
+    return call<GdprRequest[]>(`/api/v1/admin/gdpr/requests?${q}`, { token })
+  },
+
+  updateRequest: (id: string, status: 'PROCESSING' | 'DONE' | 'REJECTED', response: string | undefined, token: string) =>
+    call<GdprRequest>(`/api/v1/admin/gdpr/requests/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, response }),
       token,
     }),
 }

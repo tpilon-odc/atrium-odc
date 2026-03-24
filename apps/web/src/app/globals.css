@@ -124,6 +124,100 @@
   }
 }
 
+/* ── FullCalendar overrides ────────────────────────────────────────────────── */
+
+.agenda-calendar .fc {
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
+/* Table borders */
+.agenda-calendar .fc-theme-standard td,
+.agenda-calendar .fc-theme-standard th,
+.agenda-calendar .fc-theme-standard .fc-scrollgrid {
+  border-color: hsl(var(--border));
+}
+
+/* Header day labels */
+.agenda-calendar .fc-col-header-cell-cushion,
+.agenda-calendar .fc-daygrid-day-number,
+.agenda-calendar .fc-list-day-text,
+.agenda-calendar .fc-list-day-side-text {
+  color: hsl(var(--foreground));
+  text-decoration: none;
+}
+
+.agenda-calendar .fc-col-header-cell {
+  background: hsl(var(--muted));
+}
+
+/* Today highlight */
+.agenda-calendar .fc-day-today {
+  background: hsl(var(--primary) / 0.06) !important;
+}
+.agenda-calendar .fc-day-today .fc-daygrid-day-number {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 50%;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* Time slots */
+.agenda-calendar .fc-timegrid-slot {
+  height: 2.25rem;
+}
+.agenda-calendar .fc-timegrid-slot-label-cushion,
+.agenda-calendar .fc-timegrid-axis-cushion {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+}
+
+/* Now indicator */
+.agenda-calendar .fc-timegrid-now-indicator-line {
+  border-color: hsl(var(--primary));
+}
+.agenda-calendar .fc-timegrid-now-indicator-arrow {
+  border-top-color: hsl(var(--primary));
+  border-bottom-color: hsl(var(--primary));
+}
+
+/* List view */
+.agenda-calendar .fc-list {
+  border-color: hsl(var(--border));
+}
+.agenda-calendar .fc-list-day-cushion {
+  background: hsl(var(--muted));
+}
+.agenda-calendar .fc-list-event:hover td {
+  background: hsl(var(--accent));
+  cursor: pointer;
+}
+.agenda-calendar .fc-list-event-dot {
+  border-width: 6px;
+}
+
+/* "More events" link */
+.agenda-calendar .fc-daygrid-more-link {
+  color: hsl(var(--primary));
+  font-size: 0.6875rem;
+}
+
+/* Select mirror */
+.agenda-calendar .fc-highlight {
+  background: hsl(var(--primary) / 0.12);
+}
+
+/* Event wrapper */
+.agenda-calendar .fc-event {
+  border: none !important;
+  box-shadow: none !important;
+}
+
 @layer base {
 
   * {

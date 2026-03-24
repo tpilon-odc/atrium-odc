@@ -21,7 +21,8 @@
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
       "Bash(SEED_ADMIN_EMAIL=tpilon@odc.fr SEED_ADMIN_PASSWORD=Admin1234! npx tsx --env-file=apps/api/.env scripts/seed-compliance.ts)",
-      "Bash(SEED_ADMIN_EMAIL=tpilon@odc.fr npx tsx --env-file=apps/api/.env scripts/seed-compliance.ts)"
+      "Bash(SEED_ADMIN_EMAIL=tpilon@odc.fr npx tsx --env-file=apps/api/.env scripts/seed-compliance.ts)",
+      "Bash(git add:*)"
     ]
   }
 }

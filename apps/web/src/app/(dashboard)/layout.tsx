@@ -27,65 +27,82 @@ import {
   AlertCircle,
   Sun,
   Moon,
+  CalendarDays,
+  MessagesSquare,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { authApi, complianceApi, notificationApi, displayName, type AppNotification } from '@/lib/api'
+import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 
 // ── Nav groups (desktop sidebar) ───────────────────────────────────────────
 
-const NAV_GROUPS = [
-  {
-    label: 'Mon Cabinet',
-    items: [
-      { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-      { href: '/conformite', label: 'Conformité', icon: ShieldCheck, showProgress: true },
-      { href: '/parametres', label: 'Paramètres', icon: Settings },
-    ],
-  },
-  {
-    label: 'Communauté',
-    items: [
-      { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
-      { href: '/produits', label: 'Produits', icon: Package },
-      { href: '/outils', label: 'Outils', icon: Wrench },
-    ],
-  },
-  {
-    label: 'Mon Activité',
-    items: [
-      { href: '/crm', label: 'CRM', icon: Users },
-      { href: '/ged', label: 'Documents', icon: FolderOpen },
-      { href: '/formations', label: 'Formations', icon: GraduationCap },
-    ],
-  },
-  {
-    label: 'Partage',
-    items: [
-      { href: '/partage', label: 'Données partagées', icon: Share2 },
-    ],
-  },
-] as const
+type NavItem = { href: string; label: string; icon: React.ElementType; showProgress?: boolean; permission?: keyof CabinetMember }
 
-// Bottom nav — 4 items principaux + "Plus"
-const BOTTOM_NAV_ITEMS = [
-  { href: '/dashboard', label: 'Accueil', icon: LayoutDashboard },
-  { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
-  { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
-  { href: '/crm', label: 'CRM', icon: Users },
-]
+function buildNavGroups(member: CabinetMember | null) {
+  const canAll = !member || member.role === 'owner' || member.role === 'admin'
+  const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
 
-// Items dans le drawer "Plus"
-const DRAWER_ITEMS = [
-  { href: '/produits', label: 'Produits', icon: Package },
-  { href: '/outils', label: 'Outils', icon: Wrench },
-  { href: '/ged', label: 'Documents', icon: FolderOpen },
-  { href: '/formations', label: 'Formations', icon: GraduationCap },
-  { href: '/partage', label: 'Partage', icon: Share2 },
-  { href: '/parametres', label: 'Paramètres', icon: Settings },
-]
+  return [
+    {
+      label: 'Mon Cabinet',
+      items: [
+        { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+        { href: '/conformite', label: 'Conformité', icon: ShieldCheck, showProgress: true },
+        { href: '/parametres', label: 'Paramètres', icon: Settings },
+      ] as NavItem[],
+    },
+    {
+      label: 'Communauté',
+      items: ([
+        allow('canManageSuppliers') && { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
+        allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
+        { href: '/outils', label: 'Outils', icon: Wrench },
+        { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
+      ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
+    },
+    {
+      label: 'Mon Activité',
+      items: ([
+        allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
+        { href: '/agenda', label: 'Agenda', icon: CalendarDays },
+        { href: '/ged', label: 'Documents', icon: FolderOpen },
+        { href: '/formations', label: 'Formations', icon: GraduationCap },
+      ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
+    },
+    {
+      label: 'Partage',
+      items: [{ href: '/partage', label: 'Données partagées', icon: Share2 }] as NavItem[],
+    },
+  ]
+}
+
+function buildBottomNav(member: CabinetMember | null): NavItem[] {
+  const canAll = !member || member.role === 'owner' || member.role === 'admin'
+  const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
+  return ([
+    { href: '/dashboard', label: 'Accueil', icon: LayoutDashboard },
+    { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
+    allow('canManageSuppliers') && { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
+    allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
+  ] as (NavItem | false)[]).filter(Boolean) as NavItem[]
+}
+
+function buildDrawerItems(member: CabinetMember | null): NavItem[] {
+  const canAll = !member || member.role === 'owner' || member.role === 'admin'
+  const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
+  return ([
+    allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
+    { href: '/outils', label: 'Outils', icon: Wrench },
+    { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
+    { href: '/agenda', label: 'Agenda', icon: CalendarDays },
+    { href: '/ged', label: 'Documents', icon: FolderOpen },
+    { href: '/formations', label: 'Formations', icon: GraduationCap },
+    { href: '/partage', label: 'Partage', icon: Share2 },
+    { href: '/parametres', label: 'Paramètres', icon: Settings },
+  ] as (NavItem | false)[]).filter(Boolean) as NavItem[]
+}
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
 
@@ -96,10 +113,12 @@ const SEGMENT_LABELS: Record<string, string> = {
   produits: 'Produits',
   outils: 'Outils',
   crm: 'CRM',
+  agenda: 'Agenda',
   ged: 'Documents',
   formations: 'Formations',
   partage: 'Partage',
   parametres: 'Paramètres',
+  clusters: 'Clusters',
   notifications: 'Notifications',
   profil: 'Mon profil',
   admin: 'Admin',
@@ -231,9 +250,18 @@ function NotificationBell({ token }: { token: string }) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  function handleNotifClick(n: AppNotification) {
+  async function handleNotifClick(n: AppNotification) {
     markRead.mutate(n.id)
     setOpen(false)
+    if (n.type === 'cluster_reply') {
+      try {
+        const { data } = await channelApi.get(n.entityId, token!)
+        router.push(`/clusters/${data.channel.clusterId}/channels/${n.entityId}`)
+      } catch {
+        router.push('/clusters')
+      }
+      return
+    }
     const target = n.entityType === 'compliance_phase'
       ? `/conformite/${n.entityId}`
       : '/conformite'
@@ -283,7 +311,9 @@ function NotificationBell({ token }: { token: string }) {
                     !n.isRead && 'bg-primary/5'
                   )}
                 >
-                  {n.type === 'compliance_expired'
+                  {n.type === 'cluster_reply'
+                    ? <MessagesSquare className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    : n.type === 'compliance_expired'
                     ? <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
                     : <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                   }
@@ -359,6 +389,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const alertCount = notifData?.data.unreadCount ?? 0
   const breadcrumbs = getBreadcrumbs(pathname)
 
+  const { data: membersData } = useQuery({
+    queryKey: ['members', token],
+    queryFn: () => memberApi.list(token!),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  })
+  const currentMember = membersData?.data.members.find((m) => m.userId === user?.id) ?? null
+  const navGroups = buildNavGroups(currentMember)
+  const bottomNavItems = buildBottomNav(currentMember)
+  const drawerItems = buildDrawerItems(currentMember)
+
   useEffect(() => {
     hydrate()
     const stored = localStorage.getItem('access_token')
@@ -368,6 +409,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setReady(true)
     }
   }, [hydrate, router])
+
+  // Vérifie le consentement CGU — redirige vers /consent si version non acceptée
+  useEffect(() => {
+    if (!token || !ready) return
+    const cguVersion = process.env.NEXT_PUBLIC_CGU_VERSION ?? '1.0'
+    consentApi.list(token).then((res) => {
+      const records = Array.isArray(res.data) ? res.data : []
+      const hasConsent = records.some((r: { version: string }) => r.version === cguVersion)
+      if (!hasConsent) {
+        router.replace('/consent')
+      }
+    }).catch(() => {
+      // En cas d'erreur réseau on laisse passer — l'API bloquera si nécessaire
+    })
+  }, [token, ready, router])
 
   // Ferme le drawer si navigation
   useEffect(() => {
@@ -398,7 +454,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Nav groupée */}
         <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
                 {group.label}
@@ -435,7 +491,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     href="/admin/conformite"
                     label="Référentiel conformité"
                     icon={ShieldAlert}
-                    isActive={pathname.startsWith('/admin')}
+                    isActive={pathname.startsWith('/admin/conformite')}
+                  />
+                </li>
+                <li>
+                  <SidebarLink
+                    href="/admin/clusters"
+                    label="Modération clusters"
+                    icon={MessagesSquare}
+                    isActive={pathname.startsWith('/admin/clusters')}
                   />
                 </li>
               </ul>
@@ -513,7 +577,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Bottom nav (mobile) ──────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-card border-t border-border z-40">
         <div className="flex">
-          {BOTTOM_NAV_ITEMS.map((item) => {
+          {bottomNavItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
             return (
@@ -563,7 +627,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
 
             <div className="px-3 pb-4 space-y-0.5">
-              {DRAWER_ITEMS.map((item) => {
+              {drawerItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
                 return (
