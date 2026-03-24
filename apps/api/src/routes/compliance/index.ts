@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
+import { z } from 'zod'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { adminMiddleware } from '../../middleware/admin'
@@ -348,6 +349,194 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
           code: 'JOB_ERROR',
         })
       }
+    }
+  )
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PARTAGE D'ITEMS — cabinet → chamber / regulator
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // POST /api/v1/compliance/shares — partager une sélection d'items à un ou plusieurs utilisateurs
+  app.post(
+    '/shares',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const body = z.object({
+        itemIds: z.array(z.string().uuid()).min(1, 'Au moins un item requis'),
+        recipientIds: z.array(z.string().uuid()).min(1, 'Au moins un destinataire requis'),
+      }).safeParse(request.body)
+
+      if (!body.success) {
+        return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+      }
+
+      const { itemIds, recipientIds } = body.data
+
+      // Vérifie que les items existent
+      const items = await prisma.complianceItem.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true },
+      })
+      if (items.length !== itemIds.length) {
+        return reply.status(404).send({ error: 'Un ou plusieurs items introuvables', code: 'NOT_FOUND' })
+      }
+
+      // Vérifie que les destinataires existent et ont un rôle autorisé
+      const recipients = await prisma.user.findMany({
+        where: {
+          id: { in: recipientIds },
+          globalRole: { in: ['chamber', 'regulator', 'platform_admin'] },
+        },
+        select: { id: true },
+      })
+      if (recipients.length === 0) {
+        return reply.status(400).send({ error: 'Aucun destinataire valide (rôle chamber ou regulator requis)', code: 'INVALID_RECIPIENTS' })
+      }
+
+      const validRecipientIds = recipients.map((r) => r.id)
+
+      // Crée un share par item × par destinataire (idempotent avec upsert logique)
+      const existingShares = await prisma.share.findMany({
+        where: {
+          cabinetId: request.cabinetId,
+          grantedTo: { in: validRecipientIds },
+          entityType: 'compliance_item',
+          entityId: { in: itemIds },
+          isActive: true,
+        },
+        select: { grantedTo: true, entityId: true },
+      })
+
+      const existingSet = new Set(existingShares.map((s) => `${s.grantedTo}:${s.entityId}`))
+
+      const toCreate = validRecipientIds.flatMap((recipientId) =>
+        itemIds
+          .filter((itemId) => !existingSet.has(`${recipientId}:${itemId}`))
+          .map((itemId) => ({
+            cabinetId: request.cabinetId,
+            grantedBy: request.user.id,
+            grantedTo: recipientId,
+            entityType: 'compliance_item' as const,
+            entityId: itemId,
+            isActive: true,
+          }))
+      )
+
+      if (toCreate.length > 0) {
+        await prisma.share.createMany({ data: toCreate })
+      }
+
+      return reply.status(201).send({
+        data: {
+          created: toCreate.length,
+          skipped: existingShares.length,
+        },
+      })
+    }
+  )
+
+  // GET /api/v1/compliance/shares — partages d'items accordés par ce cabinet
+  app.get(
+    '/shares',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const shares = await prisma.share.findMany({
+        where: { cabinetId: request.cabinetId, entityType: 'compliance_item', isActive: true },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          recipientUser: { select: { id: true, email: true, globalRole: true } },
+        },
+      })
+
+      // Récupère les labels des items
+      const itemIds = [...new Set(shares.map((s) => s.entityId).filter(Boolean) as string[])]
+      const items = await prisma.complianceItem.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true, label: true, phase: { select: { label: true } } },
+      })
+      const itemsMap = new Map(items.map((i) => [i.id, i]))
+
+      const enriched = shares.map((s) => ({
+        ...s,
+        item: s.entityId ? itemsMap.get(s.entityId) ?? null : null,
+      }))
+
+      return reply.send({ data: { shares: enriched } })
+    }
+  )
+
+  // DELETE /api/v1/compliance/shares/:id — révoquer un partage d'item
+  app.delete(
+    '/shares/:id',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+
+      const share = await prisma.share.findFirst({
+        where: { id, cabinetId: request.cabinetId, entityType: 'compliance_item' },
+      })
+      if (!share) {
+        return reply.status(404).send({ error: 'Partage introuvable', code: 'NOT_FOUND' })
+      }
+
+      await prisma.share.update({ where: { id }, data: { isActive: false } })
+      return reply.status(204).send()
+    }
+  )
+
+  // GET /api/v1/compliance/shared-with-me — items partagés avec l'utilisateur connecté (chamber/regulator)
+  app.get(
+    '/shared-with-me',
+    { preHandler: [authMiddleware] },
+    async (request, reply) => {
+      const shares = await prisma.share.findMany({
+        where: { grantedTo: request.user.id, entityType: 'compliance_item', isActive: true },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          cabinet: { select: { id: true, name: true, oriasNumber: true } },
+        },
+      })
+
+      // Récupère items + réponses pour chaque share
+      const itemIds = [...new Set(shares.map((s) => s.entityId).filter(Boolean) as string[])]
+      const cabinetIds = [...new Set(shares.map((s) => s.cabinetId))]
+
+      const [items, answers] = await Promise.all([
+        prisma.complianceItem.findMany({
+          where: { id: { in: itemIds } },
+          select: { id: true, label: true, type: true, phase: { select: { label: true } } },
+        }),
+        prisma.cabinetComplianceAnswer.findMany({
+          where: { cabinetId: { in: cabinetIds }, itemId: { in: itemIds }, deletedAt: null },
+          select: {
+            cabinetId: true, itemId: true, value: true, status: true, submittedAt: true, expiresAt: true,
+            document: { select: { id: true, name: true } },
+          },
+        }),
+      ])
+
+      const itemsMap = new Map(items.map((i) => [i.id, i]))
+      const answersMap = new Map(answers.map((a) => [`${a.cabinetId}:${a.itemId}`, a]))
+
+      // Groupe par cabinet
+      const byCabinet = new Map<string, { cabinet: typeof shares[0]['cabinet']; items: object[] }>()
+      for (const share of shares) {
+        const item = share.entityId ? itemsMap.get(share.entityId) : null
+        if (!item) continue
+        const answer = share.entityId ? answersMap.get(`${share.cabinetId}:${share.entityId}`) ?? null : null
+        const status = answer
+          ? (answer.expiresAt && answer.expiresAt < new Date() ? 'expired'
+            : answer.expiresAt && answer.expiresAt < new Date(Date.now() + 30 * 86400000) ? 'expiring_soon'
+            : answer.status)
+          : 'not_started'
+
+        if (!byCabinet.has(share.cabinetId)) {
+          byCabinet.set(share.cabinetId, { cabinet: share.cabinet, items: [] })
+        }
+        byCabinet.get(share.cabinetId)!.items.push({ shareId: share.id, item, answer, status })
+      }
+
+      return reply.send({ data: { cabinets: [...byCabinet.values()] } })
     }
   )
 }

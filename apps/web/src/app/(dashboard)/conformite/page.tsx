@@ -1,11 +1,25 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronRight, ShieldCheck, CheckCircle2, AlertTriangle, XCircle, Circle } from 'lucide-react'
+import { ChevronRight, ShieldCheck, CheckCircle2, AlertTriangle, XCircle, Circle, Share2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { complianceApi, type PhaseProgress } from '@/lib/api'
+import { Button } from '@/components/ui/button'
+import { ShareModal, type ShareableEntity } from '@/components/ui/ShareModal'
+
+type ShareTarget = { entities: ShareableEntity[] }
+
+// ── Helpers badge statut ────────────────────────────────────────────────────
+
+function itemBadge(status: string): ShareableEntity['badge'] {
+  if (status === 'submitted') return { label: 'Conforme', variant: 'ok' }
+  if (status === 'expiring_soon') return { label: 'Expire bientôt', variant: 'warn' }
+  if (status === 'expired') return { label: 'Expiré', variant: 'error' }
+  return { label: 'Non renseigné', variant: 'neutral' }
+}
 
 // ── Helpers statuts ────────────────────────────────────────────────────────
 
@@ -51,7 +65,7 @@ function PhaseStatusSummary({ items }: { items: PhaseProgress['items'] }) {
 
 // ── Phase card ─────────────────────────────────────────────────────────────
 
-function PhaseCard({ phase }: { phase: PhaseProgress }) {
+function PhaseCard({ phase, onShare }: { phase: PhaseProgress; onShare: (entities: ShareableEntity[]) => void }) {
   const { progress } = phase
   const pct      = progress?.percentage ?? 0
   const hasIssue = phase.items.some((i) => i.status === 'expired')
@@ -70,37 +84,53 @@ function PhaseCard({ phase }: { phase: PhaseProgress }) {
     : hasSoon    ? 'bg-warning-subtle text-warning-subtle-foreground'
     : 'bg-muted text-muted-foreground'
 
+  const phaseEntities: ShareableEntity[] = phase.items.map((i) => ({
+    id: i.id,
+    label: i.label,
+    sublabel: phase.name,
+    badge: itemBadge(i.status),
+  }))
+
   return (
-    <Link
-      href={`/conformite/${phase.id}`}
-      className="block bg-card border border-border rounded-lg p-5 hover:bg-accent/30 transition-colors group"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-medium">{phase.name}</p>
-            <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums', pctBadgeClass)}>
-              {pct}%
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {progress?.completed ?? 0} / {progress?.total ?? 0} items complétés
-          </p>
+    <div className="relative group/card">
+      <Link
+        href={`/conformite/${phase.id}`}
+        className="block bg-card border border-border rounded-lg p-5 hover:bg-accent/30 transition-colors group"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{phase.name}</p>
+              <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums', pctBadgeClass)}>
+                {pct}%
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {progress?.completed ?? 0} / {progress?.total ?? 0} items complétés
+            </p>
 
-          {/* Progress bar */}
-          <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className={cn('h-full rounded-full transition-all duration-500', barColor)}
-              style={{ width: `${pct}%` }}
-            />
+            {/* Progress bar */}
+            <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className={cn('h-full rounded-full transition-all duration-500', barColor)}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+
+            <PhaseStatusSummary items={phase.items} />
           </div>
 
-          <PhaseStatusSummary items={phase.items} />
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
         </div>
-
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
-      </div>
-    </Link>
+      </Link>
+      <button
+        onClick={(e) => { e.preventDefault(); onShare(phaseEntities) }}
+        title="Partager cette phase"
+        className="absolute top-3 right-10 opacity-0 group-hover/card:opacity-100 transition-opacity p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-accent"
+      >
+        <Share2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
   )
 }
 
@@ -108,6 +138,12 @@ function PhaseCard({ phase }: { phase: PhaseProgress }) {
 
 export default function ConformitePage() {
   const { token } = useAuthStore()
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
+
+  function openShare(entities: ShareableEntity[]) {
+    setShareTarget({ entities })
+  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['compliance-progress', token],
@@ -134,12 +170,20 @@ export default function ConformitePage() {
             <h2 className="text-2xl font-semibold">Conformité</h2>
             <p className="text-muted-foreground mt-1">Suivez votre progression réglementaire par phase.</p>
           </div>
-          {!isLoading && (
-            <div className="text-right shrink-0">
-              <p className="text-3xl font-semibold tabular-nums">{globalProgress}%</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Progression globale</p>
-            </div>
-          )}
+          <div className="flex items-center gap-3 shrink-0">
+            {!isLoading && phases.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setShareOpen(true)}>
+                <Share2 className="h-3.5 w-3.5 mr-1.5" />
+                Partager
+              </Button>
+            )}
+            {!isLoading && (
+              <div className="text-right">
+                <p className="text-3xl font-semibold tabular-nums">{globalProgress}%</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Progression globale</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Barre globale */}
@@ -184,9 +228,26 @@ export default function ConformitePage() {
           .slice()
           .sort((a, b) => a.order - b.order)
           .map((phase) => (
-            <PhaseCard key={phase.id} phase={phase} />
+            <PhaseCard key={phase.id} phase={phase} onShare={openShare} />
           ))}
       </div>
+
+      {(shareOpen || shareTarget) && (
+        <ShareModal
+          title="Partager des items de conformité"
+          description="Sélectionnez les items et les destinataires (chambres / régulateurs)"
+          entityType="compliance_item"
+          entities={shareTarget?.entities ?? phases.flatMap((p) =>
+            p.items.map((i) => ({
+              id: i.id,
+              label: i.label,
+              sublabel: p.name,
+              badge: itemBadge(i.status),
+            }))
+          )}
+          onClose={() => { setShareOpen(false); setShareTarget(null) }}
+        />
+      )}
     </div>
   )
 }

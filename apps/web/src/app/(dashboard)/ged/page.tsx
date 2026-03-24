@@ -3,8 +3,8 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Upload, FileText, FileImage, File, Trash2, ExternalLink, Loader2,
-  Folder as FolderIcon, FolderOpen, Tag, Plus, X, ChevronDown, ChevronRight,
+  Upload, FileText, FileImage, File, Trash2, Eye, Loader2,
+  Folder as FolderIcon, FolderOpen, Tag, Plus, X, ChevronDown, ChevronRight, Share2,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { documentApi, folderApi, tagApi, type Document, type Folder, type Tag as TagType } from '@/lib/api'
@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { DocumentViewer } from '@/components/ui/DocumentViewer'
+import { ShareModal } from '@/components/ui/ShareModal'
 
 // ── Palette couleurs tags ──────────────────────────────────────────────────────
 
@@ -222,23 +224,24 @@ function UploadModal({
 
 // ── Document Row ───────────────────────────────────────────────────────────────
 
-function DocumentRow({ doc, onDelete }: { doc: Document; onDelete: (id: string) => void }) {
-  const { token } = useAuthStore()
-  const [loading, setLoading] = useState(false)
+function DocumentRow({
+  doc,
+  onDelete,
+  onView,
+  onShare,
+}: {
+  doc: Document
+  onDelete: (id: string) => void
+  onView: (doc: Document) => void
+  onShare: (doc: Document) => void
+}) {
   const Icon = mimeIcon(doc.mimeType)
 
-  const handleOpen = async () => {
-    setLoading(true)
-    try {
-      const res = await documentApi.getUrl(doc.id, token!)
-      window.open(res.data.url, '_blank', 'noopener,noreferrer')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
-    <div className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-3 group">
+    <div
+      className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-3 group cursor-pointer hover:bg-muted/30 transition-colors"
+      onClick={() => onView(doc)}
+    >
       <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0">
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
@@ -261,9 +264,12 @@ function DocumentRow({ doc, onDelete }: { doc: Document; onDelete: (id: string) 
         </div>
       </div>
 
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <Button variant="ghost" size="sm" onClick={handleOpen} disabled={loading}>
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
+        <Button variant="ghost" size="sm" onClick={() => onView(doc)} title="Visualiser">
+          <Eye className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => onShare(doc)} title="Partager">
+          <Share2 className="h-3.5 w-3.5" />
         </Button>
         <Button
           variant="ghost"
@@ -448,6 +454,9 @@ export default function GEDPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [newFolderParentId, setNewFolderParentId] = useState<string | undefined>()
+  const [viewerDoc, setViewerDoc] = useState<Document | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareDoc, setShareDoc] = useState<Document | null>(null)
 
   // ── Création de tag inline ────────────────────────────────────────────────
   const [addingTag, setAddingTag] = useState(false)
@@ -655,10 +664,18 @@ export default function GEDPage() {
                 : 'Tous les documents'}
               {!isLoading && <span className="ml-1.5">({documents.length})</span>}
             </p>
-            <Button size="sm" onClick={() => setUploadOpen(true)}>
-              <Upload className="h-3.5 w-3.5 mr-1.5" />
-              Ajouter
-            </Button>
+            <div className="flex items-center gap-2">
+              {documents.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setShareOpen(true)}>
+                  <Share2 className="h-3.5 w-3.5 mr-1.5" />
+                  Partager
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setUploadOpen(true)}>
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                Ajouter
+              </Button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -681,6 +698,8 @@ export default function GEDPage() {
                   key={doc.id}
                   doc={doc}
                   onDelete={(id) => deleteMutation.mutate(id)}
+                  onView={(d) => setViewerDoc(d)}
+                  onShare={(d) => setShareDoc(d)}
                 />
               ))}
             </div>
@@ -710,6 +729,25 @@ export default function GEDPage() {
             setNewFolderOpen(false)
             queryClient.invalidateQueries({ queryKey: ['folders'] })
           }}
+        />
+      )}
+      {viewerDoc && (
+        <DocumentViewer
+          document={viewerDoc}
+          onClose={() => setViewerDoc(null)}
+        />
+      )}
+      {(shareOpen || shareDoc) && (
+        <ShareModal
+          title="Partager des documents"
+          description="Sélectionnez les documents et les destinataires"
+          entityType="document"
+          entities={shareDoc
+            ? [{ id: shareDoc.id, label: shareDoc.name, sublabel: shareDoc.mimeType ?? undefined }]
+            : documents.map((doc) => ({ id: doc.id, label: doc.name, sublabel: doc.mimeType ?? undefined }))
+          }
+          recipientRoles={['chamber', 'regulator', 'platform_admin', 'cabinet_user']}
+          onClose={() => { setShareOpen(false); setShareDoc(null) }}
         />
       )}
     </div>

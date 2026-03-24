@@ -135,6 +135,7 @@ enum ShareEntityType {
   collaborator_training
   cabinet_compliance
   cabinet
+  compliance_item
 }
 
 enum GdprRequestType {

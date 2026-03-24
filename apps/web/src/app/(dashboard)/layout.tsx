@@ -73,7 +73,10 @@ function buildNavGroups(member: CabinetMember | null) {
     },
     {
       label: 'Partage',
-      items: [{ href: '/partage', label: 'Données partagées', icon: Share2 }] as NavItem[],
+      items: [
+        { href: '/partage', label: 'Données partagées', icon: Share2 },
+        { href: '/conformite-partagee', label: 'Conformité partagée', icon: ShieldCheck },
+      ] as NavItem[],
     },
   ]
 }

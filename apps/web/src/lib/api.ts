@@ -670,6 +670,70 @@ export const shareApi = {
     call<unknown>(`/api/v1/shares/${id}`, { method: 'DELETE', token }),
 }
 
+// ── Partage conformité ────────────────────────────────────────────────────────
+
+export type ComplianceShareItem = {
+  shareId: string
+  item: { id: string; label: string; type: string; phase: { label: string } }
+  answer: { value: unknown; status: string; submittedAt: string | null; expiresAt: string | null; document?: { id: string; name: string } | null } | null
+  status: string
+}
+
+export type ComplianceShareCabinet = {
+  cabinet: { id: string; name: string; oriasNumber: string | null }
+  items: ComplianceShareItem[]
+}
+
+export type ComplianceShareRecord = {
+  id: string
+  cabinetId: string
+  grantedTo: string
+  entityId: string | null
+  createdAt: string
+  isActive: boolean
+  recipientUser: { id: string; email: string; globalRole: string }
+  item: { id: string; label: string; phase: { label: string } } | null
+}
+
+export const complianceShareApi = {
+  // Cabinet : partager des items
+  create: (data: { itemIds: string[]; recipientIds: string[] }, token: string) =>
+    call<{ created: number; skipped: number }>('/api/v1/compliance/shares', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  // Cabinet : liste des partages accordés
+  list: (token: string) =>
+    call<{ shares: ComplianceShareRecord[] }>('/api/v1/compliance/shares', { token }),
+
+  // Cabinet : révoquer
+  revoke: (id: string, token: string) =>
+    call<unknown>(`/api/v1/compliance/shares/${id}`, { method: 'DELETE', token }),
+
+  // Chamber/regulator : items partagés avec moi
+  sharedWithMe: (token: string) =>
+    call<{ cabinets: ComplianceShareCabinet[] }>('/api/v1/compliance/shared-with-me', { token }),
+}
+
+// ── Recherche d'utilisateurs (chambers / regulateurs) ────────────────────────
+
+export type PlatformUser = {
+  id: string
+  email: string
+  globalRole: string
+  firstName?: string | null
+  lastName?: string | null
+}
+
+export const platformUserApi = {
+  search: (query: string, token: string) => {
+    const q = new URLSearchParams({ q: query, roles: 'chamber,regulator,platform_admin' })
+    return call<{ users: PlatformUser[] }>(`/api/v1/users/search?${q}`, { token })
+  },
+}
+
 // ── Cabinet (paramètres) ───────────────────────────────────────────────────────
 
 export type CabinetMember = {

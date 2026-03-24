@@ -13,14 +13,23 @@ import {
   XCircle,
   Circle,
   PenLine,
+  Share2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { complianceApi, type PhaseProgress } from '@/lib/api'
 import { StatusBadge } from '@/components/compliance/StatusBadge'
 import { AnswerForm } from '@/components/compliance/AnswerForm'
+import { ShareModal, type ShareableEntity } from '@/components/ui/ShareModal'
 
 type Item = PhaseProgress['items'][number]
+
+function itemBadge(status: string): ShareableEntity['badge'] {
+  if (status === 'submitted') return { label: 'Conforme', variant: 'ok' }
+  if (status === 'expiring_soon') return { label: 'Expire bientôt', variant: 'warn' }
+  if (status === 'expired') return { label: 'Expiré', variant: 'error' }
+  return { label: 'Non renseigné', variant: 'neutral' }
+}
 
 // ── Icône statut ────────────────────────────────────────────────────────────
 
@@ -66,7 +75,7 @@ function ExpiryLabel({ expiresAt }: { expiresAt: string }) {
 
 // ── Item card ───────────────────────────────────────────────────────────────
 
-function ItemCard({ item, phaseId }: { item: Item; phaseId: string }) {
+function ItemCard({ item, phaseId, phaseName, onShare }: { item: Item; phaseId: string; phaseName: string; onShare: (entity: ShareableEntity) => void }) {
   const [open, setOpen] = useState(false)
   const isBlocked = item.status === 'blocked'
 
@@ -77,35 +86,45 @@ function ItemCard({ item, phaseId }: { item: Item; phaseId: string }) {
     : 'border-border'
 
   return (
-    <div className={cn('bg-card border rounded-lg overflow-hidden transition-colors', borderColor, isBlocked && 'opacity-60')}>
-      <button
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/40 transition-colors disabled:cursor-not-allowed"
-        onClick={() => !isBlocked && setOpen((o) => !o)}
-        disabled={isBlocked}
-      >
-        <StatusIcon status={item.status} />
+    <div className={cn('bg-card border rounded-lg overflow-hidden transition-colors group/item', borderColor, isBlocked && 'opacity-60')}>
+      <div className="flex items-center">
+        <button
+          className="flex-1 flex items-center gap-3 px-5 py-4 text-left hover:bg-accent/40 transition-colors disabled:cursor-not-allowed"
+          onClick={() => !isBlocked && setOpen((o) => !o)}
+          disabled={isBlocked}
+        >
+          <StatusIcon status={item.status} />
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-sm">{item.label}</span>
-            {!(item as unknown as { isRequired: boolean }).isRequired && (
-              <span className="text-xs text-muted-foreground">(optionnel)</span>
-            )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-sm">{item.label}</span>
+              {!(item as unknown as { isRequired: boolean }).isRequired && (
+                <span className="text-xs text-muted-foreground">(optionnel)</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
+              <StatusBadge status={isBlocked ? 'blocked' : item.status} />
+              {item.answer?.expiresAt && (
+                <ExpiryLabel expiresAt={item.answer.expiresAt} />
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <StatusBadge status={isBlocked ? 'blocked' : item.status} />
-            {item.answer?.expiresAt && (
-              <ExpiryLabel expiresAt={item.answer.expiresAt} />
-            )}
-          </div>
-        </div>
 
-        {!isBlocked && (
-          open
-            ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-            : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
-      </button>
+          {!isBlocked && (
+            open
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+        </button>
+
+        <button
+          onClick={() => onShare({ id: item.id, label: item.label, sublabel: phaseName, badge: itemBadge(item.status) })}
+          title="Partager cet item"
+          className="opacity-0 group-hover/item:opacity-100 transition-opacity px-3 py-4 text-muted-foreground hover:text-primary shrink-0"
+        >
+          <Share2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       {open && !isBlocked && (
         <div className="px-5 pb-5 pt-1 border-t border-border bg-background/50">
@@ -120,6 +139,7 @@ function ItemCard({ item, phaseId }: { item: Item; phaseId: string }) {
 
 export default function PhaseDetailPage({ params }: { params: { phaseId: string } }) {
   const { token } = useAuthStore()
+  const [shareEntity, setShareEntity] = useState<ShareableEntity | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['compliance-progress', token],
@@ -191,7 +211,7 @@ export default function PhaseDetailPage({ params }: { params: { phaseId: string 
                 Requis ({required.length})
               </h3>
               {required.map((item) => (
-                <ItemCard key={item.id} item={item} phaseId={params.phaseId} />
+                <ItemCard key={item.id} item={item} phaseId={params.phaseId} phaseName={phase.name} onShare={setShareEntity} />
               ))}
             </section>
           )}
@@ -203,11 +223,21 @@ export default function PhaseDetailPage({ params }: { params: { phaseId: string 
                 Optionnels ({optional.length})
               </h3>
               {optional.map((item) => (
-                <ItemCard key={item.id} item={item} phaseId={params.phaseId} />
+                <ItemCard key={item.id} item={item} phaseId={params.phaseId} phaseName={phase.name} onShare={setShareEntity} />
               ))}
             </section>
           )}
         </>
+      )}
+
+      {shareEntity && (
+        <ShareModal
+          title="Partager un item de conformité"
+          description="Sélectionnez les destinataires (chambres / régulateurs)"
+          entityType="compliance_item"
+          entities={[shareEntity]}
+          onClose={() => setShareEntity(null)}
+        />
       )}
     </div>
   )

@@ -81,6 +81,41 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { user } })
   })
 
+  // GET /api/v1/users/search — recherche d'utilisateurs par email/nom (filtré par rôles)
+  app.get('/search', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { q, roles } = request.query as { q?: string; roles?: string }
+
+    if (!q || q.length < 2) {
+      return reply.send({ data: { users: [] } })
+    }
+
+    const roleList = roles
+      ? (roles.split(',').filter((r) =>
+          ['chamber', 'regulator', 'platform_admin', 'cabinet_user'].includes(r)
+        ) as string[])
+      : undefined
+
+    const users = await prisma.user.findMany({
+      where: {
+        AND: [
+          { isActive: true },
+          roleList?.length ? { globalRole: { in: roleList as any[] } } : {},
+          {
+            OR: [
+              { email: { contains: q, mode: 'insensitive' } },
+              { firstName: { contains: q, mode: 'insensitive' } },
+              { lastName: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        ],
+      },
+      select: { id: true, email: true, firstName: true, lastName: true, globalRole: true },
+      take: 10,
+    })
+
+    return reply.send({ data: { users } })
+  })
+
   // DELETE /api/v1/users/me/avatar — supprimer l'avatar
   app.delete('/me/avatar', { preHandler: [authMiddleware] }, async (request, reply) => {
     const existing = await prisma.user.findUnique({

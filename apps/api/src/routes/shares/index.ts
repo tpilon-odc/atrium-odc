@@ -5,25 +5,93 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 
+const SHARE_ENTITY_TYPES = ['contact', 'document', 'collaborator_training', 'cabinet_compliance', 'cabinet', 'compliance_item'] as const
+
 const createShareBody = z.object({
   grantedTo: z.string().uuid('grantedTo invalide'),
-  entityType: z.enum(['contact', 'document', 'collaborator_training', 'cabinet_compliance', 'cabinet']),
+  entityType: z.enum(SHARE_ENTITY_TYPES),
   entityId: z.string().uuid().optional(),
+})
+
+const batchShareBody = z.object({
+  entityType: z.enum(SHARE_ENTITY_TYPES),
+  entityIds: z.array(z.string().uuid()).min(1),
+  recipientIds: z.array(z.string().uuid()).min(1),
 })
 
 export const shareRoutes: FastifyPluginAsync = async (app) => {
   // ── GET /api/v1/shares ────────────────────────────────────────────────────
-  // Partages accordés par ce cabinet
+  // Partages accordés par ce cabinet (filtre optionnel par entityType)
   app.get('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { entityType } = request.query as { entityType?: string }
+
     const shares = await prisma.share.findMany({
-      where: { cabinetId: request.cabinetId, isActive: true },
+      where: {
+        cabinetId: request.cabinetId,
+        isActive: true,
+        ...(entityType ? { entityType: entityType as ShareEntityType } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: {
-        recipientUser: { select: { id: true, email: true } },
+        recipientUser: { select: { id: true, email: true, globalRole: true } },
       },
     })
 
     return reply.send({ data: { shares } })
+  })
+
+  // ── POST /api/v1/shares/batch ─────────────────────────────────────────────
+  // Crée N×M partages en une seule requête (idempotent)
+  app.post('/batch', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const result = batchShareBody.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    const { entityType, entityIds, recipientIds } = result.data
+
+    // Vérifie que les destinataires ont un rôle autorisé
+    const recipients = await prisma.user.findMany({
+      where: { id: { in: recipientIds }, globalRole: { in: ['chamber', 'regulator', 'platform_admin', 'cabinet_user'] } },
+      select: { id: true },
+    })
+    if (recipients.length === 0) {
+      return reply.status(400).send({ error: 'Aucun destinataire valide', code: 'INVALID_RECIPIENTS' })
+    }
+
+    const validRecipientIds = recipients.map((r) => r.id)
+
+    const existing = await prisma.share.findMany({
+      where: {
+        cabinetId: request.cabinetId,
+        grantedTo: { in: validRecipientIds },
+        entityType: entityType as ShareEntityType,
+        entityId: { in: entityIds },
+        isActive: true,
+      },
+      select: { grantedTo: true, entityId: true },
+    })
+
+    const existingSet = new Set(existing.map((s) => `${s.grantedTo}:${s.entityId}`))
+
+    const toCreate = validRecipientIds.flatMap((recipientId) =>
+      entityIds
+        .filter((entityId) => !existingSet.has(`${recipientId}:${entityId}`))
+        .map((entityId) => ({
+          cabinetId: request.cabinetId,
+          grantedBy: request.user.id,
+          grantedTo: recipientId,
+          entityType: entityType as ShareEntityType,
+          entityId,
+          isActive: true,
+        }))
+    )
+
+    if (toCreate.length > 0) {
+      await prisma.share.createMany({ data: toCreate })
+    }
+
+    return reply.status(201).send({ data: { created: toCreate.length, skipped: existing.length } })
   })
 
   // ── GET /api/v1/shares/received ───────────────────────────────────────────

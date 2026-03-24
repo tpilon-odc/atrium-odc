@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { GraduationCap, Plus, Trash2, X, Search } from 'lucide-react'
+import { GraduationCap, Plus, Trash2, X, Search, Share2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { trainingApi, memberApi, type CollaboratorTraining, type TrainingCatalogEntry, type CabinetMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ShareModal } from '@/components/ui/ShareModal'
 
 // ── Formulaire d'ajout ────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ function AddTrainingForm({ members, onClose }: { members: CabinetMember[]; onClo
 
 // ── Ligne formation ────────────────────────────────────────────────────────────
 
-function TrainingRow({ t, onDelete }: { t: CollaboratorTraining; onDelete: () => void }) {
+function TrainingRow({ t, onDelete, onShare }: { t: CollaboratorTraining; onDelete: () => void; onShare: () => void }) {
   return (
     <div className="flex items-center gap-4 bg-card border border-border rounded-lg px-4 py-3 group">
       <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -178,6 +179,13 @@ function TrainingRow({ t, onDelete }: { t: CollaboratorTraining; onDelete: () =>
         </span>
       )}
       <button
+        onClick={onShare}
+        title="Partager"
+        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-all shrink-0"
+      >
+        <Share2 className="h-3.5 w-3.5" />
+      </button>
+      <button
         onClick={() => confirm('Supprimer cette formation ?') && onDelete()}
         className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
       >
@@ -195,6 +203,8 @@ export default function FormationsPage() {
   const [adding, setAdding] = useState(false)
   const [filterUser, setFilterUser] = useState('')
   const [search, setSearch] = useState('')
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareTrainingId, setShareTrainingId] = useState<string | null>(null)
 
   const { data: membersData } = useQuery({
     queryKey: ['members', token],
@@ -226,12 +236,20 @@ export default function FormationsPage() {
           <h2 className="text-2xl font-semibold">Formations</h2>
           <p className="text-muted-foreground mt-1">Suivi des formations des collaborateurs.</p>
         </div>
-        {!adding && (
-          <Button size="sm" onClick={() => setAdding(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            Ajouter
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {!adding && trainings.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setShareOpen(true)}>
+              <Share2 className="h-3.5 w-3.5 mr-1.5" />
+              Partager
+            </Button>
+          )}
+          {!adding && (
+            <Button size="sm" onClick={() => setAdding(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Ajouter
+            </Button>
+          )}
+        </div>
       </div>
 
       {adding && members.length > 0 && (
@@ -273,9 +291,30 @@ export default function FormationsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((t) => (
-            <TrainingRow key={t.id} t={t} onDelete={() => deleteMutation.mutate(t.id)} />
+            <TrainingRow key={t.id} t={t} onDelete={() => deleteMutation.mutate(t.id)} onShare={() => setShareTrainingId(t.id)} />
           ))}
         </div>
+      )}
+
+      {(shareOpen || shareTrainingId) && (
+        <ShareModal
+          title="Partager des formations"
+          description="Sélectionnez les formations et les destinataires (chambres / régulateurs)"
+          entityType="collaborator_training"
+          entities={shareTrainingId
+            ? trainings.filter((t) => t.id === shareTrainingId).map((t) => ({
+                id: t.id,
+                label: t.training.name,
+                sublabel: `${t.user.email} · ${new Date(t.trainingDate).toLocaleDateString('fr-FR')}${t.hoursCompleted ? ` · ${t.hoursCompleted}h` : ''}`,
+              }))
+            : trainings.map((t) => ({
+                id: t.id,
+                label: t.training.name,
+                sublabel: `${t.user.email} · ${new Date(t.trainingDate).toLocaleDateString('fr-FR')}${t.hoursCompleted ? ` · ${t.hoursCompleted}h` : ''}`,
+              }))
+          }
+          onClose={() => { setShareOpen(false); setShareTrainingId(null) }}
+        />
       )}
     </div>
   )
