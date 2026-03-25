@@ -28,14 +28,22 @@ export async function authMiddleware(
     return reply.status(401).send({ error: 'Token invalide', code: 'INVALID_TOKEN' })
   }
 
-  // global_role est stocké dans app_metadata lors de la création du compte
-  const globalRole = (user.app_metadata?.global_role as GlobalRole) ?? GlobalRole.cabinet_user
+  // La source de vérité du rôle est la DB (les invitations admin définissent le rôle en DB).
+  // app_metadata n'est utilisé qu'en fallback pour les nouveaux comptes (inscription libre).
+  const existingUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { globalRole: true },
+  })
 
-  // S'assure que l'utilisateur existe dans la DB (première connexion, invitation, etc.)
+  const globalRole = existingUser?.globalRole
+    ?? (user.app_metadata?.global_role as GlobalRole)
+    ?? GlobalRole.cabinet_user
+
+  // S'assure que l'utilisateur existe dans la DB — ne jamais écraser le globalRole existant
   await prisma.user.upsert({
     where: { id: user.id },
     create: { id: user.id, email: user.email!, globalRole },
-    update: { email: user.email!, globalRole },
+    update: { email: user.email! },
   })
 
   request.user = {
