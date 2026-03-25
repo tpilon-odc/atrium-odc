@@ -99,6 +99,7 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
       where: {
         AND: [
           { isActive: true },
+          { id: { not: request.user.id } },
           roleList?.length ? { globalRole: { in: roleList as any[] } } : {},
           {
             OR: [

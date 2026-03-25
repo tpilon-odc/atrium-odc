@@ -239,15 +239,19 @@ export function ShareModal({
 
             {recipients.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
-                {recipients.map((r) => (
-                  <span key={r.id} className="flex items-center gap-1.5 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                    {r.email}
-                    <span className="text-[10px] opacity-60">{ROLE_LABELS[r.globalRole] ?? r.globalRole}</span>
-                    <button onClick={() => setRecipients((prev) => prev.filter((x) => x.id !== r.id))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+                {recipients.map((r) => {
+                  const fullName = [r.firstName, r.lastName].filter(Boolean).join(' ')
+                  return (
+                    <span key={r.id} className="flex items-center gap-1.5 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                      {fullName || r.email}
+                      {fullName && <span className="text-[10px] opacity-60">{r.email}</span>}
+                      <span className="text-[10px] opacity-60">· {ROLE_LABELS[r.globalRole] ?? r.globalRole}</span>
+                      <button onClick={() => setRecipients((prev) => prev.filter((x) => x.id !== r.id))}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )
+                })}
               </div>
             )}
 
@@ -264,25 +268,27 @@ export function ShareModal({
 
             {searchResults.length > 0 && (
               <div className="mt-1 border border-border rounded-lg overflow-hidden">
-                {searchResults.map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => addRecipient(u)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <span>
-                      {u.email}
-                      {(u.firstName || u.lastName) && (
-                        <span className="text-muted-foreground ml-1.5">
-                          — {[u.firstName, u.lastName].filter(Boolean).join(' ')}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
-                      {ROLE_LABELS[u.globalRole] ?? u.globalRole}
-                    </span>
-                  </button>
-                ))}
+                {searchResults.map((u) => {
+                  const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ')
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => addRecipient(u)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors text-left gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        {fullName
+                          ? <p className="text-sm font-medium truncate">{fullName}</p>
+                          : <p className="text-sm font-medium truncate">{u.email}</p>
+                        }
+                        {fullName && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                      </div>
+                      <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full shrink-0">
+                        {ROLE_LABELS[u.globalRole] ?? u.globalRole}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )}
             {search.length >= 2 && !searching && searchResults.length === 0 && (
