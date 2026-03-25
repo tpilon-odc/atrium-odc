@@ -149,7 +149,15 @@ export type PhaseProgress = {
     label: string
     type: string
     validityMonths: number | null
-    answer: { status: string; expiresAt: string | null } | null
+    answer: {
+      id: string
+      value: unknown
+      status: string
+      submittedAt: string | null
+      expiresAt: string | null
+      updatedAt: string
+      document: { id: string; name: string; mimeType: string | null } | null
+    } | null
     status: string
   }>
 }
@@ -214,7 +222,7 @@ export const supplierApi = {
     if (params?.cursor) q.set('cursor', params.cursor)
     if (params?.search) q.set('search', params.search)
     if (params?.category) q.set('category', params.category)
-    return call<{ suppliers: Supplier[]; nextCursor: string | null; hasMore: boolean }>(
+    return call<{ suppliers: Supplier[]; nextCursor: string | null; hasMore: boolean; total: number }>(
       `/api/v1/suppliers?${q}`,
       { token }
     )
@@ -441,7 +449,7 @@ export const contactApi = {
     if (params?.cursor) q.set('cursor', params.cursor)
     if (params?.search) q.set('search', params.search)
     if (params?.type) q.set('type', params.type)
-    return call<{ contacts: Contact[]; nextCursor: string | null; hasMore: boolean }>(
+    return call<{ contacts: Contact[]; nextCursor: string | null; hasMore: boolean; total: number }>(
       `/api/v1/contacts?${q}`,
       { token }
     )
@@ -594,11 +602,13 @@ export type CollaboratorTraining = {
   userId: string
   trainingId: string
   trainingDate: string
+  trainingDateEnd: string | null
   hoursCompleted: number | null
   certificateDocumentId: string | null
+  certificate?: { id: string; name: string; mimeType: string | null } | null
   notes: string | null
   training: TrainingCatalogEntry
-  user: { id: string; email: string }
+  user: { id: string; email: string; firstName?: string | null; lastName?: string | null }
 }
 
 export const trainingApi = {
@@ -625,9 +635,16 @@ export const trainingApi = {
     )
   },
 
-  create: (data: { userId: string; trainingId: string; trainingDate: string; hoursCompleted?: number; notes?: string }, token: string) =>
+  create: (data: { userId: string; trainingId: string; trainingDate: string; trainingDateEnd?: string; hoursCompleted?: number; certificateDocumentId?: string; notes?: string }, token: string) =>
     call<{ training: CollaboratorTraining }>('/api/v1/trainings', {
       method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  update: (id: string, data: { trainingDate?: string; trainingDateEnd?: string | null; hoursCompleted?: number | null; certificateDocumentId?: string | null; notes?: string | null }, token: string) =>
+    call<{ training: CollaboratorTraining }>(`/api/v1/trainings/${id}`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
       token,
     }),
@@ -650,6 +667,7 @@ export type Share = {
   recipientUser?: { id: string; email: string }
   granterUser?: { id: string; email: string }
   cabinet?: { id: string; name: string }
+  resolvedTraining?: CollaboratorTraining | null
 }
 
 export type ShareViewLog = {
@@ -748,6 +766,7 @@ export type PlatformUser = {
   globalRole: string
   firstName?: string | null
   lastName?: string | null
+  isActive?: boolean
   createdAt?: string
 }
 
@@ -773,6 +792,13 @@ export const adminApi = {
   ) =>
     call<{ user: PlatformUser; inviteUrl: string | null }>('/api/v1/admin/platform-users/invite', {
       method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updatePlatformUser: (id: string, data: { globalRole?: string; isActive?: boolean }, token: string) =>
+    call<{ user: PlatformUser }>(`/api/v1/admin/platform-users/${id}`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
       token,
     }),
@@ -903,7 +929,7 @@ export const documentApi = {
     if (params?.entityId) q.set('entityId', params.entityId)
     if (params?.folderId !== undefined) q.set('folderId', params.folderId)
     if (params?.tagId) q.set('tagId', params.tagId)
-    return call<{ documents: Document[]; nextCursor: string | null; hasMore: boolean }>(
+    return call<{ documents: Document[]; nextCursor: string | null; hasMore: boolean; total: number }>(
       `/api/v1/documents?${q}`,
       { token }
     )
@@ -914,6 +940,9 @@ export const documentApi = {
 
   getUrl: (id: string, token: string) =>
     call<{ url: string; expiresIn: number | null }>(`/api/v1/documents/${id}/url`, { token }),
+
+  getSharedUrl: (id: string, token: string) =>
+    call<{ url: string; expiresIn: number | null }>(`/api/v1/documents/${id}/shared-url`, { token }),
 
   upload: async (file: File, token: string) => {
     const form = new FormData()

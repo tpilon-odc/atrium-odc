@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { UserPlus, Trash2, Copy, Check, Users, ShieldCheck, Building2, Search } from 'lucide-react'
+import { UserPlus, Copy, Check, Users, ShieldCheck, Building2, Search, Pencil, X, Ban } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { adminApi, type PlatformUser } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -140,40 +140,110 @@ function InviteForm({ onClose }: { onClose: () => void }) {
 
 // ── Ligne utilisateur ────────────────────────────────────────────────────────
 
-function UserRow({ user, onDelete }: { user: PlatformUser; onDelete: () => void }) {
+function UserRow({
+  user,
+  currentUserId,
+  onUpdate,
+}: {
+  user: PlatformUser
+  currentUserId: string
+  onUpdate: (data: { globalRole?: string; isActive?: boolean }) => void
+}) {
+  const isSelf = user.id === currentUserId
+  const [editing, setEditing] = useState(false)
+  const [role, setRole] = useState(user.globalRole)
   const cfg = ROLE_CONFIG[user.globalRole]
   const Icon = cfg?.icon ?? Users
-  const canDelete = user.globalRole !== 'cabinet_user'
+  const isNonCabinet = user.globalRole !== 'cabinet_user'
+  const isDisabled = user.isActive === false
 
   return (
-    <div className="flex items-center gap-4 bg-card border border-border rounded-lg px-4 py-3 group">
-      <div className={cn('h-9 w-9 rounded-full flex items-center justify-center shrink-0', cfg?.color ?? 'bg-muted text-muted-foreground')}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-medium truncate">
-            {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
-          </p>
-          <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0', cfg?.color ?? 'bg-muted text-muted-foreground')}>
-            {cfg?.label ?? user.globalRole}
-          </span>
+    <div className={cn('bg-card border border-border rounded-lg overflow-hidden', isDisabled && 'opacity-60')}>
+      <div className="flex items-center gap-4 px-4 py-3 group">
+        <div className={cn('h-9 w-9 rounded-full flex items-center justify-center shrink-0', cfg?.color ?? 'bg-muted text-muted-foreground')}>
+          <Icon className="h-4 w-4" />
         </div>
-        <p className="text-xs text-muted-foreground">{user.email}</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium truncate">
+              {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
+            </p>
+            <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0', cfg?.color ?? 'bg-muted text-muted-foreground')}>
+              {cfg?.label ?? user.globalRole}
+            </span>
+            {isDisabled && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-destructive/10 text-destructive shrink-0">
+                Désactivé
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">{user.email}</p>
+        </div>
+        <p className="text-xs text-muted-foreground shrink-0">
+          {new Date(user.createdAt!).toLocaleDateString('fr-FR')}
+        </p>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+          {isNonCabinet && (
+            <button
+              onClick={() => setEditing((v) => !v)}
+              title="Modifier le rôle"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              {editing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (isSelf) return
+              const action = isDisabled ? 'réactiver' : 'désactiver'
+              if (confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} le compte de ${user.email} ?`)) {
+                onUpdate({ isActive: !isDisabled })
+              }
+            }}
+            title={isSelf ? 'Impossible de désactiver votre propre compte' : isDisabled ? 'Réactiver' : 'Désactiver'}
+            disabled={isSelf}
+            className={cn(
+              'transition-colors',
+              isSelf
+                ? 'text-muted-foreground/30 cursor-not-allowed'
+                : isDisabled ? 'text-muted-foreground hover:text-success' : 'text-muted-foreground hover:text-destructive'
+            )}
+          >
+            <Ban className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground shrink-0">
-        {new Date(user.createdAt!).toLocaleDateString('fr-FR')}
-      </p>
-      {canDelete && (
-        <button
-          onClick={() => confirm(`Désactiver le compte de ${user.email} ?`) && onDelete()}
-          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
-          title="Désactiver"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+
+      {editing && (
+        <div className="border-t border-border px-4 py-3 flex items-center gap-3">
+          <p className="text-xs text-muted-foreground shrink-0">Rôle :</p>
+          <div className="flex gap-2 flex-wrap flex-1">
+            {INVITE_ROLES.map((key) => {
+              const c = ROLE_CONFIG[key]
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setRole(key)}
+                  className={cn(
+                    'text-xs px-2.5 py-1 rounded-full border font-medium transition-colors',
+                    role === key ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40'
+                  )}
+                >
+                  {c.label}
+                </button>
+              )
+            })}
+          </div>
+          <Button
+            size="sm"
+            disabled={role === user.globalRole}
+            onClick={() => { onUpdate({ globalRole: role }); setEditing(false) }}
+          >
+            Enregistrer
+          </Button>
+        </div>
       )}
-      {!canDelete && <div className="w-5 shrink-0" />}
     </div>
   )
 }
@@ -189,11 +259,12 @@ const ROLE_FILTERS = [
 ]
 
 export default function PlatformUsersPage() {
-  const { token } = useAuthStore()
+  const { token, user: currentUser } = useAuthStore()
   const queryClient = useQueryClient()
   const [inviting, setInviting] = useState(false)
   const [roleFilter, setRoleFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [showInactive, setShowInactive] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['platform-users', token, roleFilter, search],
@@ -204,12 +275,14 @@ export default function PlatformUsersPage() {
     enabled: !!token,
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => adminApi.deletePlatformUser(id, token!),
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { globalRole?: string; isActive?: boolean } }) =>
+      adminApi.updatePlatformUser(id, data, token!),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['platform-users'] }),
   })
 
-  const users = data?.data.users ?? []
+  const allUsers = data?.data.users ?? []
+  const users = showInactive ? allUsers : allUsers.filter((u) => u.isActive !== false)
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -239,7 +312,7 @@ export default function PlatformUsersPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {ROLE_FILTERS.map(({ value, label }) => (
             <button
               key={value}
@@ -254,6 +327,24 @@ export default function PlatformUsersPage() {
               {label}
             </button>
           ))}
+          <div className="ml-auto">
+            <button
+              onClick={() => setShowInactive((v) => !v)}
+              className={cn(
+                'text-xs px-3 py-1.5 rounded-full font-medium border transition-colors',
+                showInactive
+                  ? 'border-destructive/50 bg-destructive/10 text-destructive'
+                  : 'border-border text-muted-foreground hover:bg-muted/80'
+              )}
+            >
+              {showInactive ? 'Masquer les inactifs' : 'Afficher les inactifs'}
+              {!showInactive && allUsers.filter((u) => u.isActive === false).length > 0 && (
+                <span className="ml-1.5 bg-destructive/20 text-destructive px-1 rounded-full">
+                  {allUsers.filter((u) => u.isActive === false).length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -273,7 +364,7 @@ export default function PlatformUsersPage() {
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">{users.length} utilisateur{users.length > 1 ? 's' : ''}</p>
           {users.map((u) => (
-            <UserRow key={u.id} user={u} onDelete={() => deleteMutation.mutate(u.id)} />
+            <UserRow key={u.id} user={u} currentUserId={currentUser?.id ?? ''} onUpdate={(data) => updateMutation.mutate({ id: u.id, data })} />
           ))}
         </div>
       )}

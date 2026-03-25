@@ -18,6 +18,7 @@ const createTrainingBody = z.object({
   userId: z.string().uuid('userId invalide'),
   trainingId: z.string().uuid('trainingId invalide'),
   trainingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format date invalide (YYYY-MM-DD)'),
+  trainingDateEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format date invalide (YYYY-MM-DD)').optional(),
   hoursCompleted: z.number().positive().optional(),
   certificateDocumentId: z.string().uuid().optional(),
   notes: z.string().optional(),
@@ -124,7 +125,8 @@ export const trainingRoutes: FastifyPluginAsync = async (app) => {
       orderBy: { trainingDate: 'desc' },
       include: {
         training: true,
-        user: { select: { id: true, email: true } },
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        certificate: { select: { id: true, name: true, mimeType: true } },
       },
     })
 
@@ -156,15 +158,32 @@ export const trainingRoutes: FastifyPluginAsync = async (app) => {
         userId: result.data.userId,
         trainingId: result.data.trainingId,
         trainingDate: new Date(result.data.trainingDate),
+        trainingDateEnd: result.data.trainingDateEnd ? new Date(result.data.trainingDateEnd) : undefined,
         hoursCompleted: result.data.hoursCompleted,
         certificateDocumentId: result.data.certificateDocumentId,
         notes: result.data.notes,
       },
       include: {
         training: true,
-        user: { select: { id: true, email: true } },
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        certificate: { select: { id: true, name: true, mimeType: true } },
       },
     })
+
+    // Si une attestation est jointe, ajouter le tag système "Attestation de formation"
+    if (result.data.certificateDocumentId) {
+      const tagName = 'Attestation de formation'
+      let tag = await prisma.tag.findFirst({ where: { isSystem: true, name: tagName } })
+      if (!tag) {
+        tag = await prisma.tag.create({ data: { name: tagName, isSystem: true, cabinetId: null } })
+      }
+      // Ajouter le tag s'il n'est pas déjà présent
+      await prisma.documentTag.upsert({
+        where: { documentId_tagId: { documentId: result.data.certificateDocumentId, tagId: tag.id } },
+        create: { documentId: result.data.certificateDocumentId, tagId: tag.id },
+        update: {},
+      })
+    }
 
     return reply.status(201).send({ data: { training } })
   })
@@ -189,13 +208,15 @@ export const trainingRoutes: FastifyPluginAsync = async (app) => {
       where: { id },
       data: {
         ...(result.data.trainingDate ? { trainingDate: new Date(result.data.trainingDate) } : {}),
+        ...(result.data.trainingDateEnd !== undefined ? { trainingDateEnd: result.data.trainingDateEnd ? new Date(result.data.trainingDateEnd) : null } : {}),
         ...(result.data.hoursCompleted !== undefined ? { hoursCompleted: result.data.hoursCompleted } : {}),
         ...(result.data.certificateDocumentId !== undefined ? { certificateDocumentId: result.data.certificateDocumentId } : {}),
         ...(result.data.notes !== undefined ? { notes: result.data.notes } : {}),
       },
       include: {
         training: true,
-        user: { select: { id: true, email: true } },
+        user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        certificate: { select: { id: true, name: true, mimeType: true } },
       },
     })
 

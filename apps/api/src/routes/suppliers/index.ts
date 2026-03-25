@@ -21,24 +21,29 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
 
     const { cursor, limit, search, category } = query.data
 
-    const suppliers = await prisma.supplier.findMany({
-      take: limit + 1,
-      skip: cursor ? 1 : 0,
-      cursor: cursor ? { id: cursor } : undefined,
-      where: {
-        deletedAt: null,
-        ...(category ? { category } : {}),
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    const where = {
+      deletedAt: null,
+      ...(category ? { category } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    }
+
+    const [suppliers, total] = await Promise.all([
+      prisma.supplier.findMany({
+        take: limit + 1,
+        skip: cursor ? 1 : 0,
+        cursor: cursor ? { id: cursor } : undefined,
+        where,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.supplier.count({ where }),
+    ])
 
     const hasMore = suppliers.length > limit
     const items = hasMore ? suppliers.slice(0, limit) : suppliers
@@ -64,7 +69,7 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
       myPublicRating: ratingMap.get(s.id) ?? null,
     }))
 
-    return reply.send({ data: { suppliers: data, nextCursor, hasMore } })
+    return reply.send({ data: { suppliers: data, nextCursor, hasMore, total } })
   })
 
   // ── GET /api/v1/suppliers/:id ─────────────────────────────────────────────

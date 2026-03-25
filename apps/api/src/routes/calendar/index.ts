@@ -60,11 +60,11 @@ export const calendarRoutes: FastifyPluginAsync = async (app) => {
           : null,
         ev.status !== 'PLANNED' ? `Statut : ${ev.status}` : null,
       ]
-        .filter(Boolean)
+        .filter((s): s is string => !!s)
         .join('\n')
 
       cal.createEvent({
-        uid: ev.id,
+        id: ev.id,
         summary,
         description: description || undefined,
         location: ev.location ?? undefined,

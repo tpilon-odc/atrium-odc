@@ -64,6 +64,19 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
         }),
       ])
 
+      // Collect document IDs referenced in doc-type answers
+      const docIds = answers
+        .map((a) => (a.value as Record<string, unknown>)?.document_id as string | undefined)
+        .filter((id): id is string => !!id)
+
+      const documents = docIds.length > 0
+        ? await prisma.document.findMany({
+            where: { id: { in: docIds } },
+            select: { id: true, name: true, mimeType: true },
+          })
+        : []
+      const docsById = new Map(documents.map((d) => [d.id, d]))
+
       const answersByItemId = new Map(answers.map((a) => [a.itemId, a]))
 
       const phasesWithProgress = phases.map((phase) => {
@@ -81,6 +94,7 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
                   submittedAt: answer.submittedAt,
                   expiresAt: answer.expiresAt,
                   updatedAt: answer.updatedAt,
+                  document: docsById.get((answer.value as Record<string, unknown>)?.document_id as string) ?? null,
                 }
               : null,
           }
@@ -277,10 +291,8 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
       if (!result.success) {
         return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
       }
-      const data = result.data.config
-        ? { ...result.data, config: result.data.config as object }
-        : result.data
-      const item = await prisma.complianceItem.update({ where: { id: itemId }, data })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const item = await prisma.complianceItem.update({ where: { id: itemId }, data: result.data as any })
       return reply.send({ data: { item } })
     }
   )
@@ -508,12 +520,18 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
         }),
         prisma.cabinetComplianceAnswer.findMany({
           where: { cabinetId: { in: cabinetIds }, itemId: { in: itemIds }, deletedAt: null },
-          select: {
-            cabinetId: true, itemId: true, value: true, status: true, submittedAt: true, expiresAt: true,
-            document: { select: { id: true, name: true } },
-          },
+          select: { cabinetId: true, itemId: true, value: true, status: true, submittedAt: true, expiresAt: true },
         }),
       ])
+
+      // Résoudre les documents référencés dans les réponses de type doc
+      const docIds = answers
+        .map((a) => (a.value as Record<string, unknown>)?.document_id as string | undefined)
+        .filter((id): id is string => !!id)
+      const documents = docIds.length > 0
+        ? await prisma.document.findMany({ where: { id: { in: docIds } }, select: { id: true, name: true, mimeType: true } })
+        : []
+      const docsById = new Map(documents.map((d) => [d.id, d]))
 
       const itemsMap = new Map(items.map((i) => [i.id, i]))
       const answersMap = new Map(answers.map((a) => [`${a.cabinetId}:${a.itemId}`, a]))
@@ -533,7 +551,9 @@ export const complianceRoutes: FastifyPluginAsync = async (app) => {
         if (!byCabinet.has(share.cabinetId)) {
           byCabinet.set(share.cabinetId, { cabinet: share.cabinet, items: [] })
         }
-        byCabinet.get(share.cabinetId)!.items.push({ shareId: share.id, item, answer, status })
+        const docId = answer ? (answer.value as Record<string, unknown>)?.document_id as string | undefined : undefined
+        const document = docId ? docsById.get(docId) ?? null : null
+        byCabinet.get(share.cabinetId)!.items.push({ shareId: share.id, item, answer: answer ? { ...answer, document } : null, status })
       }
 
       return reply.send({ data: { cabinets: [...byCabinet.values()] } })

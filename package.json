@@ -16,5 +16,12 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "vitest": "^2.1.9"
+  },
+  "dependencies": {
+    "@fullcalendar/core": "^6.1.20"
   }
 }

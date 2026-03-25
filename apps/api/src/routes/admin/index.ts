@@ -23,7 +23,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     const users = await prisma.user.findMany({
       where: {
-        isActive: true,
         ...(role ? { globalRole: role as GlobalRole } : {}),
         ...(search ? {
           OR: [
@@ -33,7 +32,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           ],
         } : {}),
       },
-      select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, createdAt: true },
+      select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, isActive: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     })
     return reply.send({ data: { users } })
@@ -87,6 +86,48 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data: { user, inviteUrl: linkData.properties?.action_link ?? null } })
   })
 
+  // ── PATCH /api/v1/admin/platform-users/:id ────────────────────────────────
+  app.patch('/platform-users/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const bodySchema = z.object({
+      globalRole: z.enum([GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin]).optional(),
+      isActive: z.boolean().optional(),
+    }).refine((d) => d.globalRole !== undefined || d.isActive !== undefined, {
+      message: 'Au moins un champ requis',
+    })
+
+    const result = bodySchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    if (id === request.user.id && result.data.isActive === false) {
+      return reply.status(400).send({ error: 'Vous ne pouvez pas désactiver votre propre compte', code: 'SELF_DISABLE' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } })
+    if (!user) {
+      return reply.status(404).send({ error: 'Utilisateur introuvable', code: 'NOT_FOUND' })
+    }
+
+    // Changement de rôle uniquement pour les non-cabinet
+    if (result.data.globalRole && user.globalRole === GlobalRole.cabinet_user) {
+      return reply.status(400).send({ error: 'Impossible de changer le rôle d\'un cabinet user', code: 'FORBIDDEN' })
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        ...(result.data.globalRole ? { globalRole: result.data.globalRole } : {}),
+        ...(result.data.isActive !== undefined ? { isActive: result.data.isActive } : {}),
+      },
+      select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, isActive: true, createdAt: true },
+    })
+
+    return reply.send({ data: { user: updated } })
+  })
+
   // ── DELETE /api/v1/admin/platform-users/:id ───────────────────────────────
   app.delete('/platform-users/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
@@ -96,7 +137,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const user = await prisma.user.findUnique({ where: { id } })
-    if (!user || ![GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin].includes(user.globalRole as GlobalRole)) {
+    if (!user) {
       return reply.status(404).send({ error: 'Utilisateur introuvable', code: 'NOT_FOUND' })
     }
 

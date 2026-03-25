@@ -16,14 +16,10 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     const rows = contacts.map((c) => ({
       id: c.id,
       type: c.type,
-      civilite: c.salutation ?? '',
       nom: c.lastName,
       prenom: c.firstName ?? '',
       email: c.email ?? '',
       telephone: c.phone ?? '',
-      ville: c.city ?? '',
-      code_postal: c.postalCode ?? '',
-      orias: c.oriasNumber ?? '',
       date_creation: c.createdAt.toISOString(),
     }))
 
@@ -43,8 +39,6 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
       nom: cs.supplier.name,
       categorie: cs.supplier.category ?? '',
       note_publique: cs.supplier.avgPublicRating ?? '',
-      score_global: cs.scoreGlobal ?? '',
-      statut: cs.status ?? '',
       note_privee: cs.privateNote ?? '',
       date_creation: cs.supplier.createdAt.toISOString(),
     }))
@@ -104,13 +98,12 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     const answers = await prisma.cabinetComplianceAnswer.findMany({
       where: { cabinetId: request.cabinetId, deletedAt: null },
       include: {
-        item: { include: { phase: { select: { name: true } } } },
+        item: { select: { label: true, type: true } },
       },
-      orderBy: { item: { phase: { order: 'asc' } } },
+      orderBy: { submittedAt: 'asc' },
     })
 
     const rows = answers.map((a) => ({
-      phase: a.item.phase.name,
       item: a.item.label,
       type: a.item.type,
       statut: a.status,

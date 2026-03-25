@@ -106,7 +106,31 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
       },
     })
 
-    return reply.send({ data: { shares } })
+    // Résoudre les entités pour les formations
+    const trainingIds = shares
+      .filter((s) => s.entityType === 'collaborator_training' && s.entityId)
+      .map((s) => s.entityId!)
+
+    const trainings = trainingIds.length > 0
+      ? await prisma.collaboratorTraining.findMany({
+          where: { id: { in: trainingIds }, deletedAt: null },
+          include: {
+            training: true,
+            user: { select: { id: true, email: true, firstName: true, lastName: true } },
+            certificate: { select: { id: true, name: true, mimeType: true } },
+          },
+        })
+      : []
+    const trainingsById = new Map(trainings.map((t) => [t.id, t]))
+
+    const enriched = shares.map((s) => ({
+      ...s,
+      resolvedTraining: s.entityType === 'collaborator_training' && s.entityId
+        ? trainingsById.get(s.entityId) ?? null
+        : null,
+    }))
+
+    return reply.send({ data: { shares: enriched } })
   })
 
   // ── POST /api/v1/shares ───────────────────────────────────────────────────

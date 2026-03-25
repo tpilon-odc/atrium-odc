@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Upload, FileText, FileImage, File, Trash2, Eye, Loader2,
+  Upload, FileText, FileImage, File, Trash2, Eye, Loader2, Pencil,
   Folder as FolderIcon, FolderOpen, Tag, Plus, X, ChevronDown, ChevronRight, Share2,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
@@ -222,6 +222,127 @@ function UploadModal({
   )
 }
 
+// ── Edit Document Modal ────────────────────────────────────────────────────────
+
+function EditDocumentModal({
+  doc,
+  folders,
+  tags,
+  onClose,
+  onDone,
+}: {
+  doc: Document
+  folders: Folder[]
+  tags: TagType[]
+  onClose: () => void
+  onDone: () => void
+}) {
+  const { token } = useAuthStore()
+  const currentTagIds = doc.tags?.map(({ tag }) => tag.id) ?? []
+  const [folderId, setFolderId] = useState<string>(doc.folderId ?? '')
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(currentTagIds)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const toggleTag = (id: string) =>
+    setSelectedTagIds((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id])
+
+  const handleSave = async () => {
+    if (!token) return
+    setSaving(true)
+    setError(null)
+    try {
+      // Mettre à jour le dossier si changé
+      const newFolderId = folderId || null
+      if (newFolderId !== (doc.folderId ?? null)) {
+        await documentApi.patch(doc.id, { folderId: newFolderId }, token)
+      }
+
+      // Tags à ajouter
+      const toAdd = selectedTagIds.filter((id) => !currentTagIds.includes(id))
+      // Tags à retirer
+      const toRemove = currentTagIds.filter((id) => !selectedTagIds.includes(id))
+
+      await Promise.all([
+        ...toAdd.map((tagId) => documentApi.addTag(doc.id, tagId, token)),
+        ...toRemove.map((tagId) => documentApi.removeTag(doc.id, tagId, token)),
+      ])
+
+      onDone()
+    } catch (e: unknown) {
+      setError((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="bg-background border border-border rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-lg">Modifier le document</h3>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{doc.name}</p>
+          </div>
+          <button onClick={onClose}><X className="h-4 w-4 text-muted-foreground" /></button>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Dossier</Label>
+          <select
+            value={folderId}
+            onChange={(e) => setFolderId(e.target.value)}
+            className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
+          >
+            <option value="">— Aucun dossier —</option>
+            {flattenForSelect(buildTree(folders)).map((o) => (
+              <option key={o.id} value={o.id}>
+                {'  '.repeat(o.depth)}{o.depth > 0 ? '↳ ' : ''}{o.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {tags.length > 0 && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Étiquettes</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => toggleTag(tag.id)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                    selectedTagIds.includes(tag.id)
+                      ? 'border-transparent text-white'
+                      : 'border-border text-muted-foreground hover:border-primary/50',
+                  )}
+                  style={selectedTagIds.includes(tag.id) && tag.color ? { backgroundColor: tag.color, borderColor: tag.color } : undefined}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && <p className="text-xs text-destructive">{error}</p>}
+
+        <div className="flex gap-2 justify-end pt-1">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Annuler</Button>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Enregistrement…</> : 'Enregistrer'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Document Row ───────────────────────────────────────────────────────────────
 
 function DocumentRow({
@@ -229,11 +350,13 @@ function DocumentRow({
   onDelete,
   onView,
   onShare,
+  onEdit,
 }: {
   doc: Document
   onDelete: (id: string) => void
   onView: (doc: Document) => void
   onShare: (doc: Document) => void
+  onEdit: (doc: Document) => void
 }) {
   const Icon = mimeIcon(doc.mimeType)
 
@@ -267,6 +390,9 @@ function DocumentRow({
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
         <Button variant="ghost" size="sm" onClick={() => onView(doc)} title="Visualiser">
           <Eye className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => onEdit(doc)} title="Modifier">
+          <Pencil className="h-3.5 w-3.5" />
         </Button>
         <Button variant="ghost" size="sm" onClick={() => onShare(doc)} title="Partager">
           <Share2 className="h-3.5 w-3.5" />
@@ -459,6 +585,7 @@ export default function GEDPage() {
   const [viewerDoc, setViewerDoc] = useState<Document | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareDoc, setShareDoc] = useState<Document | null>(null)
+  const [editDoc, setEditDoc] = useState<Document | null>(null)
 
   // ── Création de tag inline ────────────────────────────────────────────────
   const [addingTag, setAddingTag] = useState(false)
@@ -717,6 +844,7 @@ export default function GEDPage() {
                   onDelete={(id) => deleteMutation.mutate(id)}
                   onView={(d) => setViewerDoc(d)}
                   onShare={(d) => setShareDoc(d)}
+                  onEdit={(d) => setEditDoc(d)}
                 />
               ))}
               {docsData?.data.hasMore && (
@@ -759,6 +887,20 @@ export default function GEDPage() {
         <DocumentViewer
           document={viewerDoc}
           onClose={() => setViewerDoc(null)}
+        />
+      )}
+      {editDoc && (
+        <EditDocumentModal
+          doc={editDoc}
+          folders={folders}
+          tags={tags}
+          onClose={() => setEditDoc(null)}
+          onDone={() => {
+            setEditDoc(null)
+            setDocCursor(null)
+            setAllDocuments([])
+            queryClient.invalidateQueries({ queryKey: ['documents'] })
+          }}
         />
       )}
       {(shareOpen || shareDoc) && (

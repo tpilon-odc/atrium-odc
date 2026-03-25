@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
-import { ContactType, InteractionType } from '@cgp/db'
+import { ContactType, InteractionType, Prisma } from '@cgp/db'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
@@ -21,32 +21,37 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
 
     const { cursor, limit, search, type } = query.data
 
-    const contacts = await prisma.contact.findMany({
-      take: limit + 1,
-      skip: cursor ? 1 : 0,
-      cursor: cursor ? { id: cursor } : undefined,
-      where: {
-        cabinetId: request.cabinetId,
-        deletedAt: null,
-        ...(type ? { type: type as ContactType } : {}),
-        ...(search
-          ? {
-              OR: [
-                { lastName: { contains: search, mode: 'insensitive' } },
-                { firstName: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    const where: Prisma.ContactWhereInput = {
+      cabinetId: request.cabinetId,
+      deletedAt: null,
+      ...(type ? { type: type as ContactType } : {}),
+      ...(search
+        ? {
+            OR: [
+              { lastName: { contains: search, mode: 'insensitive' } },
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    }
+
+    const [contacts, total] = await Promise.all([
+      prisma.contact.findMany({
+        take: limit + 1,
+        skip: cursor ? 1 : 0,
+        cursor: cursor ? { id: cursor } : undefined,
+        where,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.contact.count({ where }),
+    ])
 
     const hasMore = contacts.length > limit
     const items = hasMore ? contacts.slice(0, limit) : contacts
     const nextCursor = hasMore ? items[items.length - 1].id : null
 
-    return reply.send({ data: { contacts: items, nextCursor, hasMore } })
+    return reply.send({ data: { contacts: items, nextCursor, hasMore, total } })
   })
 
   // ── GET /api/v1/contacts/:id ──────────────────────────────────────────────
@@ -79,12 +84,9 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const contact = await prisma.contact.create({
-      data: {
-        ...result.data,
-        type: result.data.type as ContactType,
-        cabinetId: request.cabinetId,
-      },
+      data: { ...result.data as any, type: result.data.type as ContactType, cabinetId: request.cabinetId },
     })
 
     return reply.status(201).send({ data: { contact } })
@@ -106,10 +108,8 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Contact introuvable', code: 'NOT_FOUND' })
     }
 
-    const contact = await prisma.contact.update({
-      where: { id },
-      data: { ...result.data, ...(result.data.type ? { type: result.data.type as ContactType } : {}) },
-    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contact = await prisma.contact.update({ where: { id }, data: result.data as any })
 
     return reply.send({ data: { contact } })
   })

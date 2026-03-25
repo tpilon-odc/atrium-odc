@@ -164,15 +164,9 @@ export default function DashboardPage() {
       .map((i) => ({ ...i, phaseName: p.name, phaseId: p.id }))
   ).slice(0, 3)
 
-  const suppliersCount = suppliersQ.data?.data.suppliers.length ?? 0
-  const suppliersHasMore = suppliersQ.data?.data.hasMore
-  const contactsCount = contactsQ.data?.data.contacts.length ?? 0
-  const contactsHasMore = contactsQ.data?.data.hasMore
-  const documentsCount = documentsQ.data?.data.documents.length ?? 0
-  const documentsHasMore = documentsQ.data?.data.hasMore
-
-  const formatCount = (n: number, hasMore: boolean | undefined) =>
-    hasMore ? `${n}+` : String(n)
+  const suppliersCount = suppliersQ.data?.data.total ?? 0
+  const contactsCount = contactsQ.data?.data.total ?? 0
+  const documentsCount = documentsQ.data?.data.total ?? 0
 
   const actionCount = urgentItems.length + notStartedItems.length
 
@@ -198,21 +192,21 @@ export default function DashboardPage() {
         />
         <KpiCard
           label="Fournisseurs"
-          value={formatCount(suppliersCount, suppliersHasMore)}
+          value={String(suppliersCount)}
           icon={Building2}
           loading={suppliersQ.isLoading}
           color="info"
         />
         <KpiCard
           label="Contacts"
-          value={formatCount(contactsCount, contactsHasMore)}
+          value={String(contactsCount)}
           icon={Users}
           loading={contactsQ.isLoading}
           color="success"
         />
         <KpiCard
           label="Documents"
-          value={formatCount(documentsCount, documentsHasMore)}
+          value={String(documentsCount)}
           icon={FolderOpen}
           loading={documentsQ.isLoading}
           color="warning"

@@ -158,10 +158,11 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Produit introuvable', code: 'NOT_FOUND' })
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cabinetData = await prisma.cabinetProduct.upsert({
       where: { cabinetId_productId: { cabinetId: request.cabinetId, productId: id } },
-      update: result.data,
-      create: { cabinetId: request.cabinetId, productId: id, ...result.data },
+      update: result.data as any,
+      create: { cabinetId: request.cabinetId, productId: id, ...result.data as any },
     })
 
     return reply.send({ data: { cabinetData } })

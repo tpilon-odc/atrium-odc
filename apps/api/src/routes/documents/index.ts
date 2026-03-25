@@ -111,22 +111,27 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
 
     const { cursor, limit, entityType, entityId, folderId, tagId } = query.data
 
-    const documents = await prisma.document.findMany({
-      take: limit + 1,
-      skip: cursor ? 1 : 0,
-      cursor: cursor ? { id: cursor } : undefined,
-      where: {
-        cabinetId: request.cabinetId,
-        deletedAt: null,
-        ...(entityType && entityId
-          ? { links: { some: { entityType: entityType as any, entityId } } }
-          : {}),
-        ...(folderId !== undefined ? { folderId } : {}),
-        ...(tagId ? { tags: { some: { tagId } } } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      include: { links: true, tags: { include: { tag: true } } },
-    })
+    const where = {
+      cabinetId: request.cabinetId,
+      deletedAt: null,
+      ...(entityType && entityId
+        ? { links: { some: { entityType: entityType as any, entityId } } }
+        : {}),
+      ...(folderId !== undefined ? { folderId } : {}),
+      ...(tagId ? { tags: { some: { tagId } } } : {}),
+    }
+
+    const [documents, total] = await Promise.all([
+      prisma.document.findMany({
+        take: limit + 1,
+        skip: cursor ? 1 : 0,
+        cursor: cursor ? { id: cursor } : undefined,
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: { links: true, tags: { include: { tag: true } } },
+      }),
+      prisma.document.count({ where }),
+    ])
 
     const hasMore = documents.length > limit
     const items = hasMore ? documents.slice(0, limit) : documents
@@ -135,7 +140,7 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
     // BigInt → string pour la sérialisation JSON
     const data = items.map((d) => ({ ...d, sizeBytes: d.sizeBytes?.toString() ?? null }))
 
-    return reply.send({ data: { documents: data, nextCursor, hasMore } })
+    return reply.send({ data: { documents: data, nextCursor, hasMore, total } })
   })
 
   // ── GET /api/v1/documents/:id ─────────────────────────────────────────────
@@ -152,6 +157,55 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return reply.send({ data: { document: { ...document, sizeBytes: document.sizeBytes?.toString() ?? null } } })
+  })
+
+  // ── GET /api/v1/documents/:id/shared-url ──────────────────────────────────
+  // URL presignée pour un document partagé via un share compliance_item (sans cabinet)
+  app.get('/:id/shared-url', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    // Vérifie que l'utilisateur a un partage actif dont la réponse référence ce document
+    const document = await prisma.document.findFirst({
+      where: { id, deletedAt: null },
+      include: { externalConfig: true },
+    })
+    if (!document) {
+      return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
+    }
+
+    // Cherche une réponse de conformité qui référence ce document et que cet utilisateur peut voir via un share
+    const share = await prisma.share.findFirst({
+      where: {
+        grantedTo: request.user.id,
+        entityType: 'compliance_item',
+        isActive: true,
+        cabinet: {
+          complianceAnswers: {
+            some: {
+              value: { path: ['document_id'], equals: id },
+              deletedAt: null,
+            },
+          },
+        },
+      },
+    })
+    if (!share) {
+      return reply.status(403).send({ error: 'Accès non autorisé', code: 'FORBIDDEN' })
+    }
+
+    if (document.storageMode === StorageMode.hosted) {
+      if (!document.storagePath) {
+        return reply.status(500).send({ error: 'Chemin de stockage manquant', code: 'STORAGE_ERROR' })
+      }
+      const url = getPresignedUrl(document.storagePath)
+      return reply.send({ data: { url, expiresIn: 3600 } })
+    }
+
+    if (!document.externalConfig || !document.externalPath) {
+      return reply.status(500).send({ error: 'Config externe manquante', code: 'STORAGE_ERROR' })
+    }
+    const url = document.externalConfig.baseUrl + document.externalPath
+    return reply.send({ data: { url, expiresIn: null } })
   })
 
   // ── GET /api/v1/documents/:id/url ─────────────────────────────────────────
