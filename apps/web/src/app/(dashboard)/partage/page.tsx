@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Share2, Trash2, Plus, X, ArrowUpRight, ArrowDownLeft, Eye, EyeOff, Activity } from 'lucide-react'
+import { Share2, Trash2, Plus, X, ArrowUpRight, ArrowDownLeft, Eye, EyeOff, Activity, GraduationCap, FileText } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { shareApi, type Share, type ShareWithViewLog } from '@/lib/api'
+import { shareApi, type Share, type ShareWithViewLog, type Document } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { DocumentViewer } from '@/components/ui/DocumentViewer'
 
 const ENTITY_LABELS: Record<string, string> = {
   contact: 'Contact',
@@ -20,33 +21,56 @@ const ENTITY_LABELS: Record<string, string> = {
 }
 
 function ShareRow({ share, onRevoke }: { share: Share; onRevoke?: () => void }) {
+  const [viewingCert, setViewingCert] = useState(false)
   const who = share.recipientUser?.email ?? share.granterUser?.email ?? '—'
   const cabinetName = share.cabinet?.name
+  const training = share.resolvedTraining ?? null
+
+  const cert = training?.certificate ?? null
+  const certAsDoc: Document | null = cert
+    ? { id: cert.id, name: cert.name, mimeType: cert.mimeType ?? null, description: null, storageMode: 'hosted', sizeBytes: null, folderId: null, createdAt: '', links: [], tags: [] }
+    : null
 
   return (
-    <div className="flex items-center gap-4 bg-card border border-border rounded-lg px-4 py-3 group">
-      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">
-        <Share2 className="h-4 w-4 text-muted-foreground" />
+    <>
+      {viewingCert && certAsDoc && <DocumentViewer document={certAsDoc} onClose={() => setViewingCert(false)} />}
+      <div className="flex items-start gap-4 bg-card border border-border rounded-lg px-4 py-3 group">
+        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+          {training ? <GraduationCap className="h-4 w-4 text-muted-foreground" /> : <Share2 className="h-4 w-4 text-muted-foreground" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">
+            {training ? training.training.name : (ENTITY_LABELS[share.entityType] ?? share.entityType)}
+          </p>
+          {training && (
+            <p className="text-xs text-muted-foreground">
+              {[training.user.firstName, training.user.lastName].filter(Boolean).join(' ') || training.user.email}
+              {' · '}{new Date(training.trainingDate).toLocaleDateString('fr-FR')}
+              {training.trainingDateEnd ? ` → ${new Date(training.trainingDateEnd).toLocaleDateString('fr-FR')}` : ''}
+              {training.hoursCompleted ? ` · ${training.hoursCompleted}h` : ''}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {cabinetName ? `De : ${cabinetName} (${who})` : `Avec : ${who}`}
+            {' · '}{new Date(share.createdAt).toLocaleDateString('fr-FR')}
+          </p>
+          {certAsDoc && (
+            <button onClick={() => setViewingCert(true)} className="mt-0.5 flex items-center gap-1 text-xs text-primary hover:underline">
+              <FileText className="h-3 w-3" />
+              {certAsDoc.name}
+            </button>
+          )}
+        </div>
+        {onRevoke && (
+          <button
+            onClick={() => confirm('Révoquer ce partage ?') && onRevoke()}
+            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">
-          {ENTITY_LABELS[share.entityType] ?? share.entityType}
-          {share.entityId && <span className="text-xs text-muted-foreground ml-2 font-normal">(entité spécifique)</span>}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {cabinetName ? `De : ${cabinetName} (${who})` : `Avec : ${who}`}
-          {' · '}{new Date(share.createdAt).toLocaleDateString('fr-FR')}
-        </p>
-      </div>
-      {onRevoke && (
-        <button
-          onClick={() => confirm('Révoquer ce partage ?') && onRevoke()}
-          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </div>
+    </>
   )
 }
 

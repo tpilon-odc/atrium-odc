@@ -40,7 +40,9 @@ function getInitials(name: string): string {
 
 const ROLE_LABELS: Record<string, string> = {
   platform_admin: 'Administrateur plateforme',
-  cabinet_user: 'Utilisateur cabinet',
+  cabinet_user: 'Membre cabinet',
+  chamber: 'Membre chambre',
+  regulator: 'Régulateur',
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────

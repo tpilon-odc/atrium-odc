@@ -5,13 +5,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, FileText, X, Upload, CheckCircle2 } from 'lucide-react'
+import { Search, FileText, X, Upload, CheckCircle2, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { complianceApi, documentApi, type AnswerValue, type PhaseProgress, type Document } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { DocumentViewer } from '@/components/ui/DocumentViewer'
 
 type Item = PhaseProgress['items'][number]
 
@@ -111,7 +112,11 @@ function CheckboxForm({ item, onSave, saving }: { item: Item; onSave: (v: Answer
 function DocForm({ item, onSave, saving }: { item: Item; onSave: (v: AnswerValue, s: 'draft' | 'submitted') => void; saving: boolean }) {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
-  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
+  const existingDoc = item.answer?.document ?? null
+  const [selectedDoc, setSelectedDoc] = useState<Document | null>(
+    existingDoc ? { id: existingDoc.id, name: existingDoc.name, mimeType: existingDoc.mimeType ?? null, description: null, storageMode: 'hosted', sizeBytes: null, folderId: null, createdAt: '', links: [], tags: [] } : null
+  )
+  const [viewing, setViewing] = useState(false)
   const [search, setSearch] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -145,38 +150,48 @@ function DocForm({ item, onSave, saving }: { item: Item; onSave: (v: AnswerValue
   // Doc sélectionné → afficher confirmation + boutons de soumission
   if (selectedDoc) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3 bg-success-subtle border border-success/20 rounded-lg px-4 py-3">
-          <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{selectedDoc.name}</p>
-            <p className="text-xs text-muted-foreground">Document sélectionné</p>
+      <>
+        {viewing && <DocumentViewer document={selectedDoc} onClose={() => setViewing(false)} />}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 bg-success-subtle border border-success/20 rounded-lg px-4 py-3">
+            <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{selectedDoc.name}</p>
+              <p className="text-xs text-muted-foreground">Document sélectionné</p>
+            </div>
+            <button
+              onClick={() => setViewing(true)}
+              className="text-muted-foreground hover:text-primary p-1 transition-colors shrink-0"
+              title="Visualiser"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setSelectedDoc(null)}
+              className="text-muted-foreground hover:text-foreground p-1 transition-colors shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            onClick={() => setSelectedDoc(null)}
-            className="text-muted-foreground hover:text-foreground p-1 transition-colors shrink-0"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={saving}
+              onClick={() => onSave({ document_id: selectedDoc.id }, 'draft')}
+            >
+              Enregistrer brouillon
+            </Button>
+            <Button
+              size="sm"
+              disabled={saving}
+              onClick={() => onSave({ document_id: selectedDoc.id }, 'submitted')}
+            >
+              {saving ? 'Envoi…' : 'Soumettre'}
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={saving}
-            onClick={() => onSave({ document_id: selectedDoc.id }, 'draft')}
-          >
-            Enregistrer brouillon
-          </Button>
-          <Button
-            size="sm"
-            disabled={saving}
-            onClick={() => onSave({ document_id: selectedDoc.id }, 'submitted')}
-          >
-            {saving ? 'Envoi…' : 'Soumettre'}
-          </Button>
-        </div>
-      </div>
+      </>
     )
   }
 
@@ -243,23 +258,78 @@ function DocForm({ item, onSave, saving }: { item: Item; onSave: (v: AnswerValue
   )
 }
 
+// ── Vue lecture seule (réponse soumise) ─────────────────────────────────────
+
+function SubmittedView({ item, onEdit }: { item: Item; onEdit: () => void }) {
+  const [viewing, setViewing] = useState(false)
+  const answer = item.answer!
+  const doc = answer.document ?? null
+  const docAsDocument: Document | null = doc
+    ? { id: doc.id, name: doc.name, mimeType: doc.mimeType ?? null, description: null, storageMode: 'hosted', sizeBytes: null, folderId: null, createdAt: '', links: [], tags: [] }
+    : null
+
+  let summary: string
+  if (item.type === 'doc') {
+    summary = doc?.name ?? 'Document lié'
+  } else if (item.type === 'text') {
+    summary = (answer.value as { text?: string })?.text ?? '—'
+  } else {
+    const sel = (answer.value as { selected?: string[] })?.selected ?? []
+    summary = sel.join(', ') || '—'
+  }
+
+  return (
+    <>
+      {viewing && docAsDocument && <DocumentViewer document={docAsDocument} onClose={() => setViewing(false)} />}
+      <div className="flex items-center gap-3 bg-success-subtle border border-success/20 rounded-lg px-4 py-3">
+        <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{summary}</p>
+          <p className="text-xs text-muted-foreground">Soumis</p>
+        </div>
+        {docAsDocument && (
+          <button
+            onClick={() => setViewing(true)}
+            className="text-muted-foreground hover:text-primary p-1 transition-colors shrink-0"
+            title="Visualiser"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          onClick={onEdit}
+          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 shrink-0"
+        >
+          Modifier
+        </button>
+      </div>
+    </>
+  )
+}
+
 // ── Composant principal ─────────────────────────────────────────────────────
 
 export function AnswerForm({ item, phaseId }: { item: Item; phaseId: string }) {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(item.answer?.status !== 'submitted')
 
   const mutation = useMutation({
     mutationFn: ({ value, status }: { value: AnswerValue; status: 'draft' | 'submitted' }) =>
       complianceApi.submitAnswer(item.id, value, status, token!),
-    onSuccess: () => {
+    onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ['compliance-progress', token] })
       queryClient.invalidateQueries({ queryKey: ['compliance-progress-detail', phaseId, token] })
+      if (status === 'submitted') setEditing(false)
     },
   })
 
   const handleSave = (value: AnswerValue, status: 'draft' | 'submitted') => {
     mutation.mutate({ value, status })
+  }
+
+  if (!editing && item.answer?.status === 'submitted') {
+    return <SubmittedView item={item} onEdit={() => setEditing(true)} />
   }
 
   const props = { item, onSave: handleSave, saving: mutation.isPending }

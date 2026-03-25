@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, FileText, FileImage, File, Trash2, Eye, Loader2, Pencil,
-  Folder as FolderIcon, FolderOpen, Tag, Plus, X, ChevronDown, ChevronRight, Share2,
+  Folder as FolderIcon, FolderOpen, Tag, Plus, X, ChevronDown, ChevronRight, Share2, SlidersHorizontal,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { documentApi, folderApi, tagApi, type Document, type Folder, type Tag as TagType } from '@/lib/api'
@@ -362,7 +362,7 @@ function DocumentRow({
 
   return (
     <div
-      className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-3 group cursor-pointer hover:bg-muted/30 transition-colors"
+      className="flex items-center gap-3 bg-card border border-border rounded-lg px-3 py-3 md:px-4 group cursor-pointer hover:bg-muted/30 transition-colors"
       onClick={() => onView(doc)}
     >
       <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0">
@@ -378,7 +378,7 @@ function DocumentRow({
           {doc.tags?.map(({ tag }) => (
             <span
               key={tag.id}
-              className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+              className="hidden sm:inline text-xs px-1.5 py-0.5 rounded-full font-medium"
               style={tag.color ? { backgroundColor: tag.color + '22', color: tag.color } : undefined}
             >
               {tag.name}
@@ -387,20 +387,20 @@ function DocumentRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
-        <Button variant="ghost" size="sm" onClick={() => onView(doc)} title="Visualiser">
+      <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onView(doc)} title="Visualiser">
           <Eye className="h-3.5 w-3.5" />
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onEdit(doc)} title="Modifier">
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onEdit(doc)} title="Modifier">
           <Pencil className="h-3.5 w-3.5" />
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onShare(doc)} title="Partager">
+        <Button variant="ghost" size="sm" className="hidden sm:flex h-8 w-8 p-0" onClick={() => onShare(doc)} title="Partager">
           <Share2 className="h-3.5 w-3.5" />
         </Button>
         <Button
           variant="ghost"
           size="sm"
-          className="text-destructive hover:text-destructive"
+          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
           onClick={() => confirm('Supprimer ce document ?') && onDelete(doc.id)}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -586,6 +586,7 @@ export default function GEDPage() {
   const [shareOpen, setShareOpen] = useState(false)
   const [shareDoc, setShareDoc] = useState<Document | null>(null)
   const [editDoc, setEditDoc] = useState<Document | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // ── Création de tag inline ────────────────────────────────────────────────
   const [addingTag, setAddingTag] = useState(false)
@@ -665,15 +666,89 @@ export default function GEDPage() {
   })
 
   return (
-    <div className="space-y-5 max-w-5xl">
-      <div>
-        <h2 className="text-2xl font-semibold">Gestion documentaire</h2>
-        <p className="text-muted-foreground mt-1">Organisez et accédez à vos documents.</p>
+    <div className="space-y-4 max-w-5xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Gestion documentaire</h2>
+          <p className="text-muted-foreground mt-1">Organisez et accédez à vos documents.</p>
+        </div>
+        {/* Bouton filtre mobile */}
+        <button
+          className="md:hidden flex items-center gap-1.5 text-sm text-muted-foreground border border-border rounded-lg px-3 py-2 shrink-0 hover:bg-accent transition-colors"
+          onClick={() => setSidebarOpen((v) => !v)}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Filtres
+          {(selectedFolderId || selectedTagId) && (
+            <span className="h-2 w-2 rounded-full bg-primary" />
+          )}
+        </button>
       </div>
 
+      {/* Sidebar mobile (accordéon) */}
+      {sidebarOpen && (
+        <div className="md:hidden space-y-3 bg-card border border-border rounded-xl p-3">
+          {/* Dossiers */}
+          <div>
+            <div className="flex items-center justify-between pb-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dossiers</span>
+              <button
+                onClick={() => { setNewFolderParentId(undefined); setNewFolderOpen(true) }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <button
+              onClick={() => { setSelectedFolderId(null); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]); setSidebarOpen(false) }}
+              className={cn(
+                'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left mb-0.5',
+                !selectedFolderId && !selectedTagId ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              <File className="h-3.5 w-3.5 shrink-0" />
+              Tous les documents
+            </button>
+            {buildTree(folders).map((node) => (
+              <FolderTreeNode
+                key={node.id}
+                node={node}
+                selectedFolderId={selectedFolderId}
+                onSelect={(id) => { setSelectedFolderId(id); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]); setSidebarOpen(false) }}
+                onDelete={(id, name) => confirm(`Supprimer "${name}" ?`) && deleteFolder.mutate(id)}
+                onCreateChild={(parentId) => { setNewFolderParentId(parentId); setNewFolderOpen(true) }}
+              />
+            ))}
+          </div>
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div className="border-t border-border pt-3 space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tags</span>
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    onClick={() => { setSelectedTagId(selectedTagId === tag.id ? null : tag.id); setDocCursor(null); setAllDocuments([]); setSidebarOpen(false) }}
+                    className={cn(
+                      'flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors',
+                      selectedTagId === tag.id ? 'border-transparent text-white' : 'border-border text-muted-foreground',
+                    )}
+                    style={selectedTagId === tag.id && tag.color ? { backgroundColor: tag.color } : undefined}
+                  >
+                    <Tag className="h-2.5 w-2.5 shrink-0" />
+                    {tag.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-5 items-start">
-        {/* ── Sidebar gauche ── */}
-        <aside className="w-52 shrink-0 space-y-5">
+        {/* ── Sidebar gauche (desktop uniquement) ── */}
+        <aside className="hidden md:block w-52 shrink-0 space-y-5">
           {/* Dossiers */}
           <div className="bg-card border border-border rounded-lg p-3">
             <div className="flex items-center justify-between px-1 pb-2">
@@ -799,8 +874,8 @@ export default function GEDPage() {
 
         {/* ── Contenu principal ── */}
         <div className="flex-1 min-w-0 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground truncate">
               {selectedFolderId
                 ? folders.find((f) => f.id === selectedFolderId)?.name
                 : selectedTagId
@@ -808,16 +883,17 @@ export default function GEDPage() {
                 : 'Tous les documents'}
               {!isLoading && <span className="ml-1.5">({documents.length})</span>}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {documents.length > 0 && (
-                <Button size="sm" variant="outline" onClick={() => setShareOpen(true)}>
+                <Button size="sm" variant="outline" className="hidden sm:flex" onClick={() => setShareOpen(true)}>
                   <Share2 className="h-3.5 w-3.5 mr-1.5" />
                   Partager
                 </Button>
               )}
               <Button size="sm" onClick={() => setUploadOpen(true)}>
                 <Upload className="h-3.5 w-3.5 mr-1.5" />
-                Ajouter
+                <span className="hidden sm:inline">Ajouter</span>
+                <span className="sm:hidden">+</span>
               </Button>
             </div>
           </div>

@@ -84,9 +84,15 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
     }
 
+    const { birthDate, ...rest } = result.data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const contact = await prisma.contact.create({
-      data: { ...result.data as any, type: result.data.type as ContactType, cabinetId: request.cabinetId },
+      data: {
+        ...rest as any,
+        type: result.data.type as ContactType,
+        cabinetId: request.cabinetId,
+        ...(birthDate ? { birthDate: new Date(birthDate) } : {}),
+      },
     })
 
     return reply.status(201).send({ data: { contact } })
@@ -108,8 +114,15 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Contact introuvable', code: 'NOT_FOUND' })
     }
 
+    const { birthDate, ...rest } = result.data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const contact = await prisma.contact.update({ where: { id }, data: result.data as any })
+    const contact = await prisma.contact.update({
+      where: { id },
+      data: {
+        ...rest as any,
+        ...(birthDate !== undefined ? { birthDate: birthDate ? new Date(birthDate) : null } : {}),
+      },
+    })
 
     return reply.send({ data: { contact } })
   })

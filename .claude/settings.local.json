@@ -22,7 +22,16 @@
       "Bash(npx tsc:*)",
       "Bash(SEED_ADMIN_EMAIL=tpilon@odc.fr SEED_ADMIN_PASSWORD=Admin1234! npx tsx --env-file=apps/api/.env scripts/seed-compliance.ts)",
       "Bash(SEED_ADMIN_EMAIL=tpilon@odc.fr npx tsx --env-file=apps/api/.env scripts/seed-compliance.ts)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(ls /Users/thomaspilon-odc/atrium-odc/SPECS_*.md)",
+      "Bash(npx prisma:*)",
+      "Bash(/Users/thomaspilon-odc/atrium-odc/node_modules/.bin/vitest run:*)",
+      "Bash(source /Users/thomaspilon-odc/atrium-odc/apps/api/.env)",
+      "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:54322/postgres npx prisma migrate status --schema=packages/db/prisma/schema.prisma)",
+      "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:54322/postgres npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma)",
+      "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:54322/postgres npx prisma migrate resolve --applied 20260324180000_add_rgpd --schema=packages/db/prisma/schema.prisma)",
+      "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:54322/postgres npx prisma migrate resolve --applied 20260325120000_share_view_logs --schema=packages/db/prisma/schema.prisma)",
+      "Bash(npm test:*)"
     ]
   }
 }

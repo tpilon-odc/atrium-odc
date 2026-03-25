@@ -36,6 +36,14 @@ export default function AcceptInvitePage() {
     try {
       const { data: result } = await authApi.login(email, password)
       setAuth(result.session.access_token, result.user)
+
+      // Les rôles plateforme (chamber, regulator, platform_admin) n'ont pas de cabinet
+      const noCabinet = ['chamber', 'regulator', 'platform_admin'].includes(result.user.globalRole)
+      if (noCabinet) {
+        router.push('/dashboard')
+        return
+      }
+
       try {
         const { data: cabinetData } = await cabinetApi.getMe(result.session.access_token)
         setCabinet({ id: cabinetData.cabinet.id, name: cabinetData.cabinet.name })

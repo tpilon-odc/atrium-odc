@@ -34,6 +34,13 @@ export default function LoginPage() {
       const { data: result } = await authApi.login(data.email, data.password)
       setAuth(result.session.access_token, result.user)
 
+      // Les rôles plateforme n'ont pas de cabinet
+      const noCabinet = ['chamber', 'regulator', 'platform_admin'].includes(result.user.globalRole)
+      if (noCabinet) {
+        router.push('/dashboard')
+        return
+      }
+
       // Récupère le cabinet courant
       try {
         const { data: cabinetData } = await cabinetApi.getMe(result.session.access_token)

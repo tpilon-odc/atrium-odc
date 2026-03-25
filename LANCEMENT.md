@@ -98,3 +98,7 @@ npx prisma generate
 cd packages/db
 npx prisma migrate dev
 ```
+
+#### Lancement des tests 
+```bash
+cd apps/api && npm test

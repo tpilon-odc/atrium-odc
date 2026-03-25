@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare } from 'lucide-react'
+import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { contactApi, eventApi, type ContactType, type InteractionType, type Interaction, type CalendarEvent, type EventType } from '@/lib/api'
+import { contactApi, eventApi, type ContactType, type MaritalStatus, type InteractionType, type Interaction, type CalendarEvent, type EventType } from '@/lib/api'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -41,6 +41,14 @@ const TYPE_COLORS: Record<ContactType, string> = {
   prospect: 'bg-blue-100 text-blue-700',
   client: 'bg-green-100 text-green-700',
   ancien_client: 'bg-muted text-muted-foreground',
+}
+
+const MARITAL_STATUS_LABELS: Record<MaritalStatus, string> = {
+  celibataire: 'Célibataire',
+  marie: 'Marié(e)',
+  pacse: 'Pacsé(e)',
+  divorce: 'Divorcé(e)',
+  veuf: 'Veuf/Veuve',
 }
 
 const INTERACTION_ICONS: Record<InteractionType, React.ElementType> = {
@@ -233,7 +241,8 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
       {contact && (
         <>
           {/* Fiche contact */}
-          <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+          <div className="bg-card border border-border rounded-lg p-6 space-y-5">
+            {/* En-tête */}
             <div className="flex items-start gap-4">
               <div className="h-14 w-14 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xl shrink-0">
                 {[contact.firstName?.[0], contact.lastName[0]].filter(Boolean).join('').toUpperCase()}
@@ -242,28 +251,92 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 <h2 className="text-xl font-semibold">
                   {contact.firstName} {contact.lastName}
                 </h2>
-                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', TYPE_COLORS[contact.type])}>
+                {contact.profession && (
+                  <p className="text-sm text-muted-foreground">{contact.profession}</p>
+                )}
+                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block', TYPE_COLORS[contact.type])}>
                   {TYPE_LABELS[contact.type]}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-4 text-sm">
-              {contact.email && (
-                <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                  <Mail className="h-4 w-4" />
-                  {contact.email}
-                </a>
-              )}
-              {contact.phone && (
-                <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                  <Phone className="h-4 w-4" />
-                  {contact.phone}
-                </a>
-              )}
+            {/* Coordonnées */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Coordonnées</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{contact.email}</span>
+                  </a>
+                )}
+                {contact.email2 && (
+                  <a href={`mailto:${contact.email2}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{contact.email2}</span>
+                  </a>
+                )}
+                {contact.phone && (
+                  <a href={`tel:${contact.phone}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    {contact.phone}
+                  </a>
+                )}
+                {contact.phone2 && (
+                  <a href={`tel:${contact.phone2}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
+                    {contact.phone2}
+                  </a>
+                )}
+                {(contact.address || contact.city) && (
+                  <span className="flex items-start gap-1.5 text-muted-foreground sm:col-span-2">
+                    <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      {[contact.address, contact.postalCode && contact.city ? `${contact.postalCode} ${contact.city}` : contact.city, contact.country !== 'France' ? contact.country : null].filter(Boolean).join(', ')}
+                    </span>
+                  </span>
+                )}
+              </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
+            {/* Situation personnelle */}
+            {(contact.birthDate || contact.maritalStatus !== null || contact.dependents !== null) && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Situation personnelle</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                  {contact.birthDate && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5 shrink-0" />
+                      {new Date(contact.birthDate).toLocaleDateString('fr-FR')}
+                    </div>
+                  )}
+                  {contact.maritalStatus && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Heart className="h-3.5 w-3.5 shrink-0" />
+                      {MARITAL_STATUS_LABELS[contact.maritalStatus]}
+                    </div>
+                  )}
+                  {contact.dependents !== null && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Baby className="h-3.5 w-3.5 shrink-0" />
+                      {contact.dependents} enfant{contact.dependents !== 1 ? 's' : ''}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {contact.profession && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Profession</p>
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                  {contact.profession}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground border-t border-border pt-3">
               Ajouté le {new Date(contact.createdAt).toLocaleDateString('fr-FR')}
             </p>
           </div>

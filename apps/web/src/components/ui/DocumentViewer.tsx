@@ -29,9 +29,10 @@ function formatSize(bytes: string | null): string {
 interface DocumentViewerProps {
   document: Document
   onClose: () => void
+  shared?: boolean
 }
 
-export function DocumentViewer({ document: doc, onClose }: DocumentViewerProps) {
+export function DocumentViewer({ document: doc, onClose, shared = false }: DocumentViewerProps) {
   const { token } = useAuthStore()
   const overlayRef = useRef<HTMLDivElement>(null)
   const [url, setUrl] = useState<string | null>(null)
@@ -49,7 +50,8 @@ export function DocumentViewer({ document: doc, onClose }: DocumentViewerProps) 
       setLoading(false)
       return
     }
-    documentApi.getUrl(doc.id, token)
+    const fetch = shared ? documentApi.getSharedUrl(doc.id, token) : documentApi.getUrl(doc.id, token)
+    fetch
       .then((res) => setUrl(res.data.url))
       .catch(() => setError('Impossible de charger le document.'))
       .finally(() => setLoading(false))

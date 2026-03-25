@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, AlertTriangle, XCircle, Circle, Building2 } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, XCircle, Circle, Building2, Eye, FileText } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { complianceShareApi, shareApi, type ComplianceShareCabinet } from '@/lib/api'
+import { complianceShareApi, shareApi, type ComplianceShareCabinet, type Document } from '@/lib/api'
+import { DocumentViewer } from '@/components/ui/DocumentViewer'
 import { cn } from '@/lib/utils'
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; className: string }> = {
@@ -18,28 +19,56 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; cl
 function ItemRow({ item: shared }: { item: ComplianceShareCabinet['items'][0] }) {
   const cfg = STATUS_CONFIG[shared.status] ?? STATUS_CONFIG.not_started
   const Icon = cfg.icon
+  const [viewing, setViewing] = useState(false)
+
+  const doc = shared.answer?.document ?? null
+  const docAsDocument: Document | null = doc
+    ? { id: doc.id, name: doc.name, mimeType: (doc as { mimeType?: string | null }).mimeType ?? null, description: null, storageMode: 'hosted', sizeBytes: null, folderId: null, createdAt: '', links: [], tags: [] }
+    : null
+
+  const answerText = shared.item.type === 'text'
+    ? (shared.answer?.value as { text?: string })?.text
+    : shared.item.type !== 'doc'
+      ? ((shared.answer?.value as { selected?: string[] })?.selected ?? []).join(', ')
+      : null
 
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
-      <Icon className={cn('h-4 w-4 shrink-0', cfg.className)} />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{shared.item.label}</p>
-        <p className="text-xs text-muted-foreground">{shared.item.phase.label}</p>
+    <>
+      {viewing && docAsDocument && <DocumentViewer document={docAsDocument} onClose={() => setViewing(false)} shared />}
+      <div className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
+        <Icon className={cn('h-4 w-4 shrink-0 mt-0.5', cfg.className)} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{shared.item.label}</p>
+          <p className="text-xs text-muted-foreground">{shared.item.phase.label}</p>
+          {docAsDocument && (
+            <button
+              onClick={() => setViewing(true)}
+              className="mt-1.5 flex items-center gap-1.5 text-xs text-primary hover:underline"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {docAsDocument.name}
+              <Eye className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
+          {answerText && (
+            <p className="mt-1 text-xs text-foreground/70 line-clamp-2">{answerText}</p>
+          )}
+        </div>
+        <div className="text-right shrink-0">
+          <span className={cn('text-xs font-medium', cfg.className)}>{cfg.label}</span>
+          {shared.answer?.expiresAt && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Expire le {new Date(shared.answer.expiresAt).toLocaleDateString('fr-FR')}
+            </p>
+          )}
+          {shared.answer?.submittedAt && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Soumis le {new Date(shared.answer.submittedAt).toLocaleDateString('fr-FR')}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="text-right shrink-0">
-        <span className={cn('text-xs font-medium', cfg.className)}>{cfg.label}</span>
-        {shared.answer?.expiresAt && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Expire le {new Date(shared.answer.expiresAt).toLocaleDateString('fr-FR')}
-          </p>
-        )}
-        {shared.answer?.submittedAt && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">
-            Soumis le {new Date(shared.answer.submittedAt).toLocaleDateString('fr-FR')}
-          </p>
-        )}
-      </div>
-    </div>
+    </>
   )
 }
 

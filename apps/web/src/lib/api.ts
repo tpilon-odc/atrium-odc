@@ -422,6 +422,7 @@ export const toolApi = {
 // ── Contacts / CRM ────────────────────────────────────────────────────────────
 
 export type ContactType = 'prospect' | 'client' | 'ancien_client'
+export type MaritalStatus = 'celibataire' | 'marie' | 'pacse' | 'divorce' | 'veuf'
 export type InteractionType = 'email' | 'appel' | 'rdv' | 'note'
 
 export type Contact = {
@@ -429,8 +430,18 @@ export type Contact = {
   firstName: string | null
   lastName: string
   email: string | null
+  email2: string | null
   phone: string | null
+  phone2: string | null
   type: ContactType
+  birthDate: string | null
+  profession: string | null
+  address: string | null
+  city: string | null
+  postalCode: string | null
+  country: string | null
+  maritalStatus: MaritalStatus | null
+  dependents: number | null
   createdAt: string
 }
 

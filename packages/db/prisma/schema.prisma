@@ -63,6 +63,14 @@ enum ContactType {
   ancien_client
 }
 
+enum MaritalStatus {
+  celibataire
+  marie
+  pacse
+  divorce
+  veuf
+}
+
 enum InteractionType {
   email
   appel
@@ -639,16 +647,26 @@ model ToolPublicRating {
 // ──────────────────────────────────────────────────────────────────────────────
 
 model Contact {
-  id        String      @id @default(uuid()) @db.Uuid
-  cabinetId String      @map("cabinet_id") @db.Uuid
-  firstName String?     @map("first_name")
-  lastName  String      @map("last_name")
-  email     String?
-  phone     String?
-  type      ContactType
-  metadata  Json?       @db.JsonB
-  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  deletedAt DateTime?   @map("deleted_at") @db.Timestamptz
+  id            String         @id @default(uuid()) @db.Uuid
+  cabinetId     String         @map("cabinet_id") @db.Uuid
+  firstName     String?        @map("first_name")
+  lastName      String         @map("last_name")
+  email         String?
+  email2        String?        @map("email2")
+  phone         String?
+  phone2        String?        @map("phone2")
+  type          ContactType
+  birthDate     DateTime?      @map("birth_date") @db.Date
+  profession    String?
+  address       String?
+  city          String?
+  postalCode    String?        @map("postal_code")
+  country       String?        @default("France")
+  maritalStatus MaritalStatus? @map("marital_status")
+  dependents    Int?
+  metadata      Json?          @db.JsonB
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt     DateTime?      @map("deleted_at") @db.Timestamptz
 
   cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
   interactions Interaction[]
@@ -835,6 +853,7 @@ model CollaboratorTraining {
   userId                String    @map("user_id") @db.Uuid
   trainingId            String    @map("training_id") @db.Uuid
   trainingDate          DateTime  @map("training_date") @db.Date
+  trainingDateEnd       DateTime? @map("training_date_end") @db.Date
   hoursCompleted        Float?    @map("hours_completed")
   certificateDocumentId String?   @map("certificate_document_id") @db.Uuid
   notes                 String?
