@@ -505,6 +505,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     isActive={pathname.startsWith('/admin/clusters')}
                   />
                 </li>
+                <li>
+                  <SidebarLink
+                    href="/admin/utilisateurs"
+                    label="Utilisateurs plateforme"
+                    icon={Users}
+                    isActive={pathname.startsWith('/admin/utilisateurs')}
+                  />
+                </li>
               </ul>
             </div>
           )}

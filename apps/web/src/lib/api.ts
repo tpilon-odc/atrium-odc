@@ -748,6 +748,7 @@ export type PlatformUser = {
   globalRole: string
   firstName?: string | null
   lastName?: string | null
+  createdAt?: string
 }
 
 export const platformUserApi = {
@@ -755,6 +756,24 @@ export const platformUserApi = {
     const q = new URLSearchParams({ q: query, roles: 'chamber,regulator,platform_admin' })
     return call<{ users: PlatformUser[] }>(`/api/v1/users/search?${q}`, { token })
   },
+}
+
+export const adminApi = {
+  listPlatformUsers: (token: string) =>
+    call<{ users: PlatformUser[] }>('/api/v1/admin/platform-users', { token }),
+
+  invitePlatformUser: (
+    data: { email: string; firstName: string; lastName: string; globalRole: string },
+    token: string
+  ) =>
+    call<{ user: PlatformUser; inviteUrl: string | null }>('/api/v1/admin/platform-users/invite', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  deletePlatformUser: (id: string, token: string) =>
+    call<unknown>(`/api/v1/admin/platform-users/${id}`, { method: 'DELETE', token }),
 }
 
 // ── Cabinet (paramètres) ───────────────────────────────────────────────────────

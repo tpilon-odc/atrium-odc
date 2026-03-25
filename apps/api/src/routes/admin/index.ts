@@ -4,6 +4,7 @@ import { GlobalRole, GdprRequestStatus } from '@cgp/db'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
+import { supabaseAdmin } from '../../lib/supabase'
 import { updateReportBody } from '../clusters/schemas'
 import { sendGdprRequestConfirmEmail } from '../../lib/mailer'
 import { minioNative, BUCKET } from '../../lib/minio'
@@ -15,6 +16,84 @@ async function platformAdminMiddleware(request: Parameters<typeof authMiddleware
 }
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
+
+  // ── GET /api/v1/admin/platform-users ─────────────────────────────────────
+  app.get('/platform-users', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const users = await prisma.user.findMany({
+      where: {
+        globalRole: { in: [GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin] },
+        isActive: true,
+      },
+      select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    return reply.send({ data: { users } })
+  })
+
+  // ── POST /api/v1/admin/platform-users/invite ──────────────────────────────
+  app.post('/platform-users/invite', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const bodySchema = z.object({
+      email: z.string().email('Email invalide'),
+      firstName: z.string().min(1, 'Prénom requis'),
+      lastName: z.string().min(1, 'Nom requis'),
+      globalRole: z.enum([GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin]),
+    })
+
+    const result = bodySchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    const { email, firstName, lastName, globalRole } = result.data
+
+    // Vérifie que l'email n'est pas déjà utilisé
+    const existing = await prisma.user.findUnique({ where: { email } })
+    if (existing) {
+      return reply.status(409).send({ error: 'Un compte avec cet email existe déjà', code: 'ALREADY_EXISTS' })
+    }
+
+    // Crée l'utilisateur dans Supabase Auth + envoie l'invitation
+    const { data: linkData, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: { redirectTo: `${process.env.FRONTEND_URL}/accept-invite` },
+    })
+
+    if (error || !linkData?.user) {
+      return reply.status(500).send({ error: "Échec de la création du compte", code: 'INVITE_ERROR' })
+    }
+
+    // Crée l'utilisateur dans notre DB avec le bon rôle
+    const user = await prisma.user.create({
+      data: {
+        id: linkData.user.id,
+        email,
+        firstName,
+        lastName,
+        globalRole,
+      },
+      select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, createdAt: true },
+    })
+
+    return reply.status(201).send({ data: { user, inviteUrl: linkData.properties?.action_link ?? null } })
+  })
+
+  // ── DELETE /api/v1/admin/platform-users/:id ───────────────────────────────
+  app.delete('/platform-users/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    if (id === request.user.id) {
+      return reply.status(400).send({ error: 'Vous ne pouvez pas désactiver votre propre compte', code: 'SELF_DELETE' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } })
+    if (!user || ![GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin].includes(user.globalRole as GlobalRole)) {
+      return reply.status(404).send({ error: 'Utilisateur introuvable', code: 'NOT_FOUND' })
+    }
+
+    await prisma.user.update({ where: { id }, data: { isActive: false } })
+    return reply.status(204).send()
+  })
 
   // ── GET /api/v1/admin/reports ─────────────────────────────────────────────
   app.get('/reports', { preHandler: [authMiddleware, cabinetMiddleware, platformAdminMiddleware] }, async (request, reply) => {
