@@ -759,8 +759,13 @@ export const platformUserApi = {
 }
 
 export const adminApi = {
-  listPlatformUsers: (token: string) =>
-    call<{ users: PlatformUser[] }>('/api/v1/admin/platform-users', { token }),
+  listPlatformUsers: (token: string, params?: { role?: string; search?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.role) q.set('role', params.role)
+    if (params?.search) q.set('search', params.search)
+    const qs = q.toString()
+    return call<{ users: PlatformUser[] }>(`/api/v1/admin/platform-users${qs ? `?${qs}` : ''}`, { token })
+  },
 
   invitePlatformUser: (
     data: { email: string; firstName: string; lastName: string; globalRole: string },

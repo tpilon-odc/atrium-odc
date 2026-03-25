@@ -19,10 +19,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   // ── GET /api/v1/admin/platform-users ─────────────────────────────────────
   app.get('/platform-users', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { role, search } = request.query as { role?: string; search?: string }
+
     const users = await prisma.user.findMany({
       where: {
-        globalRole: { in: [GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin] },
         isActive: true,
+        ...(role ? { globalRole: role as GlobalRole } : {}),
+        ...(search ? {
+          OR: [
+            { email: { contains: search, mode: 'insensitive' } },
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+          ],
+        } : {}),
       },
       select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
