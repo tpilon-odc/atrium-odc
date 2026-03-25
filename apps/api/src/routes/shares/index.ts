@@ -152,6 +152,69 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data: { share } })
   })
 
+  // ── POST /api/v1/shares/:id/view ─────────────────────────────────────────
+  // Enregistre une consultation (appelé par le destinataire)
+  app.post('/:id/view', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const share = await prisma.share.findFirst({
+      where: { id, grantedTo: request.user.id, isActive: true },
+    })
+    if (!share) {
+      return reply.status(404).send({ error: 'Partage introuvable', code: 'NOT_FOUND' })
+    }
+
+    await prisma.shareViewLog.create({
+      data: {
+        shareId: id,
+        viewerId: request.user.id,
+        ipAddress: request.ip ?? null,
+      },
+    })
+
+    return reply.status(204).send()
+  })
+
+  // ── GET /api/v1/shares/:id/views ─────────────────────────────────────────
+  // Liste les consultations d'un partage (accessible au cabinet qui a partagé)
+  app.get('/:id/views', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const share = await prisma.share.findFirst({
+      where: { id, cabinetId: request.cabinetId },
+    })
+    if (!share) {
+      return reply.status(404).send({ error: 'Partage introuvable', code: 'NOT_FOUND' })
+    }
+
+    const logs = await prisma.shareViewLog.findMany({
+      where: { shareId: id },
+      orderBy: { viewedAt: 'desc' },
+      include: { viewer: { select: { id: true, email: true } } },
+    })
+
+    return reply.send({ data: { logs } })
+  })
+
+  // ── GET /api/v1/shares/views/summary ─────────────────────────────────────
+  // Résumé des consultations pour tous les partages actifs du cabinet
+  app.get('/views/summary', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const shares = await prisma.share.findMany({
+      where: { cabinetId: request.cabinetId, isActive: true },
+      include: {
+        recipientUser: { select: { id: true, email: true, globalRole: true } },
+        viewLogs: {
+          orderBy: { viewedAt: 'desc' },
+          take: 1,
+          include: { viewer: { select: { id: true, email: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return reply.send({ data: { shares } })
+  })
+
   // ── DELETE /api/v1/shares/:id ─────────────────────────────────────────────
   // Révoque un partage
   app.delete('/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {

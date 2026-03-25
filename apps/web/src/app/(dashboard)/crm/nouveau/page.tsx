@@ -4,15 +4,77 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { contactApi, type ContactType } from '@/lib/api'
+import { contactApi, type ContactType, type Contact } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+
+// ── Détection doublons ────────────────────────────────────────────────────────
+
+function useDuplicateDetection(email: string, firstName: string, lastName: string, token: string | null) {
+  // Recherche par email si suffisamment rempli
+  const emailQuery = useQuery({
+    queryKey: ['contacts-dup-email', token, email],
+    queryFn: () => contactApi.list(token!, { search: email, limit: 5 }),
+    enabled: !!token && email.length >= 5 && email.includes('@'),
+    staleTime: 2000,
+  })
+
+  // Recherche par nom si suffisamment rempli
+  const nameQuery = useQuery({
+    queryKey: ['contacts-dup-name', token, lastName, firstName],
+    queryFn: () => contactApi.list(token!, { search: `${firstName} ${lastName}`.trim(), limit: 5 }),
+    enabled: !!token && lastName.length >= 3,
+    staleTime: 2000,
+  })
+
+  const emailMatches: Contact[] = (emailQuery.data?.data.contacts ?? []).filter(
+    (c) => c.email?.toLowerCase() === email.toLowerCase()
+  )
+
+  const nameMatches: Contact[] = (nameQuery.data?.data.contacts ?? []).filter((c) => {
+    const full = `${c.firstName ?? ''} ${c.lastName}`.toLowerCase().trim()
+    const input = `${firstName} ${lastName}`.toLowerCase().trim()
+    return full === input && !emailMatches.find((e) => e.id === c.id)
+  })
+
+  return { emailMatches, nameMatches }
+}
+
+// ── Bandeau doublon ───────────────────────────────────────────────────────────
+
+function DuplicateWarning({ matches, certain }: { matches: Contact[]; certain: boolean }) {
+  if (matches.length === 0) return null
+  return (
+    <div className={cn(
+      'flex items-start gap-2.5 rounded-lg px-3.5 py-3 text-sm',
+      certain
+        ? 'bg-danger-subtle text-danger-subtle-foreground'
+        : 'bg-warning-subtle text-warning-subtle-foreground'
+    )}>
+      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+      <div className="space-y-1">
+        <p className="font-medium">
+          {certain ? 'Doublon détecté' : 'Contact similaire existant'}
+        </p>
+        {matches.map((c) => (
+          <p key={c.id} className="text-xs">
+            <Link href={`/crm/${c.id}`} className="underline underline-offset-2 hover:opacity-80" target="_blank">
+              {c.firstName} {c.lastName}
+              {c.email ? ` — ${c.email}` : ''}
+            </Link>
+          </p>
+        ))}
+        {!certain && <p className="text-xs opacity-75 mt-1">Vous pouvez quand même créer ce contact s&apos;il est différent.</p>}
+      </div>
+    </div>
+  )
+}
 
 const schema = z.object({
   lastName: z.string().min(1, 'Le nom est requis'),
@@ -41,6 +103,11 @@ export default function NouveauContactPage() {
   })
 
   const selectedType = watch('type')
+  const watchedEmail = watch('email') ?? ''
+  const watchedFirstName = watch('firstName') ?? ''
+  const watchedLastName = watch('lastName') ?? ''
+
+  const { emailMatches, nameMatches } = useDuplicateDetection(watchedEmail, watchedFirstName, watchedLastName, token)
 
   const mutation = useMutation({
     mutationFn: (data: FormData) => contactApi.create(data, token!),
@@ -97,11 +164,15 @@ export default function NouveauContactPage() {
           </div>
         </div>
 
+        <DuplicateWarning matches={nameMatches} certain={false} />
+
         <div className="space-y-1.5">
           <Label>Email</Label>
           <Input {...register('email')} placeholder="email@exemple.fr" />
           {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
         </div>
+
+        <DuplicateWarning matches={emailMatches} certain={true} />
 
         <div className="space-y-1.5">
           <Label>Téléphone</Label>

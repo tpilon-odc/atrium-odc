@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, FileText, FileImage, File, Trash2, Eye, Loader2,
@@ -454,6 +454,8 @@ export default function GEDPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [newFolderParentId, setNewFolderParentId] = useState<string | undefined>()
+  const [docCursor, setDocCursor] = useState<string | null>(null)
+  const [allDocuments, setAllDocuments] = useState<Document[]>([])
   const [viewerDoc, setViewerDoc] = useState<Document | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareDoc, setShareDoc] = useState<Document | null>(null)
@@ -496,16 +498,31 @@ export default function GEDPage() {
   const tags = tagsData?.data.tags ?? []
 
   const { data: docsData, isLoading } = useQuery({
-    queryKey: ['documents', token, selectedFolderId, selectedTagId],
+    queryKey: ['documents', token, selectedFolderId, selectedTagId, docCursor],
     queryFn: () =>
       documentApi.list(token!, {
-        limit: 50,
+        limit: 20,
+        cursor: docCursor ?? undefined,
         folderId: selectedFolderId ?? undefined,
         tagId: selectedTagId ?? undefined,
       }),
     enabled: !!token,
   })
-  const documents = docsData?.data.documents ?? []
+
+  useEffect(() => {
+    if (!docsData) return
+    const incoming = docsData.data.documents
+    if (!docCursor) {
+      setAllDocuments(incoming)
+    } else {
+      setAllDocuments((prev) => {
+        const ids = new Set(prev.map((d) => d.id))
+        return [...prev, ...incoming.filter((d) => !ids.has(d.id))]
+      })
+    }
+  }, [docsData]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const documents = allDocuments
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => documentApi.delete(id, token!),
@@ -544,7 +561,7 @@ export default function GEDPage() {
             </div>
 
             <button
-              onClick={() => { setSelectedFolderId(null); setSelectedTagId(null) }}
+              onClick={() => { setSelectedFolderId(null); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]) }}
               className={cn(
                 'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left mb-0.5',
                 !selectedFolderId && !selectedTagId
@@ -561,7 +578,7 @@ export default function GEDPage() {
                 key={node.id}
                 node={node}
                 selectedFolderId={selectedFolderId}
-                onSelect={(id) => { setSelectedFolderId(id); setSelectedTagId(null) }}
+                onSelect={(id) => { setSelectedFolderId(id); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]) }}
                 onDelete={(id, name) => confirm(`Supprimer "${name}" ?`) && deleteFolder.mutate(id)}
                 onCreateChild={(parentId) => { setNewFolderParentId(parentId); setNewFolderOpen(true) }}
               />
@@ -622,7 +639,7 @@ export default function GEDPage() {
                 {tags.map((tag) => (
                   <div key={tag.id} className="group relative">
                     <button
-                      onClick={() => setSelectedTagId(selectedTagId === tag.id ? null : tag.id)}
+                      onClick={() => { setSelectedTagId(selectedTagId === tag.id ? null : tag.id); setDocCursor(null); setAllDocuments([]) }}
                       className={cn(
                         'flex items-center gap-1 pl-2 pr-5 py-0.5 rounded-full text-xs font-medium border transition-colors',
                         selectedTagId === tag.id
@@ -702,6 +719,13 @@ export default function GEDPage() {
                   onShare={(d) => setShareDoc(d)}
                 />
               ))}
+              {docsData?.data.hasMore && (
+                <div className="pt-2 text-center">
+                  <Button variant="outline" size="sm" onClick={() => setDocCursor(docsData.data.nextCursor)} disabled={isLoading}>
+                    {isLoading ? 'Chargement…' : 'Charger plus'}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

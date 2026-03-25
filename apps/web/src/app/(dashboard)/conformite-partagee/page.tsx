@@ -1,9 +1,10 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle2, AlertTriangle, XCircle, Circle, Building2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { complianceShareApi, type ComplianceShareCabinet } from '@/lib/api'
+import { complianceShareApi, shareApi, type ComplianceShareCabinet } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; className: string }> = {
@@ -85,6 +86,7 @@ function CabinetCard({ entry }: { entry: ComplianceShareCabinet }) {
 
 export default function ConformitePartageeePage() {
   const { token } = useAuthStore()
+  const loggedRef = useRef(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['compliance-shared-with-me', token],
@@ -93,6 +95,14 @@ export default function ConformitePartageeePage() {
   })
 
   const cabinets = data?.data.cabinets ?? []
+
+  // Log la consultation de chaque share unique (une seule fois par chargement)
+  useEffect(() => {
+    if (!token || !data || loggedRef.current) return
+    loggedRef.current = true
+    const shareIds = [...new Set(cabinets.flatMap((c) => c.items.map((i) => i.shareId)))]
+    shareIds.forEach((id) => shareApi.recordView(id, token).catch(() => {}))
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6 max-w-3xl">

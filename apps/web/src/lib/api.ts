@@ -652,12 +652,35 @@ export type Share = {
   cabinet?: { id: string; name: string }
 }
 
+export type ShareViewLog = {
+  id: string
+  shareId: string
+  viewedAt: string
+  ipAddress: string | null
+  viewer: { id: string; email: string }
+}
+
+export type ShareWithViewLog = Share & {
+  recipientUser: { id: string; email: string; globalRole: string }
+  viewLogs: ShareViewLog[]
+}
+
 export const shareApi = {
-  listGranted: (token: string) =>
-    call<{ shares: Share[] }>('/api/v1/shares', { token }),
+  listGranted: (token: string, params?: { entityType?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.entityType) q.set('entityType', params.entityType)
+    const qs = q.toString()
+    return call<{ shares: Share[] }>(`/api/v1/shares${qs ? `?${qs}` : ''}`, { token })
+  },
 
   listReceived: (token: string) =>
     call<{ shares: Share[] }>('/api/v1/shares/received', { token }),
+
+  viewsSummary: (token: string) =>
+    call<{ shares: ShareWithViewLog[] }>('/api/v1/shares/views/summary', { token }),
+
+  recordView: (shareId: string, token: string) =>
+    call<unknown>(`/api/v1/shares/${shareId}/view`, { method: 'POST', token }),
 
   create: (data: { grantedTo: string; entityType: string; entityId?: string }, token: string) =>
     call<{ share: Share }>('/api/v1/shares', {

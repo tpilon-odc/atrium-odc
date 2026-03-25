@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { GraduationCap, Plus, Trash2, X, Search, Share2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
@@ -203,6 +203,8 @@ export default function FormationsPage() {
   const [adding, setAdding] = useState(false)
   const [filterUser, setFilterUser] = useState('')
   const [search, setSearch] = useState('')
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [allTrainings, setAllTrainings] = useState<CollaboratorTraining[]>([])
   const [shareOpen, setShareOpen] = useState(false)
   const [shareTrainingId, setShareTrainingId] = useState<string | null>(null)
 
@@ -214,11 +216,31 @@ export default function FormationsPage() {
   const members = membersData?.data.members ?? []
 
   const { data, isLoading } = useQuery({
-    queryKey: ['trainings', token, filterUser],
-    queryFn: () => trainingApi.list(token!, { userId: filterUser || undefined, limit: 100 }),
+    queryKey: ['trainings', token, filterUser, cursor],
+    queryFn: () => trainingApi.list(token!, { userId: filterUser || undefined, limit: 20, cursor: cursor ?? undefined }),
     enabled: !!token,
   })
-  const trainings = data?.data.trainings ?? []
+
+  useEffect(() => {
+    if (!data) return
+    const incoming = data.data.trainings
+    if (!cursor) {
+      setAllTrainings(incoming)
+    } else {
+      setAllTrainings((prev) => {
+        const ids = new Set(prev.map((t) => t.id))
+        return [...prev, ...incoming.filter((t) => !ids.has(t.id))]
+      })
+    }
+  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFilterUser = (userId: string) => {
+    setCursor(null)
+    setAllTrainings([])
+    setFilterUser(userId)
+  }
+
+  const trainings = allTrainings
 
   const filtered = search
     ? trainings.filter((t) => t.training.name.toLowerCase().includes(search.toLowerCase()) || t.user.email.includes(search))
@@ -269,7 +291,7 @@ export default function FormationsPage() {
         </div>
         <select
           value={filterUser}
-          onChange={(e) => setFilterUser(e.target.value)}
+          onChange={(e) => handleFilterUser(e.target.value)}
           className="border border-input rounded-md px-3 py-2 text-sm bg-background"
         >
           <option value="">Tous les collaborateurs</option>
@@ -293,6 +315,13 @@ export default function FormationsPage() {
           {filtered.map((t) => (
             <TrainingRow key={t.id} t={t} onDelete={() => deleteMutation.mutate(t.id)} onShare={() => setShareTrainingId(t.id)} />
           ))}
+          {!search && data?.data.hasMore && (
+            <div className="pt-2 text-center">
+              <Button variant="outline" size="sm" onClick={() => setCursor(data.data.nextCursor)} disabled={isLoading}>
+                {isLoading ? 'Chargement…' : 'Charger plus'}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

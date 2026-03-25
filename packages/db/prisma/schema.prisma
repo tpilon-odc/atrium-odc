@@ -180,6 +180,7 @@ model User {
   collaboratorTrainings  CollaboratorTraining[]
   sharesGrantedBy        Share[]                   @relation("GrantedBy")
   sharesGrantedTo        Share[]                   @relation("GrantedTo")
+  shareViewLogs          ShareViewLog[]            @relation("ShareViewer")
   notifications          Notification[]
   eventsCreated          Event[]
   clustersCreated        Cluster[]
@@ -868,10 +869,26 @@ model Share {
   cabinet     Cabinet @relation(fields: [cabinetId], references: [id])
   granterUser User    @relation("GrantedBy", fields: [grantedBy], references: [id])
   recipientUser User  @relation("GrantedTo", fields: [grantedTo], references: [id])
+  viewLogs    ShareViewLog[]
 
   @@index([cabinetId])
   @@index([grantedTo, isActive])
   @@map("shares")
+}
+
+model ShareViewLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  shareId   String   @map("share_id") @db.Uuid
+  viewerId  String   @map("viewer_id") @db.Uuid
+  viewedAt  DateTime @default(now()) @map("viewed_at") @db.Timestamptz
+  ipAddress String?  @map("ip_address")
+
+  share  Share @relation(fields: [shareId], references: [id])
+  viewer User  @relation("ShareViewer", fields: [viewerId], references: [id])
+
+  @@index([shareId])
+  @@index([viewerId])
+  @@map("share_view_logs")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
