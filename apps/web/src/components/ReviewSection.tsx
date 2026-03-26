@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -15,10 +15,11 @@ interface Review {
 }
 
 interface Props {
-  entityType: 'product' | 'supplier'
+  entityType: 'product' | 'supplier' | 'tool'
   entityId: string
   token: string
   cabinetId: string
+  onAvgChange?: (avg: number | null) => void
 }
 
 function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
@@ -51,7 +52,7 @@ function StarDisplay({ value }: { value: number }) {
   )
 }
 
-export function ReviewSection({ entityType, entityId, token, cabinetId }: Props) {
+export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgChange }: Props) {
   const queryClient = useQueryClient()
   const apiPath = `/api/v1/${entityType}s/${entityId}/reviews`
   const queryKey = ['reviews', entityType, entityId]
@@ -114,6 +115,10 @@ export function ReviewSection({ entityType, entityId, token, cabinetId }: Props)
   const avg = reviews.length > 0
     ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
     : null
+
+  useEffect(() => {
+    onAvgChange?.(avg)
+  }, [avg]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-5">

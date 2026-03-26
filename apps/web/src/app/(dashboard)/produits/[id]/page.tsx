@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, BadgeCheck, Globe, Pencil, ExternalLink, Link2, X } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Globe, Star, Pencil, ExternalLink, Link2, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
@@ -148,6 +148,7 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
   const { token, cabinet } = useAuthStore()
   const queryClient = useQueryClient()
   const { id } = params
+  const [avgRating, setAvgRating] = useState<number | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['product', id, token],
@@ -197,6 +198,12 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-xl font-semibold">{product.name}</h2>
                     {product.isVerified && <BadgeCheck className="h-5 w-5 text-blue-500" />}
+                    {avgRating !== null && (
+                      <div className="flex items-center gap-1 text-sm">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-medium">{avgRating.toFixed(1)}</span>
+                      </div>
+                    )}
                   </div>
                   {product.category && (
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{product.category}</span>
@@ -257,7 +264,7 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
 
           <CabinetSection productId={id} />
 
-          <ReviewSection entityType="product" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} />
+          <ReviewSection entityType="product" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
 
           {/* Documents */}
           <div className="bg-card border border-border rounded-lg p-5">

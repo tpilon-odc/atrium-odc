@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Pencil, ExternalLink } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
@@ -137,6 +137,7 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
   })
 
   const supplier = data?.data.supplier
+  const [avgRating, setAvgRating] = useState<number | null>(null)
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -174,6 +175,12 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
                     <h2 className="text-xl font-semibold">{supplier.name}</h2>
                     {supplier.isVerified && (
                       <BadgeCheck className="h-5 w-5 text-blue-500" />
+                    )}
+                    {avgRating !== null && (
+                      <div className="flex items-center gap-1 text-sm">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-medium">{avgRating.toFixed(1)}</span>
+                      </div>
                     )}
                   </div>
                   {supplier.category && (
@@ -231,7 +238,7 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
           {/* Données privées */}
           <CabinetSection supplierId={id} />
 
-          <ReviewSection entityType="supplier" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} />
+          <ReviewSection entityType="supplier" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
 
           {/* Documents */}
           <div className="bg-card border border-border rounded-lg p-5">

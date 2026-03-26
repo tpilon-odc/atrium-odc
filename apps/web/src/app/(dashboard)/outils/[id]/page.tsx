@@ -6,31 +6,11 @@ import Link from 'next/link'
 import { ChevronLeft, BadgeCheck, ExternalLink, Star, Pencil } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { toolApi } from '@/lib/api'
+import { ReviewSection } from '@/components/ReviewSection'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-
-function StarPicker({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
-  const [hovered, setHovered] = useState<number | null>(null)
-  const display = hovered ?? value ?? 0
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          onMouseEnter={() => setHovered(n)}
-          onMouseLeave={() => setHovered(null)}
-          className="p-0.5 transition-transform hover:scale-110"
-        >
-          <Star className={cn('h-5 w-5 transition-colors', n <= display ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function CabinetSection({ toolId }: { toolId: string }) {
   const { token } = useAuthStore()
@@ -118,9 +98,10 @@ function CabinetSection({ toolId }: { toolId: string }) {
 }
 
 export default function OutilDetailPage({ params }: { params: { id: string } }) {
-  const { token } = useAuthStore()
+  const { token, cabinet } = useAuthStore()
   const queryClient = useQueryClient()
   const { id } = params
+  const [avgRating, setAvgRating] = useState<number | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['tool', id, token],
@@ -129,15 +110,6 @@ export default function OutilDetailPage({ params }: { params: { id: string } }) 
   })
 
   const tool = data?.data.tool
-  const myPublicRating = data?.data.myPublicRating
-
-  const ratingMutation = useMutation({
-    mutationFn: (rating: number) => toolApi.rate(id, rating, token!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tool', id, token] })
-      queryClient.invalidateQueries({ queryKey: ['tools'] })
-    },
-  })
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -167,6 +139,12 @@ export default function OutilDetailPage({ params }: { params: { id: string } }) 
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-xl font-semibold">{tool.name}</h2>
                     {tool.isVerified && <BadgeCheck className="h-5 w-5 text-blue-500" />}
+                    {avgRating !== null && (
+                      <div className="flex items-center gap-1 text-sm">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-medium">{avgRating.toFixed(1)}</span>
+                      </div>
+                    )}
                   </div>
                   {tool.category && (
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{tool.category}</span>
@@ -190,30 +168,14 @@ export default function OutilDetailPage({ params }: { params: { id: string } }) 
               </a>
             )}
 
-            <div className="border-t border-border pt-4 space-y-2">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <p className="text-sm font-medium">Note communautaire</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-semibold">{tool.avgPublicRating ? tool.avgPublicRating.toFixed(1) : '—'}</span>
-                    <span className="text-xs text-muted-foreground">/ 5</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Votre note</p>
-                  <StarPicker value={myPublicRating} onChange={(r) => ratingMutation.mutate(r)} />
-                </div>
-              </div>
-              {ratingMutation.isSuccess && <p className="text-xs text-green-600">Note enregistrée.</p>}
-            </div>
-
             <p className="text-xs text-muted-foreground">
               Ajouté le {new Date(tool.createdAt).toLocaleDateString('fr-FR')}
             </p>
           </div>
 
           <CabinetSection toolId={id} />
+
+          <ReviewSection entityType="tool" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
         </>
       )}
     </div>

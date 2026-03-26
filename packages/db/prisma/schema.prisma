@@ -233,6 +233,7 @@ model Cabinet {
   productPublicRatings  ProductPublicRating[]
   productReviews        ProductReview[]
   supplierReviews       SupplierReview[]
+  toolReviews           ToolReview[]
   cabinetTools          CabinetTool[]
   toolEdits             ToolEdit[]
   toolPublicRatings     ToolPublicRating[]
@@ -633,6 +634,7 @@ model Tool {
   edits        ToolEdit[]
   cabinetTools CabinetTool[]
   publicRatings ToolPublicRating[]
+  reviews      ToolReview[]
 
   @@index([createdAt])
   @@map("tools")
@@ -688,6 +690,22 @@ model ToolPublicRating {
   @@unique([toolId, cabinetId])
   @@index([toolId])
   @@map("tool_public_ratings")
+}
+
+model ToolReview {
+  id        String   @id @default(cuid())
+  toolId    String   @map("tool_id") @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tool    Tool    @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@unique([toolId, cabinetId])
+  @@map("tool_reviews")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
