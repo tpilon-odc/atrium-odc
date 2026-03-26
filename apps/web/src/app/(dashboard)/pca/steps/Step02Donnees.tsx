@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
 import { memberApi, displayName } from '@/lib/api'
+import { useRef } from 'react'
 import { StepField, StepSection } from './StepField'
 import { UserCheck } from 'lucide-react'
 
@@ -29,6 +30,8 @@ interface Props {
 
 export default function Step02Donnees({ data, onChange }: Props) {
   const { token, user } = useAuthStore()
+  const userRef = useRef(user)
+  userRef.current = user
   const set = (key: keyof Step02Data) => (v: string) => onChange({ ...data, [key]: v })
 
   const { data: membersRes } = useQuery({
@@ -102,14 +105,14 @@ export default function Step02Donnees({ data, onChange }: Props) {
           <span className="text-xs text-muted-foreground">Choisir parmi les membres du cabinet :</span>
           <button
             type="button"
-            onClick={() => onChange({ ...data, responsableSupervisionCivilite: user?.civility ?? '', responsableSupervisionPrenom: user?.firstName ?? '', responsableSupervisionNom: user?.lastName ?? '' })}
+            onClick={() => onChange({ ...data, responsableSupervisionCivilite: userRef.current?.civility ?? '', responsableSupervisionPrenom: userRef.current?.firstName ?? '', responsableSupervisionNom: userRef.current?.lastName ?? '' })}
             className="inline-flex items-center gap-1.5 text-xs bg-primary/10 text-primary hover:bg-primary/20 px-2.5 py-1 rounded-full transition-colors"
           >
             <UserCheck className="h-3 w-3" />
             Moi-même
           </button>
           {members
-            .filter((m) => m.userId !== user?.id)
+            .filter((m) => m.userId !== userRef.current?.id)
             .map((m) => (
               <button
                 key={m.id}

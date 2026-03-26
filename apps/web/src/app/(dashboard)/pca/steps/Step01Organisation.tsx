@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth'
 import { memberApi, displayName } from '@/lib/api'
@@ -44,6 +45,8 @@ function newPersonne(): PersonneAcces {
 
 export default function Step01Organisation({ data, onChange }: Props) {
   const { token, user } = useAuthStore()
+  const userRef = useRef(user)
+  userRef.current = user
   const set = (key: keyof Step01Data) => (v: string) => onChange({ ...data, [key]: v })
   const list = data.personnesAcces ?? []
 
@@ -69,12 +72,13 @@ export default function Step01Organisation({ data, onChange }: Props) {
   }
 
   const fillFromSelf = () => {
-    if (!user) return
+    const u = userRef.current
+    if (!u) return
     onChange({
       ...data,
-      responsableCivilite: user.civility ?? '',
-      responsablePrenom: user.firstName ?? '',
-      responsableNom: user.lastName ?? '',
+      responsableCivilite: u.civility ?? '',
+      responsablePrenom: u.firstName ?? '',
+      responsableNom: u.lastName ?? '',
       responsableFonction: '',
     })
   }
@@ -102,7 +106,7 @@ export default function Step01Organisation({ data, onChange }: Props) {
             Moi-même
           </button>
           {members
-            .filter((m) => m.userId !== user?.id)
+            .filter((m) => m.userId !== userRef.current?.id)
             .map((m) => (
               <button
                 key={m.id}

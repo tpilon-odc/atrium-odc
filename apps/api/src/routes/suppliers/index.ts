@@ -214,6 +214,46 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     }
   )
 
+  // ── POST /api/v1/suppliers/:id/review ────────────────────────────────────
+  app.post('/:id/review', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { rating: number; comment: string }
+
+    if (!body?.rating || body.rating < 1 || body.rating > 5) {
+      return reply.status(400).send({ error: 'Note invalide (1-5)', code: 'VALIDATION_ERROR' })
+    }
+    if (!body?.comment?.trim()) {
+      return reply.status(400).send({ error: 'Commentaire requis', code: 'VALIDATION_ERROR' })
+    }
+
+    const supplier = await prisma.supplier.findUnique({ where: { id, deletedAt: null } })
+    if (!supplier) return reply.status(404).send({ error: 'Fournisseur introuvable', code: 'NOT_FOUND' })
+
+    const review = await prisma.supplierReview.upsert({
+      where: { supplierId_cabinetId: { supplierId: id, cabinetId: request.cabinetId } },
+      create: { supplierId: id, cabinetId: request.cabinetId, rating: body.rating, comment: body.comment.trim() },
+      update: { rating: body.rating, comment: body.comment.trim() },
+      include: { cabinet: { select: { id: true, name: true } } },
+    })
+
+    return reply.send({ data: { review } })
+  })
+
+  // ── GET /api/v1/suppliers/:id/reviews ────────────────────────────────────
+  app.get('/:id/reviews', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const reviews = await prisma.supplierReview.findMany({
+      where: { supplierId: id },
+      orderBy: { createdAt: 'desc' },
+      include: { cabinet: { select: { id: true, name: true } } },
+    })
+
+    const myReview = reviews.find((r) => r.cabinetId === request.cabinetId) ?? null
+
+    return reply.send({ data: { reviews, myReview } })
+  })
+
   // ── DELETE /api/v1/suppliers/:id/rating ──────────────────────────────────
   app.delete(
     '/:id/rating',

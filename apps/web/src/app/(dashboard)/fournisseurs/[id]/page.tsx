@@ -7,6 +7,7 @@ import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink
 import { useAuthStore } from '@/stores/auth'
 import { supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
+import { ReviewSection } from '@/components/ReviewSection'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -153,7 +154,7 @@ function CabinetSection({ supplierId }: { supplierId: string }) {
 // ── Page principale ────────────────────────────────────────────────────────────
 
 export default function FournisseurDetailPage({ params }: { params: { id: string } }) {
-  const { token } = useAuthStore()
+  const { token, cabinet } = useAuthStore()
   const queryClient = useQueryClient()
   const { id } = params
 
@@ -292,6 +293,8 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
 
           {/* Données privées */}
           <CabinetSection supplierId={id} />
+
+          <ReviewSection entityType="supplier" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} />
 
           {/* Documents */}
           <div className="bg-card border border-border rounded-lg p-5">

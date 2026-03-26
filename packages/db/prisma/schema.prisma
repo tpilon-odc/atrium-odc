@@ -231,6 +231,8 @@ model Cabinet {
   cabinetProducts       CabinetProduct[]
   productEdits          ProductEdit[]
   productPublicRatings  ProductPublicRating[]
+  productReviews        ProductReview[]
+  supplierReviews       SupplierReview[]
   cabinetTools          CabinetTool[]
   toolEdits             ToolEdit[]
   toolPublicRatings     ToolPublicRating[]
@@ -423,6 +425,7 @@ model Supplier {
   cabinetSuppliers CabinetSupplier[]
   publicRatings    SupplierPublicRating[]
   productLinks     ProductSupplier[]
+  reviews          SupplierReview[]
 
   @@index([createdAt])
   @@map("suppliers")
@@ -501,6 +504,7 @@ model Product {
   cabinetProducts CabinetProduct[]
   publicRatings   ProductPublicRating[]
   supplierLinks   ProductSupplier[]
+  reviews         ProductReview[]
 
   @@index([createdAt])
   @@map("products")
@@ -571,6 +575,42 @@ model ProductPublicRating {
   @@unique([productId, cabinetId])
   @@index([productId])
   @@map("product_public_ratings")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// AVIS COMMUNAUTAIRES — PRODUITS & FOURNISSEURS
+// ──────────────────────────────────────────────────────────────────────────────
+
+model ProductReview {
+  id        String   @id @default(cuid())
+  productId String   @map("product_id") @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cabinet   Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, cabinetId])
+  @@map("product_reviews")
+}
+
+model SupplierReview {
+  id         String   @id @default(cuid())
+  supplierId String   @map("supplier_id") @db.Uuid
+  cabinetId  String   @map("cabinet_id") @db.Uuid
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  cabinet    Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, cabinetId])
+  @@map("supplier_reviews")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

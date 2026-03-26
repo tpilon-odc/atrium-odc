@@ -7,6 +7,7 @@ import { ChevronLeft, BadgeCheck, Globe, Star, Pencil, ExternalLink, Link2, X } 
 import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
+import { ReviewSection } from '@/components/ReviewSection'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -165,7 +166,7 @@ function SupplierSearch({ productId, linkedIds, onLink }: {
 }
 
 export default function ProduitDetailPage({ params }: { params: { id: string } }) {
-  const { token } = useAuthStore()
+  const { token, cabinet } = useAuthStore()
   const queryClient = useQueryClient()
   const { id } = params
 
@@ -304,6 +305,8 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
           </div>
 
           <CabinetSection productId={id} />
+
+          <ReviewSection entityType="product" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} />
 
           {/* Documents */}
           <div className="bg-card border border-border rounded-lg p-5">

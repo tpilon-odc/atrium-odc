@@ -209,6 +209,46 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(204).send()
   })
 
+  // ── POST /api/v1/products/:id/review ─────────────────────────────────────
+  app.post('/:id/review', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { rating: number; comment: string }
+
+    if (!body?.rating || body.rating < 1 || body.rating > 5) {
+      return reply.status(400).send({ error: 'Note invalide (1-5)', code: 'VALIDATION_ERROR' })
+    }
+    if (!body?.comment?.trim()) {
+      return reply.status(400).send({ error: 'Commentaire requis', code: 'VALIDATION_ERROR' })
+    }
+
+    const product = await prisma.product.findUnique({ where: { id, deletedAt: null } })
+    if (!product) return reply.status(404).send({ error: 'Produit introuvable', code: 'NOT_FOUND' })
+
+    const review = await prisma.productReview.upsert({
+      where: { productId_cabinetId: { productId: id, cabinetId: request.cabinetId } },
+      create: { productId: id, cabinetId: request.cabinetId, rating: body.rating, comment: body.comment.trim() },
+      update: { rating: body.rating, comment: body.comment.trim() },
+      include: { cabinet: { select: { id: true, name: true } } },
+    })
+
+    return reply.send({ data: { review } })
+  })
+
+  // ── GET /api/v1/products/:id/reviews ─────────────────────────────────────
+  app.get('/:id/reviews', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const reviews = await prisma.productReview.findMany({
+      where: { productId: id },
+      orderBy: { createdAt: 'desc' },
+      include: { cabinet: { select: { id: true, name: true } } },
+    })
+
+    const myReview = reviews.find(r => r.cabinetId === request.cabinetId) ?? null
+
+    return reply.send({ data: { reviews, myReview } })
+  })
+
   // ── POST /api/v1/products/:id/suppliers ───────────────────────────────────
   // Lie un produit à un fournisseur (table pivot product_suppliers)
   app.post('/:id/suppliers', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
