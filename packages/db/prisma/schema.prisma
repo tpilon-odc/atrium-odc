@@ -201,6 +201,7 @@ model User {
   consentRecords         ConsentRecord[]
   gdprRequestsMade       GdprRequest[]   @relation("RequestedBy")
   gdprRequestsProcessed  GdprRequest[]   @relation("ProcessedBy")
+  pcaHistory             CabinetPcaHistory[]
 
   @@map("users")
 }
@@ -248,6 +249,7 @@ model Cabinet {
   exportJobs            ExportJob[]
   gdprRequests          GdprRequest[]
   pca                   CabinetPca?
+  pcaHistory            CabinetPcaHistory[]
 
   @@map("cabinets")
 }
@@ -1105,4 +1107,18 @@ model CabinetPca {
 
   @@index([cabinetId])
   @@map("cabinet_pca")
+}
+
+model CabinetPcaHistory {
+  id        String   @id @default(cuid())
+  cabinetId String   @map("cabinet_id")
+  data      Json     @db.JsonB
+  savedBy   String   @map("saved_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cabinet   Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [savedBy], references: [id], onDelete: Cascade)
+
+  @@index([cabinetId])
+  @@map("cabinet_pca_history")
 }

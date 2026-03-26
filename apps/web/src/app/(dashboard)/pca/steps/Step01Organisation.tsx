@@ -17,6 +17,7 @@ export interface PersonneAcces {
 export interface Step01Data {
   // Responsable PCA
   responsableCivilite: string
+  responsablePrenom: string
   responsableNom: string
   responsableFonction: string
   // Locaux
@@ -61,18 +62,19 @@ export default function Step01Organisation({ data, onChange }: Props) {
     onChange({
       ...data,
       responsableCivilite: m.user.civility ?? '',
-      responsableNom: displayName(m.user),
+      responsablePrenom: m.user.firstName ?? '',
+      responsableNom: m.user.lastName ?? '',
       responsableFonction: m.role === 'owner' ? 'Dirigeant' : m.role === 'admin' ? 'Responsable' : 'Collaborateur',
     })
   }
 
-  // Pré-remplit depuis l'utilisateur courant
   const fillFromSelf = () => {
     if (!user) return
     onChange({
       ...data,
       responsableCivilite: user.civility ?? '',
-      responsableNom: displayName(user),
+      responsablePrenom: user.firstName ?? '',
+      responsableNom: user.lastName ?? '',
       responsableFonction: '',
     })
   }
@@ -113,7 +115,7 @@ export default function Step01Organisation({ data, onChange }: Props) {
             ))}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground" htmlFor="responsableCivilite">Civilité</label>
             <select
@@ -127,15 +129,20 @@ export default function Step01Organisation({ data, onChange }: Props) {
               <option value="Mme">Mme</option>
             </select>
           </div>
-          <div className="sm:col-span-2">
-            <StepField
-              label="Nom et prénom"
-              id="responsableNom"
-              value={data.responsableNom ?? ''}
-              onChange={set('responsableNom')}
-              placeholder="Prénom Nom"
-            />
-          </div>
+          <StepField
+            label="Prénom"
+            id="responsablePrenom"
+            value={data.responsablePrenom ?? ''}
+            onChange={set('responsablePrenom')}
+            placeholder="Prénom"
+          />
+          <StepField
+            label="Nom"
+            id="responsableNom"
+            value={data.responsableNom ?? ''}
+            onChange={set('responsableNom')}
+            placeholder="Nom"
+          />
         </div>
         <StepField
           label="Exerçant la fonction de"

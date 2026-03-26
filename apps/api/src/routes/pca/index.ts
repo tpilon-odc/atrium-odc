@@ -49,7 +49,44 @@ export const pcaRoutes: FastifyPluginAsync = async (app) => {
       update: { data: body.data },
     })
 
+    await prisma.cabinetPcaHistory.create({
+      data: {
+        cabinetId: request.cabinetId,
+        data: body.data,
+        savedBy: request.user.id,
+      },
+    })
+
     return reply.send({ data: { pca } })
+  })
+
+  // ── GET /api/v1/pca/history ───────────────────────────────────────────────
+  // Retourne les 20 dernières versions sauvegardées du PCA
+  app.get('/history', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const history = await prisma.cabinetPcaHistory.findMany({
+      where: { cabinetId: request.cabinetId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        createdAt: true,
+        savedBy: true,
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    })
+    return reply.send({ data: { history } })
+  })
+
+  // ── GET /api/v1/pca/history/:id ──────────────────────────────────────────
+  // Retourne les données d'une version spécifique
+  app.get('/history/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const entry = await prisma.cabinetPcaHistory.findFirst({
+      where: { id, cabinetId: request.cabinetId },
+      select: { id: true, data: true, createdAt: true, user: { select: { firstName: true, lastName: true, email: true } } },
+    })
+    if (!entry) return reply.status(404).send({ error: 'Version introuvable', code: 'NOT_FOUND' })
+    return reply.send({ data: { entry } })
   })
 
   // ── POST /api/v1/pca/complete ─────────────────────────────────────────────

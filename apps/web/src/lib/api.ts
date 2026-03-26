@@ -1466,6 +1466,13 @@ export const adminGdprApi = {
 
 export type PcaData = Record<string, unknown>
 
+export type PcaHistoryEntry = {
+  id: string
+  createdAt: string
+  savedBy: string
+  user: { id: string; firstName: string | null; lastName: string | null; email: string }
+}
+
 export type CabinetPca = {
   id: string
   cabinetId: string
@@ -1493,4 +1500,10 @@ export const pcaApi = {
       body: JSON.stringify({ completed }),
       token,
     }),
+
+  history: (token: string) =>
+    call<{ history: PcaHistoryEntry[] }>('/api/v1/pca/history', { token }),
+
+  historyEntry: (id: string, token: string) =>
+    call<{ entry: { id: string; data: PcaData; createdAt: string; user: { firstName: string | null; lastName: string | null; email: string } } }>(`/api/v1/pca/history/${id}`, { token }),
 }

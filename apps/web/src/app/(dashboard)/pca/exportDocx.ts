@@ -142,7 +142,7 @@ export async function exportPcaDocx(data: PcaData, cabinet?: CabinetInfo) {
 
     h2("Responsable de la continuité de l'activité"),
     p("Est en charge de la mise en œuvre du plan de continuité d'activité :"),
-    ...field('Madame / Monsieur', org.responsableNom as string),
+    ...field('Madame / Monsieur', [org.responsableCivilite, org.responsablePrenom, org.responsableNom].filter(Boolean).join(' ') || undefined),
     ...field('Exerçant la fonction de', org.responsableFonction as string),
 
     h2('Sécurité des locaux'),
