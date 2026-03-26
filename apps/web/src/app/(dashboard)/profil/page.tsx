@@ -49,6 +49,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function ProfilPage() {
   const { token, user, setAuth } = useAuthStore()
+  const [civility, setCivility] = useState<'M.' | 'Mme' | ''>(user?.civility ?? '')
   const [firstName, setFirstName] = useState(user?.firstName ?? '')
   const [lastName, setLastName] = useState(user?.lastName ?? '')
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0].value)
@@ -57,6 +58,7 @@ export default function ProfilPage() {
 
   useEffect(() => {
     if (user) {
+      setCivility(user.civility ?? '')
       setFirstName(user.firstName ?? '')
       setLastName(user.lastName ?? '')
       setAvatarColor(getStoredColor(user.id))
@@ -74,12 +76,12 @@ export default function ProfilPage() {
 
   const mutation = useMutation({
     mutationFn: () => userApi.updateProfile(
-      { firstName: firstName.trim() || null, lastName: lastName.trim() || null },
+      { civility: civility || null, firstName: firstName.trim() || null, lastName: lastName.trim() || null },
       token!
     ),
     onSuccess: (res) => {
       const updated = res.data.user
-      setAuth(token!, { ...user!, firstName: updated.firstName, lastName: updated.lastName })
+      setAuth(token!, { ...user!, civility: updated.civility, firstName: updated.firstName, lastName: updated.lastName })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
@@ -222,6 +224,20 @@ export default function ProfilPage() {
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <h3 className="font-medium text-sm">Informations personnelles</h3>
 
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5 col-span-2 sm:col-span-1">
+            <Label className="text-xs">Civilité</Label>
+            <select
+              value={civility}
+              onChange={(e) => setCivility(e.target.value as 'M.' | 'Mme' | '')}
+              className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">— Non renseignée</option>
+              <option value="M.">M.</option>
+              <option value="Mme">Mme</option>
+            </select>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label className="text-xs">Prénom</Label>

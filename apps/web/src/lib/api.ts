@@ -60,6 +60,7 @@ type Session = {
 type UserInfo = {
   id: string
   email: string
+  civility?: 'M.' | 'Mme' | null
   globalRole: string
   firstName?: string | null
   lastName?: string | null
@@ -72,7 +73,7 @@ export function displayName(user: Pick<UserInfo, 'email' | 'firstName' | 'lastNa
 }
 
 export const userApi = {
-  updateProfile: (data: { firstName?: string | null; lastName?: string | null }, token: string) =>
+  updateProfile: (data: { civility?: 'M.' | 'Mme' | null; firstName?: string | null; lastName?: string | null }, token: string) =>
     call<{ user: UserInfo }>('/api/v1/users/me', {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -897,7 +898,7 @@ export type CabinetMember = {
   canManageProducts: boolean
   canManageContacts: boolean
   createdAt: string
-  user: { id: string; email: string; firstName?: string | null; lastName?: string | null; globalRole: string }
+  user: { id: string; email: string; civility?: 'M.' | 'Mme' | null; firstName?: string | null; lastName?: string | null; globalRole: string }
 }
 
 export type StorageConfig = {
@@ -1457,6 +1458,39 @@ export const adminGdprApi = {
     call<GdprRequest>(`/api/v1/admin/gdpr/requests/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status, response }),
+      token,
+    }),
+}
+
+// ── PCA ───────────────────────────────────────────────────────────────────────
+
+export type PcaData = Record<string, unknown>
+
+export type CabinetPca = {
+  id: string
+  cabinetId: string
+  data: PcaData
+  isCompleted: boolean
+  completedAt: string | null
+  updatedAt: string
+  createdAt: string
+}
+
+export const pcaApi = {
+  get: (token: string) =>
+    call<{ pca: CabinetPca }>('/api/v1/pca', { token }),
+
+  save: (data: PcaData, token: string) =>
+    call<{ pca: CabinetPca }>('/api/v1/pca', {
+      method: 'PUT',
+      body: JSON.stringify({ data }),
+      token,
+    }),
+
+  setCompleted: (completed: boolean, token: string) =>
+    call<{ pca: CabinetPca }>('/api/v1/pca/complete', {
+      method: 'POST',
+      body: JSON.stringify({ completed }),
       token,
     }),
 }

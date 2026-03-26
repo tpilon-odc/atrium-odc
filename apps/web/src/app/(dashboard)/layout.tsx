@@ -29,6 +29,7 @@ import {
   Moon,
   CalendarDays,
   MessagesSquare,
+  ClipboardList,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
@@ -50,6 +51,7 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean) {
       items: ([
         { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
         hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck, showProgress: true },
+        hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
         hasCabinet && { href: '/parametres', label: 'Paramètres', icon: Settings },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
@@ -103,6 +105,7 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean): Na
     { href: '/ged', label: 'Documents', icon: FolderOpen },
     { href: '/formations', label: 'Formations', icon: GraduationCap },
     { href: '/partage', label: 'Partage', icon: Share2 },
+    hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
     hasCabinet && { href: '/parametres', label: 'Paramètres', icon: Settings },
   ] as (NavItem | false)[]).filter(Boolean) as NavItem[]
 }
@@ -121,6 +124,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   formations: 'Formations',
   partage: 'Partage',
   parametres: 'Paramètres',
+  pca: 'PCA',
   clusters: 'Clusters',
   notifications: 'Notifications',
   profil: 'Mon profil',

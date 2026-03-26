@@ -9,6 +9,7 @@ const AVATAR_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const AVATAR_MAX_SIZE = 2 * 1024 * 1024 // 2 MB
 
 const updateProfileBody = z.object({
+  civility: z.enum(['M.', 'Mme']).nullable().optional(),
   firstName: z.string().max(100).nullable().optional(),
   lastName: z.string().max(100).nullable().optional(),
 })
@@ -26,10 +27,11 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
     const user = await prisma.user.update({
       where: { id: request.user.id },
       data: {
+        ...(result.data.civility !== undefined && { civility: result.data.civility }),
         ...(result.data.firstName !== undefined && { firstName: result.data.firstName }),
         ...(result.data.lastName !== undefined && { lastName: result.data.lastName }),
       },
-      select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, avatarUrl: true },
+      select: { id: true, email: true, civility: true, firstName: true, lastName: true, globalRole: true, avatarUrl: true },
     })
 
     return reply.send({ data: { user } })

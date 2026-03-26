@@ -34,6 +34,7 @@ import { folderRoutes } from './routes/folders'
 import { tagRoutes } from './routes/tags'
 import { consentRoutes } from './routes/consent'
 import { gdprRoutes } from './routes/gdpr'
+import { pcaRoutes } from './routes/pca'
 
 const app = Fastify({
   logger: {
@@ -103,6 +104,7 @@ const start = async () => {
   app.register(tagRoutes, { prefix: '/api/v1/tags' })
   app.register(consentRoutes, { prefix: '/api/v1/consent' })
   app.register(gdprRoutes, { prefix: '/api/v1/gdpr' })
+  app.register(pcaRoutes, { prefix: '/api/v1/pca' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))

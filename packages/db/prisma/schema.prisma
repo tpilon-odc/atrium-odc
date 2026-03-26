@@ -166,6 +166,7 @@ enum GdprRequestStatus {
 model User {
   id         String     @id @db.Uuid
   email      String     @unique
+  civility   String?    @map("civility") // "M" | "Mme"
   firstName  String?    @map("first_name")
   lastName   String?    @map("last_name")
   avatarUrl  String?    @map("avatar_url")
@@ -246,6 +247,7 @@ model Cabinet {
   tags                  Tag[]
   exportJobs            ExportJob[]
   gdprRequests          GdprRequest[]
+  pca                   CabinetPca?
 
   @@map("cabinets")
 }
@@ -1082,4 +1084,25 @@ model MessageReport {
 
   @@index([status])
   @@map("message_reports")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PCA — Plan de Continuité d'Activité
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Stocke l'intégralité du PCA d'un cabinet sous forme JSONB.
+/// Une seule ligne par cabinet (relation 1-1).
+model CabinetPca {
+  id          String    @id @default(uuid()) @db.Uuid
+  cabinetId   String    @unique @map("cabinet_id") @db.Uuid
+  data        Json      @db.JsonB
+  isCompleted Boolean   @default(false) @map("is_completed")
+  completedAt DateTime? @map("completed_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@index([cabinetId])
+  @@map("cabinet_pca")
 }
