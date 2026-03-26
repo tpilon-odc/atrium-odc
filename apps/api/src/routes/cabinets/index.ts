@@ -1,9 +1,11 @@
 import { FastifyPluginAsync } from 'fastify'
+import multipart from '@fastify/multipart'
 import { MemberRole } from '@cgp/db'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { supabaseAdmin } from '../../lib/supabase'
+import { uploadToMinio, deleteFromMinio, getPresignedUrl, BUCKET } from '../../lib/minio'
 import {
   createCabinetBody,
   updateCabinetBody,
@@ -19,6 +21,8 @@ async function getCurrentMember(userId: string, cabinetId: string) {
 }
 
 export const cabinetRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(multipart, { limits: { fileSize: 2 * 1024 * 1024 } })
+
   // ── POST /api/v1/cabinets ─────────────────────────────────────────────────
   // Création du cabinet + ajout de l'utilisateur comme owner
   // Pas de cabinetMiddleware : l'utilisateur n'a pas encore de cabinet
@@ -68,6 +72,50 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data })
   })
 
+  // ── GET /api/v1/cabinets/:id ─────────────────────────────────────────────
+  // Fiche publique d'un cabinet (tout utilisateur connecté)
+  app.get('/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const cabinet = await prisma.cabinet.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        siret: true,
+        oriasNumber: true,
+        description: true,
+        city: true,
+        website: true,
+        logoUrl: true,
+        createdAt: true,
+        members: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            role: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+          orderBy: { cabinet: { createdAt: 'asc' } },
+        },
+      },
+    })
+
+    if (!cabinet) {
+      return reply.status(404).send({ error: 'Cabinet introuvable', code: 'NOT_FOUND' })
+    }
+
+    return reply.send({ data: { cabinet } })
+  })
+
   // ── GET /api/v1/cabinets/me ───────────────────────────────────────────────
   app.get(
     '/me',
@@ -94,6 +142,16 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const result = updateCabinetBody.safeParse(request.body)
+      if (result.success) {
+        const profileFields = ['description', 'city', 'website'] as const
+        const hasProfileField = profileFields.some((f) => f in result.data)
+        if (hasProfileField && currentMember.role !== MemberRole.owner) {
+          return reply.status(403).send({
+            error: 'Seul le propriétaire peut modifier le profil public du cabinet',
+            code: 'FORBIDDEN',
+          })
+        }
+      }
       if (!result.success) {
         return reply.status(400).send({
           error: result.error.errors[0].message,
@@ -108,6 +166,75 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
       })
 
       return reply.send({ data: { cabinet } })
+    }
+  )
+
+  // ── POST /api/v1/cabinets/me/logo ─────────────────────────────────────────
+  app.post(
+    '/me/logo',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const currentMember = await getCurrentMember(request.user.id, request.cabinetId)
+      if (!currentMember || currentMember.role !== MemberRole.owner) {
+        return reply.status(403).send({ error: 'Seul le propriétaire peut modifier le logo', code: 'FORBIDDEN' })
+      }
+
+      const file = await request.file()
+      if (!file) return reply.status(400).send({ error: 'Aucun fichier reçu', code: 'NO_FILE' })
+
+      const LOGO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'])
+      const LOGO_MAX_SIZE = 2 * 1024 * 1024
+      if (!LOGO_MIME_TYPES.has(file.mimetype)) {
+        return reply.status(400).send({ error: 'Format non supporté (JPG, PNG, WebP, SVG)', code: 'INVALID_TYPE' })
+      }
+
+      const chunks: Buffer[] = []
+      for await (const chunk of file.file) chunks.push(chunk)
+      const buffer = Buffer.concat(chunks)
+      if (buffer.length > LOGO_MAX_SIZE) {
+        return reply.status(400).send({ error: 'Fichier trop volumineux (max 2 Mo)', code: 'FILE_TOO_LARGE' })
+      }
+
+      const ext = file.mimetype === 'image/svg+xml' ? 'svg' : file.mimetype.split('/')[1].replace('jpeg', 'jpg')
+      const key = `logos/${request.cabinetId}.${ext}`
+
+      const existing = await prisma.cabinet.findUnique({ where: { id: request.cabinetId }, select: { logoUrl: true } })
+      if (existing?.logoUrl) {
+        const oldKey = existing.logoUrl.split(`/${BUCKET}/`)[1]
+        if (oldKey && oldKey !== key) await deleteFromMinio(oldKey).catch(() => {})
+      }
+
+      await uploadToMinio(key, buffer, file.mimetype)
+      const logoUrl = getPresignedUrl(key)
+
+      const cabinet = await prisma.cabinet.update({
+        where: { id: request.cabinetId },
+        data: { logoUrl },
+        select: { id: true, name: true, logoUrl: true },
+      })
+
+      return reply.send({ data: { cabinet } })
+    }
+  )
+
+  // ── DELETE /api/v1/cabinets/me/logo ───────────────────────────────────────
+  app.delete(
+    '/me/logo',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const currentMember = await getCurrentMember(request.user.id, request.cabinetId)
+      if (!currentMember || currentMember.role !== MemberRole.owner) {
+        return reply.status(403).send({ error: 'Seul le propriétaire peut supprimer le logo', code: 'FORBIDDEN' })
+      }
+
+      const existing = await prisma.cabinet.findUnique({ where: { id: request.cabinetId }, select: { logoUrl: true } })
+      if (existing?.logoUrl) {
+        const key = existing.logoUrl.split(`/${BUCKET}/`)[1]
+        if (key) await deleteFromMinio(key).catch(() => {})
+      }
+
+      await prisma.cabinet.update({ where: { id: request.cabinetId }, data: { logoUrl: null } })
+      return reply.status(204).send()
     }
   )
 

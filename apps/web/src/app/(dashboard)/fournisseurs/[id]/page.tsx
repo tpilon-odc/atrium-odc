@@ -275,7 +275,7 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Votre note</p>
                   <StarPicker
-                    value={myPublicRating}
+                    value={myPublicRating ?? null}
                     onChange={(rating) => ratingMutation.mutate(rating)}
                   />
                 </div>

@@ -3,8 +3,9 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,6 +21,8 @@ type FormData = z.infer<typeof schema>
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const sessionExpired = searchParams.get('reason') === 'session_expired'
   const { setAuth, setCabinet } = useAuthStore()
 
   const {
@@ -60,6 +63,13 @@ export default function LoginPage() {
   return (
     <div className="bg-card rounded-xl shadow-sm border border-border p-8">
       <h2 className="text-xl font-semibold mb-6">Connexion</h2>
+
+      {sessionExpired && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2.5 rounded-md bg-warning-subtle text-warning-subtle-foreground text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Votre session a expiré. Veuillez vous reconnecter.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">

@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Trash2, Plus, X, ShieldCheck, UserCheck, Building, User, CalendarDays, Copy, Eye, EyeOff, RefreshCw, Download, Loader2, PackageOpen, Database, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Pencil, Trash2, Plus, X, ShieldCheck, UserCheck, Building, User, CalendarDays, Copy, Eye, EyeOff, RefreshCw, Download, Loader2, PackageOpen, Database, AlertTriangle, CheckCircle2, Globe } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { cabinetApi, memberApi, storageConfigApi, userApi, eventApi, exportJobApi, gdprApi, consentApi, displayName, type CabinetMember, type StorageConfig, type ExportJob, type GdprRequest, type ConsentRecord } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -191,6 +191,192 @@ function CabinetSection() {
               <dt className="text-xs text-muted-foreground">N° ORIAS</dt>
               <dd>{cabinet.oriasNumber}</dd>
             </div>
+          )}
+        </dl>
+      )}
+    </div>
+  )
+}
+
+// ── Section profil public ─────────────────────────────────────────────────────
+
+const cabinetProfileSchema = z.object({
+  description: z.string().optional(),
+  city: z.string().optional(),
+  website: z.string().url('URL invalide').optional().or(z.literal('')),
+})
+type CabinetProfileForm = z.infer<typeof cabinetProfileSchema>
+
+function CabinetProfileSection() {
+  const { token, user } = useAuthStore()
+  const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  const membersQuery = useQuery({
+    queryKey: ['members', token],
+    queryFn: () => memberApi.list(token!),
+    enabled: !!token,
+  })
+  const members = membersQuery.data?.data.members ?? []
+  const currentMember = members.find((m: CabinetMember) => m.userId === user?.id)
+  const isOwner = currentMember?.role === 'owner'
+
+  const { data } = useQuery({
+    queryKey: ['cabinet-me', token],
+    queryFn: () => cabinetApi.getMe(token!),
+    enabled: !!token,
+  })
+  const cabinet = data?.data.cabinet as any
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<CabinetProfileForm>({
+    resolver: zodResolver(cabinetProfileSchema),
+    values: cabinet
+      ? { description: cabinet.description ?? '', city: cabinet.city ?? '', website: cabinet.website ?? '' }
+      : undefined,
+  })
+
+  const mutation = useMutation({
+    mutationFn: (d: CabinetProfileForm) => cabinetApi.update(d, token!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cabinet-me'] })
+      setEditing(false)
+    },
+  })
+
+  const uploadLogoMutation = useMutation({
+    mutationFn: (file: File) => cabinetApi.uploadLogo(file, token!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cabinet-me'] }),
+  })
+
+  const deleteLogoMutation = useMutation({
+    mutationFn: () => cabinetApi.deleteLogo(token!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cabinet-me'] }),
+  })
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-medium flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            Profil public
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Visible par tous les utilisateurs connectés sur la plateforme</p>
+        </div>
+        {isOwner && !editing && (
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+
+      {/* Logo */}
+      {isOwner && (
+        <div className="flex items-center gap-4 pb-2 border-b border-border">
+          <div className="h-16 w-16 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+            {cabinet?.logoUrl
+              ? <img src={cabinet.logoUrl} alt="Logo" className="h-full w-full object-contain p-1" />
+              : <Building className="h-6 w-6 text-muted-foreground/40" />
+            }
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium">Logo du cabinet</p>
+            <p className="text-xs text-muted-foreground">JPG, PNG, WebP ou SVG · 2 Mo max</p>
+            <div className="flex gap-2">
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) uploadLogoMutation.mutate(file)
+                  e.target.value = ''
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-xs h-7"
+                disabled={uploadLogoMutation.isPending}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                {uploadLogoMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Changer'}
+              </Button>
+              {cabinet?.logoUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs h-7 text-destructive hover:text-destructive"
+                  disabled={deleteLogoMutation.isPending}
+                  onClick={() => deleteLogoMutation.mutate()}
+                >
+                  {deleteLogoMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Supprimer'}
+                </Button>
+              )}
+            </div>
+            {(uploadLogoMutation.isError || deleteLogoMutation.isError) && (
+              <p className="text-xs text-destructive">
+                {((uploadLogoMutation.error || deleteLogoMutation.error) as Error).message}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {editing ? (
+        <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Description</Label>
+            <textarea
+              {...register('description')}
+              rows={4}
+              placeholder="Décrivez votre cabinet : spécialités, valeurs, approche…"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Ville</Label>
+              <Input {...register('city')} placeholder="Paris" className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Site web</Label>
+              <Input {...register('website')} placeholder="https://www.cabinet.fr" className="text-sm" />
+              {errors.website && <p className="text-xs text-destructive">{errors.website.message}</p>}
+            </div>
+          </div>
+          {mutation.isError && <p className="text-xs text-destructive">{(mutation.error as Error).message}</p>}
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => { reset(); setEditing(false) }}>Annuler</Button>
+          </div>
+        </form>
+      ) : (
+        <dl className="space-y-2 text-sm">
+          <div>
+            <dt className="text-xs text-muted-foreground">Description</dt>
+            <dd className="whitespace-pre-wrap">{cabinet?.description || <span className="text-muted-foreground italic">Non renseignée</span>}</dd>
+          </div>
+          {cabinet?.city && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Ville</dt>
+              <dd>{cabinet.city}</dd>
+            </div>
+          )}
+          {cabinet?.website && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Site web</dt>
+              <dd><a href={cabinet.website} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:opacity-80">{cabinet.website}</a></dd>
+            </div>
+          )}
+          {!isOwner && (
+            <p className="text-xs text-muted-foreground italic">Seul le propriétaire du cabinet peut modifier ces informations.</p>
           )}
         </dl>
       )}
@@ -894,6 +1080,7 @@ export default function ParametresPage() {
       </div>
       <ProfileSection />
       <CabinetSection />
+      <CabinetProfileSection />
       <MembersSection />
       <StorageSection />
       <IcsSection />

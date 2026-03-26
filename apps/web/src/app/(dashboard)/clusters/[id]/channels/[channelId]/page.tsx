@@ -128,7 +128,12 @@ function MessageItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-xs font-semibold">{displayName(message.authorUser)}</span>
-          <span className="text-[10px] text-muted-foreground">{message.authorCabinet.name}</span>
+          <Link
+            href={`/cabinets/${message.authorCabinet.id}`}
+            className="text-[10px] text-muted-foreground hover:text-foreground hover:underline underline-offset-2 transition-colors"
+          >
+            {message.authorCabinet.name}
+          </Link>
           <span className="text-[10px] text-muted-foreground/60">
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true, locale: fr })}
           </span>

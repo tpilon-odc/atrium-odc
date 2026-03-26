@@ -437,6 +437,7 @@ export default function FormationsPage() {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [filterUser, setFilterUser] = useState('')
+  const [filterYear, setFilterYear] = useState('')
   const [search, setSearch] = useState('')
   const [cursor, setCursor] = useState<string | null>(null)
   const [allTrainings, setAllTrainings] = useState<CollaboratorTraining[]>([])
@@ -477,9 +478,16 @@ export default function FormationsPage() {
 
   const trainings = allTrainings
 
-  const filtered = search
-    ? trainings.filter((t) => t.training.name.toLowerCase().includes(search.toLowerCase()) || t.user.email.includes(search))
-    : trainings
+  // Années disponibles tirées des formations chargées
+  const availableYears = [...new Set(
+    trainings.map((t) => new Date(t.trainingDate).getFullYear())
+  )].sort((a, b) => b - a)
+
+  const filtered = trainings.filter((t) => {
+    if (search && !t.training.name.toLowerCase().includes(search.toLowerCase()) && !t.user.email.includes(search)) return false
+    if (filterYear && new Date(t.trainingDate).getFullYear() !== Number(filterYear)) return false
+    return true
+  })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => trainingApi.delete(id, token!),
@@ -544,6 +552,16 @@ export default function FormationsPage() {
               </option>
             )
           })}
+        </select>
+        <select
+          value={filterYear}
+          onChange={(e) => setFilterYear(e.target.value)}
+          className="border border-input rounded-md px-3 py-2 text-sm bg-background"
+        >
+          <option value="">Toutes les années</option>
+          {availableYears.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
         </select>
       </div>
 

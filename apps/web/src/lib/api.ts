@@ -31,6 +31,15 @@ async function call<T>(
     return {} as ApiResponse<T>
   }
 
+  // Token expiré ou invalide → déconnexion immédiate
+  if (res.status === 401) {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('cabinet')
+    window.location.href = '/login?reason=session_expired'
+    throw new ApiError('Session expirée', 'SESSION_EXPIRED', 401)
+  }
+
   const json = await res.json()
 
   if (!res.ok) {
@@ -112,10 +121,50 @@ export const authApi = {
 
 // ── Cabinets ──────────────────────────────────────────────────────────────────
 
+export type CabinetMemberPublic = {
+  id: string
+  role: string
+  user: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+    avatarUrl: string | null
+  }
+}
+
+export type CabinetPublic = {
+  id: string
+  name: string
+  description: string | null
+  city: string | null
+  website: string | null
+  siret: string | null
+  oriasNumber: string | null
+  logoUrl: string | null
+  createdAt: string
+  members: CabinetMemberPublic[]
+}
+
 type Cabinet = {
   id: string
   name: string
   subscriptionStatus: string
+  description: string | null
+  city: string | null
+  website: string | null
+  siret: string | null
+  oriasNumber: string | null
+  logoUrl: string | null
+}
+
+export type UpdateCabinetData = {
+  name?: string
+  siret?: string
+  oriasNumber?: string
+  description?: string
+  city?: string
+  website?: string
 }
 
 export const cabinetApi = {
@@ -129,12 +178,31 @@ export const cabinetApi = {
   getMe: (token: string) =>
     call<{ cabinet: Cabinet }>('/api/v1/cabinets/me', { token }),
 
-  update: (data: { name?: string }, token: string) =>
+  update: (data: UpdateCabinetData, token: string) =>
     call<{ cabinet: Cabinet }>('/api/v1/cabinets/me', {
       method: 'PATCH',
       body: JSON.stringify(data),
       token,
     }),
+
+  getById: (id: string, token: string) =>
+    call<{ cabinet: CabinetPublic }>(`/api/v1/cabinets/${id}`, { token }),
+
+  uploadLogo: async (file: File, token: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${API_URL}/api/v1/cabinets/me/logo`, {
+      method: 'POST',
+      body: form,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+    if (!res.ok) throw new ApiError(json.error ?? 'Erreur upload', json.code ?? 'UNKNOWN', res.status)
+    return json as ApiResponse<{ cabinet: { id: string; name: string; logoUrl: string | null } }>
+  },
+
+  deleteLogo: (token: string) =>
+    call<void>('/api/v1/cabinets/me/logo', { method: 'DELETE', token }),
 }
 
 // ── Conformité ────────────────────────────────────────────────────────────────
@@ -846,7 +914,7 @@ export const memberApi = {
     call<{ members: CabinetMember[] }>('/api/v1/cabinets/me/members', { token }),
 
   invite: (data: { email: string; role?: 'admin' | 'member'; canManageSuppliers?: boolean; canManageProducts?: boolean; canManageContacts?: boolean }, token: string) =>
-    call<{ member: CabinetMember }>('/api/v1/cabinets/me/members/invite', {
+    call<{ member: CabinetMember; inviteUrl: string | null }>('/api/v1/cabinets/me/members/invite', {
       method: 'POST',
       body: JSON.stringify(data),
       token,

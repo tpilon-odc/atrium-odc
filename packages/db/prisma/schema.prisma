@@ -211,6 +211,10 @@ model Cabinet {
   oriasNumber        String?            @map("orias_number")
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   settings           Json?              @db.JsonB
+  description        String?            @db.Text
+  city               String?
+  website            String?
+  logoUrl            String?            @map("logo_url")
   icsToken                String             @unique @default(uuid()) @map("ics_token") @db.Uuid
   deletionRequestedAt     DateTime?          @map("deletion_requested_at") @db.Timestamptz
   deletionScheduledAt     DateTime?          @map("deletion_scheduled_at") @db.Timestamptz

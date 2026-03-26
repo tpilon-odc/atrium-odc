@@ -33,7 +33,7 @@ import {
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
+import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, cabinetApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 
 // ── Nav groups (desktop sidebar) ───────────────────────────────────────────
@@ -385,7 +385,7 @@ function SidebarLink({
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { token, user, cabinet, hydrate, logout } = useAuthStore()
+  const { token, user, cabinet, hydrate, logout, setCabinet } = useAuthStore()
   const [ready, setReady] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { data: notifData } = useNotifications(token)
@@ -395,6 +395,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: membersData } = useQuery({
     queryKey: ['members', token],
     queryFn: () => memberApi.list(token!),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  useQuery({
+    queryKey: ['cabinet-me', token],
+    queryFn: async () => {
+      const res = await cabinetApi.getMe(token!)
+      setCabinet({ id: res.data.cabinet.id, name: res.data.cabinet.name })
+      return res
+    },
     enabled: !!token,
     staleTime: 5 * 60 * 1000,
   })
@@ -410,10 +421,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const stored = localStorage.getItem('access_token')
     if (!stored) {
       router.replace('/login')
-    } else {
-      setReady(true)
+      return
     }
-  }, [hydrate, router])
+    // Vérifie l'expiration du JWT sans appel réseau
+    try {
+      const parts = stored.split('.')
+      const payload = JSON.parse(atob(parts[1]))
+      const expiredAt = payload.exp * 1000
+      if (Date.now() >= expiredAt) {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('user')
+        localStorage.removeItem('cabinet')
+        router.replace('/login?reason=session_expired')
+        return
+      }
+    } catch {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('user')
+      localStorage.removeItem('cabinet')
+      router.replace('/login?reason=session_expired')
+      return
+    }
+    setReady(true)
+  }, [hydrate, router, pathname])
 
   // Vérifie le consentement CGU — redirige vers /consent si version non acceptée
   useEffect(() => {
@@ -488,7 +518,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {user?.globalRole === 'platform_admin' && (
             <div>
               <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
-                Admin
+                Administration
               </p>
               <ul className="space-y-0.5">
                 <li>

@@ -11,6 +11,9 @@ export const updateCabinetBody = z.object({
   siret: z.string().optional(),
   oriasNumber: z.string().optional(),
   settings: z.record(z.unknown()).optional(),
+  description: z.string().optional(),
+  city: z.string().optional(),
+  website: z.string().url('URL invalide').optional().or(z.literal('')),
 })
 
 export const inviteMemberBody = z.object({

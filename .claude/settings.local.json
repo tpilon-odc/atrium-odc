@@ -31,7 +31,13 @@
       "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:54322/postgres npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma)",
       "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:54322/postgres npx prisma migrate resolve --applied 20260324180000_add_rgpd --schema=packages/db/prisma/schema.prisma)",
       "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres DIRECT_URL=postgresql://postgres:postgres@localhost:54322/postgres npx prisma migrate resolve --applied 20260325120000_share_view_logs --schema=packages/db/prisma/schema.prisma)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(node -e \"const f = require\\(''''/Users/thomaspilon-odc/atrium-odc/node_modules/next/dist/lib/patch-incorrect-lockfile.js''''\\); console.log\\(''''loaded''''\\)\")",
+      "Bash(node -e \":*)",
+      "Bash(npx --prefix:*)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c \"SELECT trigger_name, event_object_table FROM information_schema.triggers WHERE trigger_schema = ''public'' ORDER BY event_object_table;\")",
+      "Bash(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres <<'SQL':*)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c \"SELECT COUNT\\(*\\) FROM supplier_public_ratings; SELECT COUNT\\(*\\) FROM product_public_ratings;\")"
     ]
   }
 }
