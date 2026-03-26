@@ -1,18 +1,112 @@
 'use client'
 
 import { useState } from 'react'
-import { History, X, RotateCcw, Loader2 } from 'lucide-react'
+import { History, X, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { pcaApi, PcaHistoryEntry, PcaData } from '@/lib/api'
+import { pcaApi, PcaHistoryEntry } from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
+
+const FIELD_LABELS: Record<string, string> = {
+  // Step 01
+  organisation: 'Organisation',
+  responsableCivilite: 'Civilité du responsable',
+  responsablePrenom: 'Prénom du responsable',
+  responsableNom: 'Nom du responsable',
+  responsableFonction: 'Fonction du responsable',
+  locauxRue: 'Rue',
+  locauxCodePostal: 'Code postal',
+  locauxVille: 'Ville',
+  locauxControleAcces: "Contrôle d'accès",
+  personnesAcces: "Personnes ayant accès aux locaux",
+  videoSurveillanceSociete: 'Vidéosurveillance',
+  reglesPresence: 'Règles de présence',
+  preventionIncendie: 'Prévention incendie',
+  // Step 02
+  donnees: 'Données',
+  systemeInformatique: 'Système informatique',
+  prestataireMaintenance: 'Prestataire maintenance',
+  politiqueMotDePasse: 'Politique mots de passe',
+  antivirus: 'Antivirus',
+  urlMessagerie: 'URL messagerie',
+  responsableSupervisionCivilite: 'Civilité superviseur',
+  responsableSupervisionPrenom: 'Prénom superviseur',
+  responsableSupervisionNom: 'Nom superviseur',
+  missionsSupervision: 'Missions supervision',
+  conservationDocuments: 'Conservation documents',
+  // Step 03
+  procedures: 'Procédures',
+  lieuReplacement: 'Lieu de repli',
+  listeTelephoniqueLocalisation: 'Liste téléphonique',
+  risques: 'Cartographie des risques',
+  absences: 'Absences collaborateurs',
+}
+
+// Top-level step keys whose value is an object containing sub-fields
+const STEP_KEYS = new Set(['organisation', 'donnees', 'procedures'])
+
+function fieldLabel(key: string): string {
+  return FIELD_LABELS[key] ?? key
+}
+
+function formatValue(val: unknown): string {
+  if (val === undefined || val === null) return '(vide)'
+  if (Array.isArray(val)) return `${val.length} élément${val.length !== 1 ? 's' : ''}`
+  if (typeof val === 'object') return JSON.stringify(val)
+  return String(val)
+}
+
+function countChangedFields(data: Record<string, { old: unknown; new: unknown }>): number {
+  let count = 0
+  for (const [key, entry] of Object.entries(data)) {
+    if (STEP_KEYS.has(key)) {
+      // entry.old and entry.new are objects — count sub-field differences
+      const oldObj = (entry.old ?? {}) as Record<string, unknown>
+      const newObj = (entry.new ?? {}) as Record<string, unknown>
+      const allSubKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)])
+      for (const subKey of allSubKeys) {
+        if (JSON.stringify(oldObj[subKey]) !== JSON.stringify(newObj[subKey])) {
+          count++
+        }
+      }
+    } else {
+      count++
+    }
+  }
+  return count
+}
+
+interface DiffLine {
+  label: string
+  old: unknown
+  new: unknown
+}
+
+function buildDiffLines(data: Record<string, { old: unknown; new: unknown }>): DiffLine[] {
+  const lines: DiffLine[] = []
+  for (const [key, entry] of Object.entries(data)) {
+    if (STEP_KEYS.has(key)) {
+      const oldObj = (entry.old ?? {}) as Record<string, unknown>
+      const newObj = (entry.new ?? {}) as Record<string, unknown>
+      const allSubKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)])
+      for (const subKey of allSubKeys) {
+        if (JSON.stringify(oldObj[subKey]) !== JSON.stringify(newObj[subKey])) {
+          lines.push({ label: fieldLabel(subKey), old: oldObj[subKey], new: newObj[subKey] })
+        }
+      }
+    } else {
+      lines.push({ label: fieldLabel(key), old: entry.old, new: entry.new })
+    }
+  }
+  return lines
+}
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleDateString('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')
+  return (
+    d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) +
+    ' à ' +
+    d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h')
+  )
 }
 
 function displayAuthor(user: PcaHistoryEntry['user']): string {
@@ -20,15 +114,65 @@ function displayAuthor(user: PcaHistoryEntry['user']): string {
   return name || user.email.split('@')[0]
 }
 
-interface PcaHistoryProps {
-  token: string
-  onRestore: (data: PcaData) => void
+interface HistoryEntryRowProps {
+  entry: PcaHistoryEntry
 }
 
-export default function PcaHistory({ token, onRestore }: PcaHistoryProps) {
+function HistoryEntryRow({ entry }: HistoryEntryRowProps) {
+  const [expanded, setExpanded] = useState(false)
+  const changedCount = countChangedFields(entry.data)
+  const diffLines = buildDiffLines(entry.data)
+
+  return (
+    <li className="bg-card border border-border rounded-lg overflow-hidden">
+      <button
+        className="w-full px-4 py-3 flex items-start justify-between gap-3 text-left hover:bg-muted/40 transition-colors"
+        onClick={() => setExpanded(v => !v)}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium truncate">{displayAuthor(entry.user)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{formatDate(entry.createdAt)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {changedCount} champ{changedCount !== 1 ? 's' : ''} modifié{changedCount !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="shrink-0 mt-0.5 text-muted-foreground">
+          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border px-4 py-3 space-y-2">
+          {diffLines.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Aucun détail disponible.</p>
+          ) : (
+            diffLines.map((line, i) => (
+              <div key={i} className="text-xs">
+                <span className="font-medium text-foreground">{line.label}</span>
+                {Array.isArray(line.old) || Array.isArray(line.new) ? (
+                  <span className="text-muted-foreground ml-1">
+                    {formatValue(line.old)} → {formatValue(line.new)}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground ml-1">
+                    Ancien&nbsp;: {formatValue(line.old)} → Nouveau&nbsp;: {formatValue(line.new)}
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+interface PcaHistoryProps {
+  token: string
+}
+
+export default function PcaHistory({ token }: PcaHistoryProps) {
   const [open, setOpen] = useState(false)
-  const [restoringId, setRestoringId] = useState<string | null>(null)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['pca-history', token],
@@ -38,22 +182,6 @@ export default function PcaHistory({ token, onRestore }: PcaHistoryProps) {
   })
 
   const history = data?.data.history ?? []
-
-  const handleRestoreClick = (id: string) => {
-    setConfirmId(id)
-  }
-
-  const handleConfirmRestore = async (id: string) => {
-    setRestoringId(id)
-    setConfirmId(null)
-    try {
-      const res = await pcaApi.historyEntry(id, token)
-      onRestore(res.data.entry.data)
-      setOpen(false)
-    } finally {
-      setRestoringId(null)
-    }
-  }
 
   return (
     <>
@@ -65,10 +193,7 @@ export default function PcaHistory({ token, onRestore }: PcaHistoryProps) {
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">
           {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
 
           {/* Panel */}
           <div className="relative z-10 w-full max-w-md bg-background border-l border-border shadow-xl flex flex-col h-full">
@@ -76,7 +201,7 @@ export default function PcaHistory({ token, onRestore }: PcaHistoryProps) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div className="flex items-center gap-2">
                 <History className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold text-sm">Historique des versions</h2>
+                <h2 className="font-semibold text-sm">Historique des modifications</h2>
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -94,66 +219,12 @@ export default function PcaHistory({ token, onRestore }: PcaHistoryProps) {
                 </div>
               ) : history.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-12">
-                  Aucune version sauvegardée pour le moment.
+                  Aucune modification enregistrée pour le moment.
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {history.map((entry) => (
-                    <li
-                      key={entry.id}
-                      className="bg-card border border-border rounded-lg px-4 py-3 flex items-start justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {displayAuthor(entry.user)}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatDate(entry.createdAt)}
-                        </p>
-                      </div>
-
-                      <div className="shrink-0">
-                        {confirmId === entry.id ? (
-                          <div className="flex flex-col items-end gap-1.5">
-                            <p className="text-xs text-muted-foreground text-right max-w-[180px]">
-                              Restaurer cette version remplacera les données actuelles.
-                            </p>
-                            <div className="flex gap-1.5">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => setConfirmId(null)}
-                              >
-                                Annuler
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => handleConfirmRestore(entry.id)}
-                              >
-                                Confirmer
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => handleRestoreClick(entry.id)}
-                            disabled={restoringId === entry.id}
-                          >
-                            {restoringId === entry.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                            ) : (
-                              <RotateCcw className="h-3 w-3 mr-1" />
-                            )}
-                            Restaurer
-                          </Button>
-                        )}
-                      </div>
-                    </li>
+                  {history.map(entry => (
+                    <HistoryEntryRow key={entry.id} entry={entry} />
                   ))}
                 </ul>
               )}

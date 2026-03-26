@@ -1470,6 +1470,7 @@ export type PcaHistoryEntry = {
   id: string
   createdAt: string
   savedBy: string
+  data: Record<string, { old: unknown; new: unknown }>
   user: { id: string; firstName: string | null; lastName: string | null; email: string }
 }
 

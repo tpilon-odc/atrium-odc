@@ -4,6 +4,23 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 
+type DiffEntry = { old: unknown; new: unknown }
+
+function computeFlatDiff(oldData: Record<string, unknown>, newData: Record<string, unknown>): Record<string, DiffEntry> {
+  const diff: Record<string, DiffEntry> = {}
+  const allKeys = new Set([...Object.keys(oldData), ...Object.keys(newData)])
+
+  for (const key of allKeys) {
+    const oldVal = oldData[key]
+    const newVal = newData[key]
+    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      diff[key] = { old: oldVal, new: newVal }
+    }
+  }
+
+  return diff
+}
+
 // Vérifie que l'utilisateur est owner ou admin du cabinet courant
 async function requireOwnerOrAdmin(userId: string, cabinetId: string) {
   const member = await prisma.cabinetMember.findFirst({
@@ -43,19 +60,41 @@ export const pcaRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: 'Données invalides', code: 'VALIDATION_ERROR' })
     }
 
+    // Fetch current PCA data before updating
+    const existing = await prisma.cabinetPca.findUnique({ where: { cabinetId } })
+    const oldData = (existing?.data ?? {}) as Record<string, unknown>
+    const newData = body.data
+
+    // Compute flat diff of changed fields
+    const diff = computeFlatDiff(oldData, newData)
+
     const pca = await prisma.cabinetPca.upsert({
       where: { cabinetId },
       create: { cabinetId, data: body.data },
       update: { data: body.data },
     })
 
-    await prisma.cabinetPcaHistory.create({
-      data: {
-        cabinetId: request.cabinetId,
-        data: body.data,
-        savedBy: request.user.id,
-      },
-    })
+    // Only save history if something actually changed
+    if (Object.keys(diff).length > 0) {
+      await prisma.cabinetPcaHistory.create({
+        data: {
+          cabinetId: request.cabinetId,
+          data: diff,
+          savedBy: request.user.id,
+        },
+      })
+
+      // Keep only last 50 entries
+      const entries = await prisma.cabinetPcaHistory.findMany({
+        where: { cabinetId: request.cabinetId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      })
+      if (entries.length > 50) {
+        const toDelete = entries.slice(50).map(e => e.id)
+        await prisma.cabinetPcaHistory.deleteMany({ where: { id: { in: toDelete } } })
+      }
+    }
 
     return reply.send({ data: { pca } })
   })
@@ -71,6 +110,7 @@ export const pcaRoutes: FastifyPluginAsync = async (app) => {
         id: true,
         createdAt: true,
         savedBy: true,
+        data: true,
         user: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     })

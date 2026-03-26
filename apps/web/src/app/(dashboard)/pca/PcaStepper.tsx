@@ -100,14 +100,7 @@ export default function PcaStepper() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <PcaHistory
-            token={token!}
-            onRestore={(data) => {
-              setLocalData(data)
-              localDataRef.current = data
-              saveDebounced(data)
-            }}
-          />
+          <PcaHistory token={token!} />
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="h-3.5 w-3.5 mr-1.5" />
             Exporter DOCX
