@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Pencil, ExternalLink } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
@@ -12,34 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-
-// ── Étoiles cliquables ────────────────────────────────────────────────────────
-
-function StarPicker({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
-  const [hovered, setHovered] = useState<number | null>(null)
-  const display = hovered ?? value ?? 0
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          onMouseEnter={() => setHovered(n)}
-          onMouseLeave={() => setHovered(null)}
-          className="p-0.5 transition-transform hover:scale-110"
-        >
-          <Star
-            className={cn(
-              'h-5 w-5 transition-colors',
-              n <= display ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'
-            )}
-          />
-        </button>
-      ))}
-    </div>
-  )
-}
 
 // ── Section données cabinet ───────────────────────────────────────────────────
 
@@ -165,15 +137,6 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
   })
 
   const supplier = data?.data.supplier
-  const myPublicRating = data?.data.myPublicRating
-
-  const ratingMutation = useMutation({
-    mutationFn: (rating: number) => supplierApi.rate(id, rating, token!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['supplier', id, token] })
-      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
-    },
-  })
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -257,32 +220,6 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
                   <Phone className="h-4 w-4" />
                   {supplier.phone}
                 </a>
-              )}
-            </div>
-
-            {/* Rating communautaire */}
-            <div className="border-t border-border pt-4 space-y-2">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <p className="text-sm font-medium">Note communautaire</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-semibold">
-                      {supplier.avgPublicRating ? supplier.avgPublicRating.toFixed(1) : '—'}
-                    </span>
-                    <span className="text-xs text-muted-foreground">/ 5</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Votre note</p>
-                  <StarPicker
-                    value={myPublicRating ?? null}
-                    onChange={(rating) => ratingMutation.mutate(rating)}
-                  />
-                </div>
-              </div>
-              {ratingMutation.isSuccess && (
-                <p className="text-xs text-green-600">Note enregistrée.</p>
               )}
             </div>
 

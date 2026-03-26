@@ -111,9 +111,22 @@ export function ReviewSection({ entityType, entityId, token, cabinetId }: Props)
 
   const canSubmit = rating >= 1 && rating <= 5 && comment.trim().length > 0
 
+  const avg = reviews.length > 0
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : null
+
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-5">
-      <h3 className="font-medium">Avis de la communauté</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">Avis de la communauté</h3>
+        {avg !== null && (
+          <div className="flex items-center gap-1.5">
+            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+            <span className="font-semibold">{avg.toFixed(1)}</span>
+            <span className="text-xs text-muted-foreground">/ 5 ({reviews.length} avis)</span>
+          </div>
+        )}
+      </div>
 
       {/* Form */}
       <div className="space-y-3 border-b border-border pb-5">

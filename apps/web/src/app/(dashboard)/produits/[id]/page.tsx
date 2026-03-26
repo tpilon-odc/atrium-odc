@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, BadgeCheck, Globe, Star, Pencil, ExternalLink, Link2, X } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Globe, Pencil, ExternalLink, Link2, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
@@ -12,27 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-
-function StarPicker({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
-  const [hovered, setHovered] = useState<number | null>(null)
-  const display = hovered ?? value ?? 0
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          onMouseEnter={() => setHovered(n)}
-          onMouseLeave={() => setHovered(null)}
-          className="p-0.5 transition-transform hover:scale-110"
-        >
-          <Star className={cn('h-5 w-5 transition-colors', n <= display ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function CabinetSection({ productId }: { productId: string }) {
   const { token } = useAuthStore()
@@ -177,15 +156,6 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
   })
 
   const product = data?.data.product
-  const myPublicRating = data?.data.myPublicRating
-
-  const ratingMutation = useMutation({
-    mutationFn: (rating: number) => productApi.rate(id, rating, token!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['product', id, token] })
-      queryClient.invalidateQueries({ queryKey: ['products'] })
-    },
-  })
 
   const linkMutation = useMutation({
     mutationFn: (supplierId: string) => productApi.linkSupplier(id, supplierId, token!),
@@ -278,25 +248,6 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
                 linkedIds={product.supplierLinks.map((l) => l.supplierId)}
                 onLink={(supplierId) => linkMutation.mutate(supplierId)}
               />
-            </div>
-
-            {/* Rating */}
-            <div className="border-t border-border pt-4 space-y-2">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <p className="text-sm font-medium">Note communautaire</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-semibold">{product.avgPublicRating ? product.avgPublicRating.toFixed(1) : '—'}</span>
-                    <span className="text-xs text-muted-foreground">/ 5</span>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Votre note</p>
-                  <StarPicker value={myPublicRating ?? null} onChange={(r) => ratingMutation.mutate(r)} />
-                </div>
-              </div>
-              {ratingMutation.isSuccess && <p className="text-xs text-green-600">Note enregistrée.</p>}
             </div>
 
             <p className="text-xs text-muted-foreground">
