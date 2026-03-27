@@ -244,7 +244,7 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
                 <div className="flex flex-wrap gap-2">
                   {product.supplierLinks.map((link) => (
                     <div key={link.id} className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1 text-sm">
-                      <Link href={`/fournisseurs/${link.supplierId}`} className="hover:underline">
+                      <Link href={`/fournisseurs/${link.supplierId}?from=/produits/${id}`} className="hover:underline">
                         {link.supplier.name}
                       </Link>
                       <button onClick={() => unlinkMutation.mutate(link.supplierId)} className="text-muted-foreground hover:text-destructive transition-colors">

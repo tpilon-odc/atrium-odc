@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { supplierApi, supplierComplianceApi, type Product } from '@/lib/api'
@@ -141,6 +142,9 @@ type TabKey = typeof TABS[number]['key']
 export default function FournisseurDetailPage({ params }: { params: { id: string } }) {
   const { token, cabinet } = useAuthStore()
   const { id } = params
+  const searchParams = useSearchParams()
+  const backHref = searchParams.get('from') ?? '/fournisseurs'
+  const backLabel = backHref.startsWith('/produits') ? 'Retour au produit' : 'Retour aux fournisseurs'
   const [activeTab, setActiveTab] = useState<TabKey>('infos')
 
   const { data, isLoading } = useQuery({
@@ -188,11 +192,11 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
     <div className="space-y-6 max-w-2xl">
       {/* Retour */}
       <Link
-        href="/fournisseurs"
+        href={backHref}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
-        Retour aux fournisseurs
+        {backLabel}
       </Link>
 
       {isLoading && (
