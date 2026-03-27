@@ -495,17 +495,8 @@ model CabinetSupplierEvaluation {
   cabinetId           String    @map("cabinet_id") @db.Uuid
   supplierId          String    @map("supplier_id") @db.Uuid
 
-  scoreSolvabilite    Int?      @map("score_solvabilite")
-  noteSolvabilite     String?   @map("note_solvabilite")
-  scoreReputation     Int?      @map("score_reputation")
-  noteReputation      String?   @map("note_reputation")
-  scoreMoyens         Int?      @map("score_moyens")
-  noteMoyens          String?   @map("note_moyens")
-  scoreRelation       Int?      @map("score_relation")
-  noteRelation        String?   @map("note_relation")
-  scoreRemuneration   Int?      @map("score_remuneration")
-  noteRemuneration    String?   @map("note_remuneration")
-  scoreGlobal         Float?    @map("score_global")
+  evaluationNotes     Json      @default("[]") @map("evaluation_notes")
+  scoreGlobal         Decimal?  @map("score_global") @db.Decimal(3, 2)
 
   evaluationDate      DateTime  @default(now()) @map("evaluation_date") @db.Date
   nextReviewDate      DateTime? @map("next_review_date") @db.Date

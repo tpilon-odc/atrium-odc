@@ -1024,20 +1024,17 @@ export type SupplierVerification = {
   updatedAt: string
 }
 
+export type EvaluationNote = {
+  critere_id: 'solvabilite' | 'reputation' | 'moyens' | 'relation' | 'remuneration'
+  note: number
+  commentaire?: string
+}
+
 export type SupplierEvaluation = {
   id: string
   cabinetId: string
   supplierId: string
-  scoreSolvabilite: number | null
-  noteSolvabilite: string | null
-  scoreReputation: number | null
-  noteReputation: string | null
-  scoreMoyens: number | null
-  noteMoyens: string | null
-  scoreRelation: number | null
-  noteRelation: string | null
-  scoreRemuneration: number | null
-  noteRemuneration: string | null
+  evaluationNotes: EvaluationNote[]
   scoreGlobal: number | null
   evaluationDate: string
   nextReviewDate: string | null

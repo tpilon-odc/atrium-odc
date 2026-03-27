@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Star, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { supplierComplianceApi, type SupplierEvaluation } from '@/lib/api'
+import { supplierComplianceApi, type SupplierEvaluation, type EvaluationNote } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -12,27 +12,27 @@ import { cn } from '@/lib/utils'
 
 const CRITERIA = [
   {
-    key: 'solvabilite',
+    key: 'solvabilite' as const,
     label: 'Solvabilité et pérennité',
-    help: 'La solidité financière du fournisseur est un élément prépondérant. L\'existence de procédures judiciaires ou de contentieux permet également d\'évaluer sa pérennité.',
+    help: "La solidité financière du fournisseur est un élément prépondérant. L'existence de procédures judiciaires ou de contentieux permet également d'évaluer sa pérennité.",
   },
   {
-    key: 'reputation',
+    key: 'reputation' as const,
     label: 'Réputation, expérience et ancienneté',
     help: 'Sanctions des autorités de tutelle, historique de la structure et ancienneté dans le secteur.',
   },
   {
-    key: 'moyens',
+    key: 'moyens' as const,
     label: 'Moyens humains et techniques',
     help: 'Taille de la structure, effectif, organigramme, extranet et outils mis à disposition.',
   },
   {
-    key: 'relation',
+    key: 'relation' as const,
     label: 'Qualité de la relation',
     help: 'Qualité des interlocuteurs, délais de réponse, transparence et réactivité.',
   },
   {
-    key: 'remuneration',
+    key: 'remuneration' as const,
     label: 'Rémunération',
     help: 'Conformité aux commissions usuelles du marché, exactitude du calcul et délais de paiement.',
   },
@@ -67,10 +67,43 @@ function StarPicker({ value, onChange }: { value: number | null; onChange: (v: n
   )
 }
 
-function computeLiveScore(scores: Record<string, number | null>): number | null {
-  const vals = Object.values(scores).filter((v): v is number => v !== null)
+function computeLiveScore(notes: Record<CriteriaKey, number | null>): number | null {
+  const vals = Object.values(notes).filter((v): v is number => v !== null && v > 0)
   if (!vals.length) return null
-  return vals.reduce((a, b) => a + b, 0) / vals.length
+  return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100
+}
+
+function notesToRecord(evaluationNotes: EvaluationNote[]): Record<CriteriaKey, number | null> {
+  const map: Record<CriteriaKey, number | null> = {
+    solvabilite: null, reputation: null, moyens: null, relation: null, remuneration: null,
+  }
+  for (const n of evaluationNotes) {
+    map[n.critere_id] = n.note
+  }
+  return map
+}
+
+function commentsToRecord(evaluationNotes: EvaluationNote[]): Record<CriteriaKey, string> {
+  const map: Record<CriteriaKey, string> = {
+    solvabilite: '', reputation: '', moyens: '', relation: '', remuneration: '',
+  }
+  for (const n of evaluationNotes) {
+    map[n.critere_id] = n.commentaire ?? ''
+  }
+  return map
+}
+
+function buildNotes(
+  scores: Record<CriteriaKey, number | null>,
+  comments: Record<CriteriaKey, string>
+): EvaluationNote[] {
+  return CRITERIA
+    .filter((c) => scores[c.key] !== null)
+    .map((c) => ({
+      critere_id: c.key,
+      note: scores[c.key]!,
+      commentaire: comments[c.key] || undefined,
+    }))
 }
 
 function EvaluationForm({
@@ -85,20 +118,16 @@ function EvaluationForm({
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
 
-  const [scores, setScores] = useState<Record<CriteriaKey, number | null>>({
-    solvabilite: evaluation?.scoreSolvabilite ?? null,
-    reputation: evaluation?.scoreReputation ?? null,
-    moyens: evaluation?.scoreMoyens ?? null,
-    relation: evaluation?.scoreRelation ?? null,
-    remuneration: evaluation?.scoreRemuneration ?? null,
-  })
-  const [notes, setNotes] = useState<Record<CriteriaKey, string>>({
-    solvabilite: evaluation?.noteSolvabilite ?? '',
-    reputation: evaluation?.noteReputation ?? '',
-    moyens: evaluation?.noteMoyens ?? '',
-    relation: evaluation?.noteRelation ?? '',
-    remuneration: evaluation?.noteRemuneration ?? '',
-  })
+  const [scores, setScores] = useState<Record<CriteriaKey, number | null>>(
+    evaluation ? notesToRecord(evaluation.evaluationNotes) : {
+      solvabilite: null, reputation: null, moyens: null, relation: null, remuneration: null,
+    }
+  )
+  const [comments, setComments] = useState<Record<CriteriaKey, string>>(
+    evaluation ? commentsToRecord(evaluation.evaluationNotes) : {
+      solvabilite: '', reputation: '', moyens: '', relation: '', remuneration: '',
+    }
+  )
   const [evaluateurs, setEvaluateurs] = useState(evaluation?.evaluateurs?.join(', ') ?? '')
   const [showContrat, setShowContrat] = useState(false)
   const [contratDuree, setContratDuree] = useState(evaluation?.contratDuree ?? '')
@@ -108,16 +137,7 @@ function EvaluationForm({
   const liveScore = computeLiveScore(scores)
 
   const buildPayload = () => ({
-    scoreSolvabilite: scores.solvabilite,
-    noteSolvabilite: notes.solvabilite || null,
-    scoreReputation: scores.reputation,
-    noteReputation: notes.reputation || null,
-    scoreMoyens: scores.moyens,
-    noteMoyens: notes.moyens || null,
-    scoreRelation: scores.relation,
-    noteRelation: notes.relation || null,
-    scoreRemuneration: scores.remuneration,
-    noteRemuneration: notes.remuneration || null,
+    evaluationNotes: buildNotes(scores, comments),
     evaluateurs: evaluateurs.split(',').map((e) => e.trim()).filter(Boolean),
     contratDuree: contratDuree || null,
     contratPreavis: contratPreavis || null,
@@ -177,8 +197,8 @@ function EvaluationForm({
             onChange={(v) => setScores((prev) => ({ ...prev, [criterion.key]: v }))}
           />
           <textarea
-            value={notes[criterion.key]}
-            onChange={(e) => setNotes((prev) => ({ ...prev, [criterion.key]: e.target.value }))}
+            value={comments[criterion.key]}
+            onChange={(e) => setComments((prev) => ({ ...prev, [criterion.key]: e.target.value }))}
             placeholder="Commentaire…"
             rows={2}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
@@ -301,10 +321,10 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex gap-0.5">
                     {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} className={cn('h-4 w-4', s <= Math.round(latest.scoreGlobal!) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
+                      <Star key={s} className={cn('h-4 w-4', s <= Math.round(Number(latest.scoreGlobal)) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
                     ))}
                   </div>
-                  <span className="text-sm font-semibold">{latest.scoreGlobal.toFixed(1)} / 5</span>
+                  <span className="text-sm font-semibold">{Number(latest.scoreGlobal).toFixed(1)} / 5</span>
                 </div>
               )}
             </div>
@@ -356,10 +376,10 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
                       <div className="flex items-center gap-1">
                         <div className="flex gap-0.5">
                           {[1, 2, 3, 4, 5].map((s) => (
-                            <Star key={s} className={cn('h-3 w-3', s <= Math.round(ev.scoreGlobal!) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
+                            <Star key={s} className={cn('h-3 w-3', s <= Math.round(Number(ev.scoreGlobal)) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
                           ))}
                         </div>
-                        <span className="text-xs">{ev.scoreGlobal.toFixed(1)}</span>
+                        <span className="text-xs">{Number(ev.scoreGlobal).toFixed(1)}</span>
                       </div>
                     ) : '—'}
                   </td>

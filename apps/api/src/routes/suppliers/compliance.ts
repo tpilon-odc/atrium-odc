@@ -5,7 +5,19 @@ import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { CHECKLIST_BY_TYPE, initChecklist } from '../../lib/supplier-checklist'
 
-const SCORE_FIELD = z.number().int().min(1).max(5).nullable().optional()
+const VALID_CRITERES = ['solvabilite', 'reputation', 'moyens', 'relation', 'remuneration'] as const
+
+const evaluationNoteSchema = z.object({
+  critere_id: z.enum(VALID_CRITERES),
+  note: z.number().min(1).max(5),
+  commentaire: z.string().optional(),
+})
+
+function computeScoreGlobal(notes: { note: number }[]): number {
+  const vals = notes.filter((n) => n.note > 0).map((n) => n.note)
+  if (!vals.length) return 0
+  return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100
+}
 
 const upsertVerificationBody = z.object({
   supplierType: z.enum([
@@ -29,16 +41,7 @@ const decideBody = z.object({
 })
 
 const upsertEvaluationBody = z.object({
-  scoreSolvabilite: SCORE_FIELD,
-  noteSolvabilite: z.string().nullable().optional(),
-  scoreReputation: SCORE_FIELD,
-  noteReputation: z.string().nullable().optional(),
-  scoreMoyens: SCORE_FIELD,
-  noteMoyens: z.string().nullable().optional(),
-  scoreRelation: SCORE_FIELD,
-  noteRelation: z.string().nullable().optional(),
-  scoreRemuneration: SCORE_FIELD,
-  noteRemuneration: z.string().nullable().optional(),
+  evaluationNotes: z.array(evaluationNoteSchema).optional(),
   evaluationDate: z.string().optional(),
   evaluateurs: z.array(z.string()).optional(),
   contratSigneLe: z.string().nullable().optional(),
@@ -156,15 +159,22 @@ export const supplierComplianceRoutes: FastifyPluginAsync = async (app) => {
     const nextReviewDate = new Date(evalDate)
     nextReviewDate.setFullYear(nextReviewDate.getFullYear() + 1)
 
+    const notes = result.data.evaluationNotes ?? []
+    const scoreGlobal = computeScoreGlobal(notes)
+
     const evaluation = await prisma.cabinetSupplierEvaluation.create({
       data: {
         cabinetId: request.cabinetId,
         supplierId: id,
-        ...result.data,
+        evaluationNotes: notes as any,
+        scoreGlobal,
         evaluationDate: evalDate,
         nextReviewDate,
         evaluateurs: result.data.evaluateurs ?? [],
         contratSigneLe: result.data.contratSigneLe ? new Date(result.data.contratSigneLe) : null,
+        contratDuree: result.data.contratDuree ?? null,
+        contratPreavis: result.data.contratPreavis ?? null,
+        contratDocumentId: result.data.contratDocumentId ?? null,
       },
     })
 
@@ -188,12 +198,20 @@ export const supplierComplianceRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
     }
 
+    const notes = result.data.evaluationNotes ?? (existing.evaluationNotes as any[] ?? [])
+    const scoreGlobal = computeScoreGlobal(notes)
+
     const evaluation = await prisma.cabinetSupplierEvaluation.update({
       where: { id: evalId },
       data: {
-        ...result.data,
+        evaluationNotes: notes as any,
+        scoreGlobal,
         evaluationDate: result.data.evaluationDate ? new Date(result.data.evaluationDate) : undefined,
-        contratSigneLe: result.data.contratSigneLe ? new Date(result.data.contratSigneLe) : null,
+        evaluateurs: result.data.evaluateurs,
+        contratSigneLe: result.data.contratSigneLe !== undefined ? (result.data.contratSigneLe ? new Date(result.data.contratSigneLe) : null) : undefined,
+        contratDuree: result.data.contratDuree,
+        contratPreavis: result.data.contratPreavis,
+        contratDocumentId: result.data.contratDocumentId,
       },
     })
 
