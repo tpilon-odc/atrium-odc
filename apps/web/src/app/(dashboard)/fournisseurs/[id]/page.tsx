@@ -232,7 +232,7 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
                     {latestEval?.scoreGlobal !== null && latestEval?.scoreGlobal !== undefined && (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        {latestEval.scoreGlobal.toFixed(1)}/5
+                        {Number(latestEval.scoreGlobal).toFixed(1)}/5
                       </span>
                     )}
                   </div>
