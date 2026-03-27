@@ -10,8 +10,12 @@ import {
   createInteractionBody,
   updateInteractionBody,
 } from './schemas'
+import { contactProfileRoutes } from './profile'
 
 export const contactRoutes: FastifyPluginAsync = async (app) => {
+  // Profile sub-routes (registered first to avoid :id matching /profile/...)
+  await app.register(contactProfileRoutes)
+
   // ── GET /api/v1/contacts ──────────────────────────────────────────────────
   app.get('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const query = listContactsQuery.safeParse(request.query)
@@ -51,7 +55,43 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
     const items = hasMore ? contacts.slice(0, limit) : contacts
     const nextCursor = hasMore ? items[items.length - 1].id : null
 
-    return reply.send({ data: { contacts: items, nextCursor, hasMore, total } })
+    // Profils MiFID : statut pour badges (résistant si migration pas encore appliquée)
+    const contactIds = items.map((c) => c.id)
+    type ProfileRow = { contact_id: string; next_review_date: Date | null }
+    let profileRows: ProfileRow[] = []
+    if (contactIds.length > 0) {
+      try {
+        profileRows = await prisma.$queryRaw<ProfileRow[]>`
+          SELECT DISTINCT ON (contact_id) contact_id, next_review_date
+          FROM cabinet_contact_profile
+          WHERE cabinet_id = ${request.cabinetId}::uuid
+            AND contact_id = ANY(${contactIds}::uuid[])
+            AND status = 'active'
+          ORDER BY contact_id, created_at DESC
+        `
+      } catch {
+        // Table pas encore créée — on ignore
+      }
+    }
+
+    const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    const profileMap = new Map(
+      profileRows.map((r) => [
+        r.contact_id,
+        {
+          hasProfile: true,
+          isDueForReview:
+            !!r.next_review_date && new Date(r.next_review_date) <= in30Days,
+        },
+      ])
+    )
+
+    const data = items.map((c) => ({
+      ...c,
+      profileStatus: profileMap.get(c.id) ?? { hasProfile: false, isDueForReview: false },
+    }))
+
+    return reply.send({ data: { contacts: data, nextCursor, hasMore, total } })
   })
 
   // ── GET /api/v1/contacts/:id ──────────────────────────────────────────────

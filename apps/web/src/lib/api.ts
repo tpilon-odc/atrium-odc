@@ -621,6 +621,56 @@ export type Contact = {
   maritalStatus: MaritalStatus | null
   dependents: number | null
   createdAt: string
+  profileStatus?: { hasProfile: boolean; isDueForReview: boolean }
+}
+
+export type ContactProfileObjectif = 'preservation' | 'croissance' | 'revenus' | 'fiscal'
+
+export type ContactProfile = {
+  id: string
+  cabinetId: string
+  contactId: string
+  classificationMifid: 'non_professionnel' | 'professionnel' | 'contrepartie_eligible' | null
+  connaissance: 'basique' | 'informe' | 'expert' | null
+  experience: 'faible' | 'moyenne' | 'elevee' | null
+  capacitePertes: 'aucune' | 'limitee' | 'capital' | 'superieure' | null
+  sri: number | null
+  horizon: 'moins_2_ans' | '2_5_ans' | 'plus_5_ans' | null
+  objectifs: ContactProfileObjectif[]
+  aPreferencesDurabilite: boolean
+  pctTaxonomieSouhaite: number | null
+  pctSfdrEnvSouhaite: number | null
+  pctSfdrSocialSouhaite: number | null
+  paiGesSocietes: boolean
+  paiBiodiversite: boolean
+  paiEau: boolean
+  paiDechets: boolean
+  paiSocialPersonnel: boolean
+  paiGesSouverains: boolean
+  paiNormesSociales: boolean
+  paiCombustiblesFossiles: boolean
+  paiImmobilierEnergetique: boolean
+  notes: string | null
+  profilDate: string
+  nextReviewDate: string | null
+  status: 'active' | 'archived'
+  createdAt: string
+  updatedAt: string
+}
+
+export type AdequacyVerdict = 'positif' | 'neutre' | 'negatif' | 'non_evalue'
+
+export type AdequacyResult = {
+  axes: {
+    type_client: { label: string; verdict: AdequacyVerdict; detail?: string }
+    connaissance_experience: { label: string; verdict: AdequacyVerdict; detail?: string }
+    capacite_pertes: { label: string; verdict: AdequacyVerdict; detail?: string }
+    tolerance_risque: { label: string; verdict: AdequacyVerdict; detail?: string }
+    objectifs: { label: string; verdict: AdequacyVerdict; detail?: string }
+  }
+  global: AdequacyVerdict
+  is_negative_market: boolean
+  is_positive_market: boolean
 }
 
 export type Interaction = {
@@ -679,6 +729,36 @@ export const contactApi = {
       method: 'DELETE',
       token,
     }),
+
+  getProfile: (contactId: string, token: string) =>
+    call<{ profile: ContactProfile | null }>(`/api/v1/contacts/${contactId}/profile`, { token }),
+
+  getProfileHistory: (contactId: string, token: string) =>
+    call<{ history: ContactProfile[] }>(`/api/v1/contacts/${contactId}/profile/history`, { token }),
+
+  saveProfile: (contactId: string, data: Partial<ContactProfile>, token: string) =>
+    call<{ profile: ContactProfile }>(`/api/v1/contacts/${contactId}/profile`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updateProfile: (contactId: string, profileId: string, data: Partial<ContactProfile>, token: string) =>
+    call<{ profile: ContactProfile }>(`/api/v1/contacts/${contactId}/profile/${profileId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  getAdequacy: (contactId: string, token: string) =>
+    call<{
+      results: Array<{
+        product: { id: string; name: string; category: string | null }
+        governance: Record<string, unknown>
+        adequacy: AdequacyResult
+      }>
+      hasProfile: boolean
+    }>(`/api/v1/contacts/${contactId}/adequacy`, { token }),
 }
 
 // ── Admin compliance ──────────────────────────────────────────────────────────

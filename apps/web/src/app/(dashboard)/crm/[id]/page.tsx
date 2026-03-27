@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart } from 'lucide-react'
+import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart, ShieldCheck, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { contactApi, eventApi, type ContactType, type MaritalStatus, type InteractionType, type Interaction, type CalendarEvent, type EventType } from '@/lib/api'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { ContactProfileTab } from '@/components/crm/ContactProfileTab'
+import { ContactAdequacyTab } from '@/components/crm/ContactAdequacyTab'
 
 const EVENT_TYPE_COLORS: Record<EventType, string> = {
   RDV:        'text-blue-500',
@@ -175,7 +177,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   const queryClient = useQueryClient()
   const router = useRouter()
   const { id } = params
-  const [activeTab, setActiveTab] = useState<'interactions' | 'agenda'>('interactions')
+  const [activeTab, setActiveTab] = useState<'interactions' | 'agenda' | 'profil_mifid' | 'adequation'>('interactions')
   const [showNewEvent, setShowNewEvent] = useState(false)
 
   const { data, isLoading } = useQuery({
@@ -346,18 +348,20 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
             <EntityDocuments entityType="contact" entityId={id} />
           </div>
 
-          {/* Onglets Interactions / Agenda */}
+          {/* Onglets */}
           <div>
-            <div className="flex border-b border-border mb-4">
+            <div className="flex border-b border-border mb-4 overflow-x-auto">
               {([
                 { key: 'interactions', label: `Interactions (${interactions.length})`, icon: MessageSquare },
                 { key: 'agenda', label: 'Agenda', icon: CalendarDays },
+                { key: 'profil_mifid', label: 'Profil MiFID', icon: ShieldCheck },
+                { key: 'adequation', label: 'Adéquation produits', icon: BarChart3 },
               ] as const).map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
                   onClick={() => setActiveTab(key)}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+                    'flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
                     activeTab === key
                       ? 'border-primary text-primary'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -439,6 +443,14 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                   </ul>
                 )}
               </div>
+            )}
+
+            {activeTab === 'profil_mifid' && token && (
+              <ContactProfileTab contactId={id} token={token} />
+            )}
+
+            {activeTab === 'adequation' && token && (
+              <ContactAdequacyTab contactId={id} token={token} />
             )}
           </div>
         </>

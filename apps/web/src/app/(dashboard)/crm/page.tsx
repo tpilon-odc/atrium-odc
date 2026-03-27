@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, Search, ChevronRight, User, Mail, Phone, Share2 } from 'lucide-react'
+import { Plus, Search, ChevronRight, User, Mail, Phone, Share2, AlertTriangle, UserX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { contactApi, type Contact, type ContactType } from '@/lib/api'
@@ -43,6 +43,18 @@ function ContactCard({ contact, onShare }: { contact: Contact; onShare: () => vo
             <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', TYPE_COLORS[contact.type])}>
               {TYPE_LABELS[contact.type]}
             </span>
+            {contact.profileStatus?.isDueForReview && (
+              <span className="flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 shrink-0">
+                <AlertTriangle className="h-3 w-3" />
+                Profil à réviser
+              </span>
+            )}
+            {contact.profileStatus && !contact.profileStatus.hasProfile && (
+              <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">
+                <UserX className="h-3 w-3" />
+                Profil non défini
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-0.5">
             {contact.email && (

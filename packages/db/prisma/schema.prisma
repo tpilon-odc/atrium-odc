@@ -243,6 +243,7 @@ model Cabinet {
   toolEdits             ToolEdit[]
   toolPublicRatings     ToolPublicRating[]
   contacts              Contact[]
+  contactProfiles       CabinetContactProfile[]
   storageConfigs        CabinetStorageConfig[]
   documents             Document[]
   collaboratorTrainings CollaboratorTraining[]
@@ -893,9 +894,52 @@ model Contact {
   cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
   interactions Interaction[]
   events       Event[]
+  profiles     CabinetContactProfile[]
 
   @@index([cabinetId])
   @@map("contacts")
+}
+
+model CabinetContactProfile {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cabinetId                String    @db.Uuid @map("cabinet_id")
+  contactId                String    @db.Uuid @map("contact_id")
+
+  classificationMifid      String?   @map("classification_mifid")
+  connaissance             String?
+  experience               String?
+  capacitePertes           String?   @map("capacite_pertes")
+  sri                      Int?
+
+  horizon                  String?
+  objectifs                String[]
+  aPreferencesDurabilite   Boolean   @default(false) @map("a_preferences_durabilite")
+  pctTaxonomieSouhaite     Float?    @map("pct_taxonomie_souhaite")
+  pctSfdrEnvSouhaite       Float?    @map("pct_sfdr_env_souhaite")
+  pctSfdrSocialSouhaite    Float?    @map("pct_sfdr_social_souhaite")
+  paiGesSocietes           Boolean   @default(false) @map("pai_ges_societes")
+  paiBiodiversite          Boolean   @default(false) @map("pai_biodiversite")
+  paiEau                   Boolean   @default(false) @map("pai_eau")
+  paiDechets               Boolean   @default(false) @map("pai_dechets")
+  paiSocialPersonnel       Boolean   @default(false) @map("pai_social_personnel")
+  paiGesSouverains         Boolean   @default(false) @map("pai_ges_souverains")
+  paiNormesSociales        Boolean   @default(false) @map("pai_normes_sociales")
+  paiCombustiblesFossiles  Boolean   @default(false) @map("pai_combustibles_fossiles")
+  paiImmobilierEnergetique Boolean   @default(false) @map("pai_immobilier_energetique")
+
+  notes                    String?
+  profilDate               DateTime  @default(now()) @map("profil_date") @db.Date
+  nextReviewDate           DateTime? @map("next_review_date") @db.Date
+  status                   String    @default("active")
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@index([cabinetId])
+  @@index([contactId])
+  @@map("cabinet_contact_profile")
 }
 
 model Interaction {
