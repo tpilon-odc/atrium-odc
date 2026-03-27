@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { UserPlus, Copy, Check, Users, ShieldCheck, Building2, Search, Pencil, X, Ban } from 'lucide-react'
+import { UserPlus, Copy, Check, Users, ShieldCheck, Building2, Search, Pencil, X, Ban, Link2, Unlink } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { adminApi, type PlatformUser } from '@/lib/api'
+import { adminApi, supplierApi, type PlatformUser } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,9 +15,10 @@ const ROLE_CONFIG: Record<string, { label: string; description: string; icon: Re
   chamber:        { label: 'Chambre',            description: 'Organisme professionnel (ex: ANACOFI, CNCGP…)', icon: Building2,   color: 'text-blue-600 bg-blue-50' },
   regulator:      { label: 'Régulateur',         description: 'Autorité de supervision (ex: AMF, ACPR…)',      icon: ShieldCheck, color: 'text-amber-600 bg-amber-50' },
   platform_admin: { label: 'Admin plateforme',   description: "Accès complet à l'administration",              icon: Users,       color: 'text-purple-600 bg-purple-50' },
+  supplier:       { label: 'Fournisseur',        description: 'Peut gérer ses propres fiches fournisseur',     icon: Building2,   color: 'text-green-600 bg-green-50' },
 }
 
-const INVITE_ROLES = ['chamber', 'regulator', 'platform_admin'] as const
+const INVITE_ROLES = ['chamber', 'regulator', 'platform_admin', 'supplier'] as const
 
 // ── Formulaire d'invitation ──────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
 
       <div className="space-y-1.5">
         <Label className="text-xs">Rôle <span className="text-destructive">*</span></Label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {INVITE_ROLES.map((key) => {
             const cfg = ROLE_CONFIG[key]
             const Icon = cfg.icon
@@ -140,6 +141,80 @@ function InviteForm({ onClose }: { onClose: () => void }) {
 
 // ── Ligne utilisateur ────────────────────────────────────────────────────────
 
+function SupplierLinksPanel({ user, token }: { user: PlatformUser; token: string }) {
+  const queryClient = useQueryClient()
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const { data: linksData } = useQuery({
+    queryKey: ['admin-supplier-links', user.id, token],
+    queryFn: () => adminApi.getSupplierLinks(user.id, token),
+    enabled: !!token,
+  })
+  const links = linksData?.data.links ?? []
+
+  const { data: searchData } = useQuery({
+    queryKey: ['suppliers-search', token, q],
+    queryFn: () => supplierApi.list(token, { search: q, limit: 8 }),
+    enabled: !!token && q.length >= 1,
+  })
+  const results = (searchData?.data.suppliers ?? []).filter((s) => !links.some((l) => l.supplier.id === s.id))
+
+  const linkMutation = useMutation({
+    mutationFn: (supplierId: string) => adminApi.linkSupplierUser({ userId: user.id, supplierId }, token),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-supplier-links', user.id] }); setQ(''); setOpen(false) },
+  })
+  const unlinkMutation = useMutation({
+    mutationFn: (supplierId: string) => adminApi.unlinkSupplierUser({ userId: user.id, supplierId }, token),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-supplier-links', user.id] }),
+  })
+
+  return (
+    <div className="border-t border-border px-4 py-3 space-y-3">
+      <p className="text-xs font-medium text-muted-foreground">Fiches fournisseur gérées</p>
+      {links.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {links.map((l) => (
+            <div key={l.id} className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1 text-sm">
+              <span>{l.supplier.name}</span>
+              {l.supplier.category && <span className="text-xs text-muted-foreground">· {l.supplier.category}</span>}
+              <button onClick={() => unlinkMutation.mutate(l.supplier.id)} className="text-muted-foreground hover:text-destructive ml-1">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="relative max-w-xs">
+        <Input
+          placeholder="Lier une fiche fournisseur…"
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true) }}
+          onFocus={() => q && setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          className="text-sm"
+        />
+        {open && results.length > 0 && (
+          <div className="absolute z-10 top-full mt-1 w-full bg-popover border border-border rounded-lg shadow-md overflow-hidden">
+            {results.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
+                onMouseDown={() => linkMutation.mutate(s.id)}
+              >
+                <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="font-medium">{s.name}</span>
+                {s.category && <span className="text-xs text-muted-foreground">{s.category}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function UserRow({
   user,
   currentUserId,
@@ -149,8 +224,10 @@ function UserRow({
   currentUserId: string
   onUpdate: (data: { globalRole?: string; isActive?: boolean }) => void
 }) {
+  const { token } = useAuthStore()
   const isSelf = user.id === currentUserId
   const [editing, setEditing] = useState(false)
+  const [showSupplierLinks, setShowSupplierLinks] = useState(false)
   const [role, setRole] = useState(user.globalRole)
   const cfg = ROLE_CONFIG[user.globalRole]
   const Icon = cfg?.icon ?? Users
@@ -183,6 +260,15 @@ function UserRow({
           {new Date(user.createdAt!).toLocaleDateString('fr-FR')}
         </p>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+          {user.globalRole === 'supplier' && (
+            <button
+              onClick={() => setShowSupplierLinks((v) => !v)}
+              title="Gérer les fiches liées"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              {showSupplierLinks ? <Unlink className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+            </button>
+          )}
           {isNonCabinet && (
             <button
               onClick={() => setEditing((v) => !v)}
@@ -244,6 +330,10 @@ function UserRow({
           </Button>
         </div>
       )}
+
+      {showSupplierLinks && token && (
+        <SupplierLinksPanel user={user} token={token} />
+      )}
     </div>
   )
 }
@@ -256,6 +346,7 @@ const ROLE_FILTERS = [
   { value: 'chamber', label: 'Chambres' },
   { value: 'regulator', label: 'Régulateurs' },
   { value: 'platform_admin', label: 'Admins' },
+  { value: 'supplier', label: 'Fournisseurs' },
 ]
 
 export default function PlatformUsersPage() {

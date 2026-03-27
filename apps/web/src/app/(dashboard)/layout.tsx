@@ -41,7 +41,20 @@ import { Button } from '@/components/ui/button'
 
 type NavItem = { href: string; label: string; icon: React.ElementType; showProgress?: boolean; permission?: keyof CabinetMember }
 
-function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean) {
+function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globalRole?: string) {
+  // Navigation dédiée pour les fournisseurs
+  if (globalRole === 'supplier') {
+    return [
+      {
+        label: 'Mes fiches',
+        items: [
+          { href: '/supplier-portal', label: 'Mes fiches fournisseur', icon: Building2 },
+          { href: '/supplier-portal/nouveau', label: 'Nouvelle fiche', icon: Package },
+        ] as NavItem[],
+      },
+    ]
+  }
+
   const canAll = !member || member.role === 'owner' || member.role === 'admin'
   const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
 
@@ -83,7 +96,12 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean) {
   ]
 }
 
-function buildBottomNav(member: CabinetMember | null, hasCabinet: boolean): NavItem[] {
+function buildBottomNav(member: CabinetMember | null, hasCabinet: boolean, globalRole?: string): NavItem[] {
+  if (globalRole === 'supplier') {
+    return [
+      { href: '/supplier-portal', label: 'Mes fiches', icon: Building2 },
+    ]
+  }
   const canAll = !member || member.role === 'owner' || member.role === 'admin'
   const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
   return ([
@@ -94,7 +112,12 @@ function buildBottomNav(member: CabinetMember | null, hasCabinet: boolean): NavI
   ] as (NavItem | false)[]).filter(Boolean) as NavItem[]
 }
 
-function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean): NavItem[] {
+function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, globalRole?: string): NavItem[] {
+  if (globalRole === 'supplier') {
+    return [
+      { href: '/supplier-portal/nouveau', label: 'Nouvelle fiche', icon: Package },
+    ]
+  }
   const canAll = !member || member.role === 'owner' || member.role === 'admin'
   const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
   return ([
@@ -126,6 +149,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   parametres: 'Paramètres',
   pca: 'PCA',
   clusters: 'Clusters',
+  'supplier-portal': 'Mes fiches fournisseur',
   notifications: 'Notifications',
   profil: 'Mon profil',
   admin: 'Admin',
@@ -416,9 +440,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const currentMember = membersData?.data.members.find((m) => m.userId === user?.id) ?? null
   // hasCabinet = l'utilisateur est membre d'un cabinet (quel que soit son globalRole)
   const hasCabinet = currentMember !== null
-  const navGroups = buildNavGroups(currentMember, hasCabinet)
-  const bottomNavItems = buildBottomNav(currentMember, hasCabinet)
-  const drawerItems = buildDrawerItems(currentMember, hasCabinet)
+  const globalRole = user?.globalRole
+  const navGroups = buildNavGroups(currentMember, hasCabinet, globalRole)
+  const bottomNavItems = buildBottomNav(currentMember, hasCabinet, globalRole)
+  const drawerItems = buildDrawerItems(currentMember, hasCabinet, globalRole)
 
   useEffect(() => {
     hydrate()

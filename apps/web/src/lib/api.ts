@@ -885,6 +885,61 @@ export const adminApi = {
 
   deletePlatformUser: (id: string, token: string) =>
     call<unknown>(`/api/v1/admin/platform-users/${id}`, { method: 'DELETE', token }),
+
+  getSupplierLinks: (userId: string, token: string) =>
+    call<{ links: { id: string; supplier: { id: string; name: string; category: string | null } }[] }>(
+      `/api/v1/admin/supplier-users/${userId}`, { token }
+    ),
+
+  linkSupplierUser: (data: { userId: string; supplierId: string }, token: string) =>
+    call<{ link: { id: string; supplier: { id: string; name: string } } }>('/api/v1/admin/supplier-users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  unlinkSupplierUser: (data: { userId: string; supplierId: string }, token: string) =>
+    call<unknown>('/api/v1/admin/supplier-users', {
+      method: 'DELETE',
+      body: JSON.stringify(data),
+      token,
+    }),
+}
+
+// ── Supplier portal ──────────────────────────────────────────────────────────
+
+export type SupplierPortalEntry = {
+  id: string
+  name: string
+  description: string | null
+  category: string | null
+  website: string | null
+  email: string | null
+  phone: string | null
+  isVerified: boolean
+  createdAt: string
+}
+
+export const supplierPortalApi = {
+  getMySuppliers: (token: string) =>
+    call<{ suppliers: SupplierPortalEntry[] }>('/api/v1/supplier-portal/me', { token }),
+
+  getSupplier: (id: string, token: string) =>
+    call<{ supplier: SupplierPortalEntry }>(`/api/v1/supplier-portal/${id}`, { token }),
+
+  createSupplier: (data: { name: string; description?: string; category?: string; website?: string; email?: string; phone?: string }, token: string) =>
+    call<{ supplier: SupplierPortalEntry }>('/api/v1/supplier-portal', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updateSupplier: (id: string, data: Partial<{ name: string; description: string | null; category: string | null; website: string | null; email: string | null; phone: string | null }>, token: string) =>
+    call<{ supplier: SupplierPortalEntry }>(`/api/v1/supplier-portal/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
 }
 
 // ── Cabinet (paramètres) ───────────────────────────────────────────────────────

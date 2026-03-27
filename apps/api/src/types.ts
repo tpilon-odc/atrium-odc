@@ -10,5 +10,6 @@ declare module 'fastify' {
   interface FastifyRequest {
     user: AuthUser
     cabinetId: string
+    supplierIds: string[]
   }
 }

@@ -18,6 +18,7 @@ enum GlobalRole {
   platform_admin
   regulator
   chamber
+  supplier
 }
 
 enum SubscriptionStatus {
@@ -202,6 +203,7 @@ model User {
   gdprRequestsMade       GdprRequest[]   @relation("RequestedBy")
   gdprRequestsProcessed  GdprRequest[]   @relation("ProcessedBy")
   pcaHistory             CabinetPcaHistory[]
+  supplierUsers          SupplierUser[]
 
   @@map("users")
 }
@@ -427,9 +429,24 @@ model Supplier {
   publicRatings    SupplierPublicRating[]
   productLinks     ProductSupplier[]
   reviews          SupplierReview[]
+  supplierUsers    SupplierUser[]
 
   @@index([createdAt])
   @@map("suppliers")
+}
+
+model SupplierUser {
+  id         String   @id @default(uuid()) @db.Uuid
+  supplierId String   @map("supplier_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, userId])
+  @@index([userId])
+  @@map("supplier_users")
 }
 
 model SupplierEdit {

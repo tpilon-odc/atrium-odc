@@ -35,6 +35,7 @@ import { tagRoutes } from './routes/tags'
 import { consentRoutes } from './routes/consent'
 import { gdprRoutes } from './routes/gdpr'
 import { pcaRoutes } from './routes/pca'
+import { supplierPortalRoutes } from './routes/supplier-portal'
 
 const app = Fastify({
   logger: {
@@ -105,6 +106,7 @@ const start = async () => {
   app.register(consentRoutes, { prefix: '/api/v1/consent' })
   app.register(gdprRoutes, { prefix: '/api/v1/gdpr' })
   app.register(pcaRoutes, { prefix: '/api/v1/pca' })
+  app.register(supplierPortalRoutes, { prefix: '/api/v1/supplier-portal' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))

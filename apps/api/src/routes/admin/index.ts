@@ -44,7 +44,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       email: z.string().email('Email invalide'),
       firstName: z.string().min(1, 'Prénom requis'),
       lastName: z.string().min(1, 'Nom requis'),
-      globalRole: z.enum([GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin]),
+      globalRole: z.enum([GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin, GlobalRole.supplier]),
     })
 
     const result = bodySchema.safeParse(request.body)
@@ -91,7 +91,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const { id } = request.params as { id: string }
 
     const bodySchema = z.object({
-      globalRole: z.enum([GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin]).optional(),
+      globalRole: z.enum([GlobalRole.chamber, GlobalRole.regulator, GlobalRole.platform_admin, GlobalRole.supplier]).optional(),
       isActive: z.boolean().optional(),
     }).refine((d) => d.globalRole !== undefined || d.isActive !== undefined, {
       message: 'Au moins un champ requis',
@@ -142,6 +142,62 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
 
     await prisma.user.update({ where: { id }, data: { isActive: false } })
+    return reply.status(204).send()
+  })
+
+  // ── GET /api/v1/admin/supplier-users/:userId ─────────────────────────────
+  // Fiches liées à un utilisateur supplier
+  app.get('/supplier-users/:userId', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { userId } = request.params as { userId: string }
+    const links = await prisma.supplierUser.findMany({
+      where: { userId },
+      include: { supplier: { select: { id: true, name: true, category: true } } },
+      orderBy: { createdAt: 'asc' },
+    })
+    return reply.send({ data: { links } })
+  })
+
+  // ── POST /api/v1/admin/supplier-users ─────────────────────────────────────
+  // Lie un utilisateur supplier à une fiche
+  app.post('/supplier-users', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const bodySchema = z.object({
+      userId: z.string().uuid(),
+      supplierId: z.string().uuid(),
+    })
+    const result = bodySchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: result.data.userId } })
+    if (!user || user.globalRole !== 'supplier') {
+      return reply.status(400).send({ error: 'L\'utilisateur doit avoir le rôle fournisseur', code: 'INVALID_ROLE' })
+    }
+
+    const link = await prisma.supplierUser.upsert({
+      where: { supplierId_userId: { supplierId: result.data.supplierId, userId: result.data.userId } },
+      create: { supplierId: result.data.supplierId, userId: result.data.userId },
+      update: {},
+      include: { supplier: { select: { id: true, name: true } } },
+    })
+    return reply.status(201).send({ data: { link } })
+  })
+
+  // ── DELETE /api/v1/admin/supplier-users ───────────────────────────────────
+  // Délie un utilisateur supplier d'une fiche
+  app.delete('/supplier-users', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const bodySchema = z.object({
+      userId: z.string().uuid(),
+      supplierId: z.string().uuid(),
+    })
+    const result = bodySchema.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    await prisma.supplierUser.deleteMany({
+      where: { supplierId: result.data.supplierId, userId: result.data.userId },
+    })
     return reply.status(204).send()
   })
 
