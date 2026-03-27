@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, Search, Star, BadgeCheck, ChevronRight, X, LayoutTable, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Plus, Search, Star, BadgeCheck, ChevronRight, X, Table2, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi, type Product } from '@/lib/api'
@@ -233,7 +233,7 @@ export default function ProduitsPage() {
         <div className="flex gap-2">
           <Link href="/produits/gouvernance">
             <Button size="sm" variant="outline">
-              <LayoutTable className="h-4 w-4 mr-1.5" />
+              <Table2 className="h-4 w-4 mr-1.5" />
               Tableau MiFID II
             </Button>
           </Link>
