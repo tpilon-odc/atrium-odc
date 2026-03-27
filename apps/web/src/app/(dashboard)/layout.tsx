@@ -30,6 +30,7 @@ import {
   CalendarDays,
   MessagesSquare,
   ClipboardList,
+  BookUser,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
@@ -74,7 +75,7 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
         allow('canManageSuppliers') && { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
         allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
         { href: '/outils', label: 'Outils', icon: Wrench },
-        { href: '/cabinets', label: 'Annuaire', icon: Building2 },
+        { href: '/cabinets', label: 'Annuaire', icon: BookUser },
         { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
@@ -124,7 +125,7 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, glo
   return ([
     allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
     { href: '/outils', label: 'Outils', icon: Wrench },
-    { href: '/cabinets', label: 'Annuaire', icon: Building2 },
+    { href: '/cabinets', label: 'Annuaire', icon: BookUser },
     { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
     { href: '/agenda', label: 'Agenda', icon: CalendarDays },
     { href: '/ged', label: 'Documents', icon: FolderOpen },
