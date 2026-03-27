@@ -140,6 +140,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   conformite: 'Conformité',
   fournisseurs: 'Fournisseurs',
   produits: 'Produits',
+  gouvernance: 'Tableau de gouvernance',
   outils: 'Outils',
   crm: 'CRM',
   agenda: 'Agenda',

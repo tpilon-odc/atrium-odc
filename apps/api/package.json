@@ -19,6 +19,10 @@
     "@fastify/swagger": "^8.15.0",
     "@fastify/swagger-ui": "^4.2.0",
     "@supabase/supabase-js": "^2.99.3",
+    "@types/archiver": "^6.0.4",
+    "@types/node": "^20.0.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^7.0.11",
     "archiver": "^7.0.1",
     "dotenv": "^16.0.0",
     "fastify": "^4.28.0",
@@ -30,11 +34,8 @@
     "resend": "^6.9.4",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
-    "zod": "^3.23.0",
-    "@types/archiver": "^6.0.4",
-    "@types/node": "^20.0.0",
-    "@types/node-cron": "^3.0.11",
-    "@types/nodemailer": "^7.0.11"
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/supertest": "^7.2.0",

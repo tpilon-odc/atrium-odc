@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { computeDiff } from '../../lib/diff'
+import { governanceRoutes } from './governance'
 import {
   listProductsQuery,
   createProductBody,
@@ -13,6 +14,8 @@ import {
 } from './schemas'
 
 export const productRoutes: FastifyPluginAsync = async (app) => {
+  // Governance sub-routes (registered first to avoid :id matching /governance/...)
+  await app.register(governanceRoutes)
   // ── GET /api/v1/products ──────────────────────────────────────────────────
   app.get('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const query = listProductsQuery.safeParse(request.query)
@@ -42,22 +45,36 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     const nextCursor = hasMore ? items[items.length - 1].id : null
 
     const productIds = items.map((p) => p.id)
-    const [cabinetProducts, publicRatings] = await Promise.all([
+    const [cabinetProducts, publicRatings, governances] = await Promise.all([
       prisma.cabinetProduct.findMany({
         where: { cabinetId: request.cabinetId, productId: { in: productIds }, deletedAt: null },
       }),
       prisma.productPublicRating.findMany({
         where: { cabinetId: request.cabinetId, productId: { in: productIds } },
       }),
+      prisma.cabinetProductGovernance.findMany({
+        where: { cabinetId: request.cabinetId, productId: { in: productIds } },
+        orderBy: { revisionDate: 'desc' },
+      }),
     ])
 
     const cabinetDataMap = new Map(cabinetProducts.map((cp) => [cp.productId, cp]))
     const ratingMap = new Map(publicRatings.map((r) => [r.productId, r.rating]))
+    const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    const govMap = new Map<string, { status: string; isDueForRevision: boolean }>()
+    for (const gov of governances) {
+      const existing = govMap.get(gov.productId)
+      const isDue = !!gov.nextRevisionDate && new Date(gov.nextRevisionDate) <= in30Days
+      if (!existing || gov.status === 'active' || (gov.status === 'draft' && existing.status !== 'active')) {
+        govMap.set(gov.productId, { status: gov.status, isDueForRevision: gov.status === 'active' && isDue })
+      }
+    }
 
     const data = items.map((p) => ({
       ...p,
       cabinetData: cabinetDataMap.get(p.id) ?? null,
       myPublicRating: ratingMap.get(p.id) ?? null,
+      governanceStatus: govMap.get(p.id) ?? null,
     }))
 
     return reply.send({ data: { products: data, nextCursor, hasMore } })

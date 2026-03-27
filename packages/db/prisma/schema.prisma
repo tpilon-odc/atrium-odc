@@ -233,6 +233,7 @@ model Cabinet {
   supplierEdits            SupplierEdit[]
   supplierPublicRatings SupplierPublicRating[]
   cabinetProducts       CabinetProduct[]
+  productGovernances    CabinetProductGovernance[]
   productEdits          ProductEdit[]
   productPublicRatings  ProductPublicRating[]
   productReviews        ProductReview[]
@@ -581,6 +582,7 @@ model Product {
   publicRatings   ProductPublicRating[]
   supplierLinks   ProductSupplier[]
   reviews         ProductReview[]
+  governances     CabinetProductGovernance[]
 
   @@index([createdAt])
   @@map("products")
@@ -634,6 +636,85 @@ model ProductSupplier {
 
   @@unique([productId, supplierId])
   @@map("product_suppliers")
+}
+
+/// Gouvernance des produits financiers MiFID II — privée par cabinet
+model CabinetProductGovernance {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cabinetId                 String    @db.Uuid @map("cabinet_id")
+  productId                 String    @db.Uuid @map("product_id")
+
+  // Axe 1 — Type de client
+  clientNonProfessionnel    String?   @map("client_non_professionnel")
+  clientProfessionnel       String?   @map("client_professionnel")
+
+  // Axe 2 — Connaissance et expérience
+  connaissanceBasique       String?   @map("connaissance_basique")
+  connaissanceInforme       String?   @map("connaissance_informe")
+  connaissanceExpert        String?   @map("connaissance_expert")
+  experienceFaible          String?   @map("experience_faible")
+  experienceMoyenne         String?   @map("experience_moyenne")
+  experienceElevee          String?   @map("experience_elevee")
+
+  // Axe 3 — Capacité à supporter des pertes
+  perteAucune               String?   @map("perte_aucune")
+  perteLimitee              String?   @map("perte_limitee")
+  perteCapital              String?   @map("perte_capital")
+  perteSuperieurCapital     String?   @map("perte_superieure_capital")
+
+  // Axe 4 — Tolérance au risque (SRI)
+  risque1                   String?   @map("risque_1")
+  risque23                  String?   @map("risque_2_3")
+  risque4                   String?   @map("risque_4")
+  risque56                  String?   @map("risque_5_6")
+  risque7                   String?   @map("risque_7")
+
+  // Axe 5 — Objectifs et besoins
+  horizonMoins2Ans          String?   @map("horizon_moins_2_ans")
+  horizon25Ans              String?   @map("horizon_2_5_ans")
+  horizonPlus5Ans           String?   @map("horizon_plus_5_ans")
+  objectifPreservation      String?   @map("objectif_preservation")
+  objectifCroissance        String?   @map("objectif_croissance")
+  objectifRevenus           String?   @map("objectif_revenus")
+  objectifFiscal            String?   @map("objectif_fiscal")
+
+  // Durabilité — pourcentages (0.0→1.0)
+  pctTaxonomie              Float?    @map("pct_taxonomie")
+  pctSfdrEnvironnemental    Float?    @map("pct_sfdr_environnemental")
+  pctSfdrSocial             Float?    @map("pct_sfdr_social")
+
+  // PAI — sociétés
+  paiGesSocietes            Boolean   @default(false) @map("pai_ges_societes")
+  paiBiodiversite           Boolean   @default(false) @map("pai_biodiversite")
+  paiEau                    Boolean   @default(false) @map("pai_eau")
+  paiDechets                Boolean   @default(false) @map("pai_dechets")
+  paiSocialPersonnel        Boolean   @default(false) @map("pai_social_personnel")
+  // PAI — actifs souverains
+  paiGesSouverains          Boolean   @default(false) @map("pai_ges_souverains")
+  paiNormesSociales         Boolean   @default(false) @map("pai_normes_sociales")
+  // PAI — actifs immobiliers
+  paiCombustiblesFossiles   Boolean   @default(false) @map("pai_combustibles_fossiles")
+  paiImmobilierEnergetique  Boolean   @default(false) @map("pai_immobilier_energetique")
+
+  durabiliteCommuniquee     Boolean   @default(true) @map("durabilite_communiquee")
+
+  producteurSoumisMif2      Boolean   @default(true) @map("producteur_soumis_mif2")
+  marcheCibleSource         String?   @map("marche_cible_source")
+
+  revisionDate              DateTime  @default(now()) @map("revision_date") @db.Date
+  nextRevisionDate          DateTime? @map("next_revision_date") @db.Date
+  notesRevision             String?   @map("notes_revision")
+  status                    String    @default("draft")
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([cabinetId])
+  @@index([productId])
+  @@index([nextRevisionDate])
+  @@map("cabinet_product_governance")
 }
 
 /// 1 note publique par cabinet par produit — avg_public_rating recalculé par trigger

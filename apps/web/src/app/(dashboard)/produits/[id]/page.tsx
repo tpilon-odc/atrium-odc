@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
 import { ReviewSection } from '@/components/ReviewSection'
+import { GovernanceTab } from '@/components/produits/GovernanceTab'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -153,6 +154,7 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
   const backHref = searchParams.get('from') ?? '/produits'
   const backLabel = backHref.startsWith('/fournisseurs') ? 'Retour au fournisseur' : 'Retour aux produits'
   const [avgRating, setAvgRating] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<'infos' | 'gouvernance'>('infos')
 
   const { data, isLoading } = useQuery({
     queryKey: ['product', id, token],
@@ -266,14 +268,40 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
             </p>
           </div>
 
-          <CabinetSection productId={id} />
-
-          <ReviewSection entityType="product" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
-
-          {/* Documents */}
-          <div className="bg-card border border-border rounded-lg p-5">
-            <EntityDocuments entityType="product" entityId={id} />
+          {/* Onglets */}
+          <div className="flex gap-1 border-b border-border">
+            {([
+              { key: 'infos', label: 'Informations' },
+              { key: 'gouvernance', label: 'Gouvernance MiFID II' },
+            ] as const).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+                  activeTab === tab.key
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          {activeTab === 'infos' && (
+            <>
+              <CabinetSection productId={id} />
+              <ReviewSection entityType="product" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
+              <div className="bg-card border border-border rounded-lg p-5">
+                <EntityDocuments entityType="product" entityId={id} />
+              </div>
+            </>
+          )}
+
+          {activeTab === 'gouvernance' && (
+            <GovernanceTab productId={id} token={token!} />
+          )}
         </>
       )}
     </div>

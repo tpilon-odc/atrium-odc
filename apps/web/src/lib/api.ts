@@ -355,6 +355,7 @@ export type Product = {
     internalTags: string[]
   } | null
   myPublicRating: number | null
+  governanceStatus: { status: 'active' | 'draft'; isDueForRevision: boolean } | null
 }
 
 export type ProductDetail = Product & {
@@ -422,7 +423,105 @@ export const productApi = {
       method: 'DELETE',
       token,
     }),
+
+  getGovernance: (id: string, token: string) =>
+    call<{ active: Governance | null; draft: Governance | null; history: Governance[] }>(
+      `/api/v1/products/${id}/governance`,
+      { token }
+    ),
+
+  createGovernance: (id: string, data: GovernanceInput, token: string) =>
+    call<{ governance: Governance }>(`/api/v1/products/${id}/governance`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updateGovernance: (id: string, govId: string, data: GovernanceInput, token: string) =>
+    call<{ governance: Governance }>(`/api/v1/products/${id}/governance/${govId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  activateGovernance: (id: string, govId: string, token: string) =>
+    call<{ governance: Governance }>(`/api/v1/products/${id}/governance/${govId}/activate`, {
+      method: 'POST',
+      token,
+    }),
+
+  reviseGovernance: (id: string, govId: string, token: string) =>
+    call<{ governance: Governance }>(`/api/v1/products/${id}/governance/${govId}/revise`, {
+      method: 'POST',
+      token,
+    }),
+
+  exportGovernance: (token: string) =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/products/governance/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  dueRevisionGovernances: (token: string) =>
+    call<{ items: (Governance & { product: { id: string; name: string; category: string | null } })[] }>(
+      '/api/v1/products/governance/due-revision',
+      { token }
+    ),
 }
+
+export type MarcheCible = 'positif' | 'neutre' | 'negatif'
+
+export type Governance = {
+  id: string
+  cabinetId: string
+  productId: string
+  clientNonProfessionnel: MarcheCible | null
+  clientProfessionnel: MarcheCible | null
+  connaissanceBasique: MarcheCible | null
+  connaissanceInforme: MarcheCible | null
+  connaissanceExpert: MarcheCible | null
+  experienceFaible: MarcheCible | null
+  experienceMoyenne: MarcheCible | null
+  experienceElevee: MarcheCible | null
+  perteAucune: MarcheCible | null
+  perteLimitee: MarcheCible | null
+  perteCapital: MarcheCible | null
+  perteSuperieurCapital: MarcheCible | null
+  risque1: MarcheCible | null
+  risque23: MarcheCible | null
+  risque4: MarcheCible | null
+  risque56: MarcheCible | null
+  risque7: MarcheCible | null
+  horizonMoins2Ans: MarcheCible | null
+  horizon25Ans: MarcheCible | null
+  horizonPlus5Ans: MarcheCible | null
+  objectifPreservation: MarcheCible | null
+  objectifCroissance: MarcheCible | null
+  objectifRevenus: MarcheCible | null
+  objectifFiscal: MarcheCible | null
+  pctTaxonomie: number | null
+  pctSfdrEnvironnemental: number | null
+  pctSfdrSocial: number | null
+  paiGesSocietes: boolean
+  paiBiodiversite: boolean
+  paiEau: boolean
+  paiDechets: boolean
+  paiSocialPersonnel: boolean
+  paiGesSouverains: boolean
+  paiNormesSociales: boolean
+  paiCombustiblesFossiles: boolean
+  paiImmobilierEnergetique: boolean
+  durabiliteCommuniquee: boolean
+  producteurSoumisMif2: boolean
+  marcheCibleSource: string | null
+  revisionDate: string
+  nextRevisionDate: string | null
+  notesRevision: string | null
+  status: 'draft' | 'active' | 'archived'
+  createdAt: string
+  updatedAt: string
+}
+
+export type GovernanceInput = Partial<Omit<Governance, 'id' | 'cabinetId' | 'productId' | 'status' | 'createdAt' | 'updatedAt'>>
 
 // ── Outils ────────────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, Search, Star, BadgeCheck, ChevronRight, X } from 'lucide-react'
+import { Plus, Search, Star, BadgeCheck, ChevronRight, X, LayoutTable, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi, type Product } from '@/lib/api'
@@ -57,6 +57,23 @@ function ProductCard({ product }: { product: Product }) {
           {product.cabinetData?.isCommercialized && (
             <span className="text-xs bg-success-subtle text-success-subtle-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
               Commercialisé
+            </span>
+          )}
+          {product.governanceStatus?.isDueForRevision && (
+            <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+              <AlertTriangle className="h-3 w-3" />
+              Révision due
+            </span>
+          )}
+          {product.governanceStatus?.status === 'active' && !product.governanceStatus.isDueForRevision && (
+            <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+              <ShieldCheck className="h-3 w-3" />
+              MiFID II
+            </span>
+          )}
+          {product.governanceStatus?.status === 'draft' && (
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+              MiFID brouillon
             </span>
           )}
         </div>
@@ -213,12 +230,20 @@ export default function ProduitsPage() {
           <h2 className="text-2xl font-semibold">Produits</h2>
           <p className="text-muted-foreground mt-1">Base communautaire — visible par tous les cabinets.</p>
         </div>
-        <Link href="/produits/nouveau">
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-1.5" />
-            Ajouter
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/produits/gouvernance">
+            <Button size="sm" variant="outline">
+              <LayoutTable className="h-4 w-4 mr-1.5" />
+              Tableau MiFID II
+            </Button>
+          </Link>
+          <Link href="/produits/nouveau">
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1.5" />
+              Ajouter
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filtres */}
