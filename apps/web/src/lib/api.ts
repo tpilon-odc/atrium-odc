@@ -363,12 +363,13 @@ export type ProductDetail = Product & {
 }
 
 export const productApi = {
-  list: (token: string, params?: { limit?: number; cursor?: string; search?: string; category?: string }) => {
+  list: (token: string, params?: { limit?: number; cursor?: string; search?: string; category?: string; supplierId?: string }) => {
     const q = new URLSearchParams()
     if (params?.limit) q.set('limit', String(params.limit))
     if (params?.cursor) q.set('cursor', params.cursor)
     if (params?.search) q.set('search', params.search)
     if (params?.category) q.set('category', params.category)
+    if (params?.supplierId) q.set('supplierId', params.supplierId)
     return call<{ products: Product[]; nextCursor: string | null; hasMore: boolean }>(
       `/api/v1/products?${q}`,
       { token }

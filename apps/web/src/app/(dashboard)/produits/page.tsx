@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, Search, Star, BadgeCheck, ChevronRight } from 'lucide-react'
+import { Plus, Search, Star, BadgeCheck, ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { productApi, type Product } from '@/lib/api'
+import { productApi, supplierApi, type Product } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -75,16 +75,104 @@ function ProductCard({ product }: { product: Product }) {
   )
 }
 
+function SupplierPicker({
+  value,
+  onChange,
+}: {
+  value: { id: string; name: string } | null
+  onChange: (s: { id: string; name: string } | null) => void
+}) {
+  const { token } = useAuthStore()
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const { data } = useQuery({
+    queryKey: ['suppliers-search', token, q],
+    queryFn: () => supplierApi.list(token!, { search: q, limit: 8 }),
+    enabled: !!token && q.length >= 1,
+  })
+
+  const results = data?.data.suppliers ?? []
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-1.5 bg-muted rounded-full px-3 py-1.5 text-sm">
+        <span className="text-sm">{value.name}</span>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <Input
+        placeholder="Filtrer par fournisseur…"
+        value={q}
+        onChange={(e) => { setQ(e.target.value); setOpen(true) }}
+        onFocus={() => q && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        className="text-sm h-9"
+      />
+      {open && results.length > 0 && (
+        <div className="absolute z-10 top-full mt-1 w-full bg-card border border-border rounded-lg shadow-md overflow-hidden">
+          {results.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
+              onMouseDown={() => { onChange({ id: s.id, name: s.name }); setQ(''); setOpen(false) }}
+            >
+              <span className="font-medium">{s.name}</span>
+              {s.category && <span className="text-xs text-muted-foreground">{s.category}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const CATEGORIES = [
+  'Assurance-vie',
+  'SCPI',
+  'PER',
+  'Immobilier',
+  'Actions',
+  'Obligations',
+  'OPCVM',
+  'Défiscalisation',
+]
+
 export default function ProduitsPage() {
   const { token } = useAuthStore()
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [category, setCategory] = useState<string | null>(null)
+  const [supplier, setSupplier] = useState<{ id: string; name: string } | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [allItems, setAllItems] = useState<Product[]>([])
 
+  const resetPagination = () => {
+    setCursor(null)
+    setAllItems([])
+  }
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['products', token, search, cursor],
-    queryFn: () => productApi.list(token!, { search: search || undefined, cursor: cursor ?? undefined, limit: 20 }),
+    queryKey: ['products', token, search, category, supplier?.id, cursor],
+    queryFn: () =>
+      productApi.list(token!, {
+        search: search || undefined,
+        cursor: cursor ?? undefined,
+        limit: 20,
+        category: category ?? undefined,
+        supplierId: supplier?.id ?? undefined,
+      }),
     enabled: !!token,
   })
 
@@ -102,10 +190,21 @@ export default function ProduitsPage() {
   }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = () => {
-    setCursor(null)
-    setAllItems([])
+    resetPagination()
     setSearch(searchInput)
   }
+
+  const handleCategoryToggle = (cat: string) => {
+    setCategory((prev) => (prev === cat ? null : cat))
+    resetPagination()
+  }
+
+  const handleSupplierChange = (s: { id: string; name: string } | null) => {
+    setSupplier(s)
+    resetPagination()
+  }
+
+  const hasFilters = !!search || !!category || !!supplier
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -122,18 +221,63 @@ export default function ProduitsPage() {
         </Link>
       </div>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Rechercher un produit…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          />
+      {/* Filtres */}
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Rechercher un produit…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+          <Button variant="outline" onClick={handleSearch}>Rechercher</Button>
         </div>
-        <Button variant="outline" onClick={handleSearch}>Rechercher</Button>
+
+        {/* Catégories */}
+        <div className="flex flex-wrap gap-1.5">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => handleCategoryToggle(cat)}
+              className={cn(
+                'text-xs px-3 py-1 rounded-full font-medium transition-colors',
+                category === cat
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Fournisseur */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground shrink-0">Fournisseur :</span>
+          <SupplierPicker value={supplier} onChange={handleSupplierChange} />
+        </div>
+
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('')
+              setSearchInput('')
+              setCategory(null)
+              setSupplier(null)
+              resetPagination()
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+          >
+            <X className="h-3 w-3" />
+            Réinitialiser les filtres
+          </button>
+        )}
       </div>
 
       {isLoading ? (
@@ -146,7 +290,7 @@ export default function ProduitsPage() {
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <p className="font-medium">Aucun produit trouvé</p>
           <p className="text-sm text-muted-foreground mt-1">
-            {search ? 'Aucun résultat pour cette recherche.' : 'Soyez le premier à ajouter un produit.'}
+            {hasFilters ? 'Aucun résultat pour ces filtres.' : 'Soyez le premier à ajouter un produit.'}
           </p>
         </div>
       ) : (
@@ -156,7 +300,7 @@ export default function ProduitsPage() {
           ))}
           {data?.data.hasMore && (
             <div className="pt-2 text-center">
-              <Button variant="outline" size="sm" onClick={() => setCursor(data.data.nextCursor)} disabled={isFetching}>
+              <Button variant="outline" size="sm" onClick={() => setCursor(data.data.nextCursor!)} disabled={isFetching}>
                 {isFetching ? 'Chargement…' : 'Charger plus'}
               </Button>
             </div>
