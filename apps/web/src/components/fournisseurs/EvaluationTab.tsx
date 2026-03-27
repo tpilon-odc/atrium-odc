@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Star, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { supplierComplianceApi, type SupplierEvaluation, type EvaluationNote } from '@/lib/api'
+import { supplierComplianceApi, memberApi, type SupplierEvaluation, type EvaluationNote, type CabinetMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -134,6 +134,13 @@ function EvaluationForm({
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
 
+  const { data: membersData } = useQuery({
+    queryKey: ['cabinet-members', token],
+    queryFn: () => memberApi.list(token!),
+    enabled: !!token,
+  })
+  const members: CabinetMember[] = membersData?.data.members ?? []
+
   const [scores, setScores] = useState<Record<CriteriaKey, number | null>>(
     evaluation ? notesToRecord(evaluation.evaluationNotes) : {
       solvabilite: null, reputation: null, moyens: null, relation: null, remuneration: null,
@@ -144,7 +151,7 @@ function EvaluationForm({
       solvabilite: '', reputation: '', moyens: '', relation: '', remuneration: '',
     }
   )
-  const [evaluateurs, setEvaluateurs] = useState(evaluation?.evaluateurs?.join(', ') ?? '')
+  const [evaluateurIds, setEvaluateurIds] = useState<string[]>(evaluation?.evaluateurIds ?? [])
   const [showContrat, setShowContrat] = useState(false)
   const [contratDuree, setContratDuree] = useState(evaluation?.contratDuree ?? '')
   const [contratPreavis, setContratPreavis] = useState(evaluation?.contratPreavis ?? '')
@@ -154,7 +161,7 @@ function EvaluationForm({
 
   const buildPayload = () => ({
     evaluationNotes: buildNotes(scores, comments),
-    evaluateurs: evaluateurs.split(',').map((e) => e.trim()).filter(Boolean),
+    evaluateurIds,
     contratDuree: contratDuree || null,
     contratPreavis: contratPreavis || null,
   })
@@ -231,12 +238,32 @@ function EvaluationForm({
 
       {/* Évaluateurs */}
       <div className="space-y-1.5">
-        <Label className="text-xs">Évaluateurs (séparés par virgule)</Label>
-        <Input
-          value={evaluateurs}
-          onChange={(e) => setEvaluateurs(e.target.value)}
-          placeholder="Dupont, Martin…"
-        />
+        <Label className="text-xs">Évaluateurs</Label>
+        <div className="flex flex-wrap gap-2">
+          {members.map((m) => {
+            const name = [m.user.firstName, m.user.lastName].filter(Boolean).join(' ') || m.user.email
+            const selected = evaluateurIds.includes(m.userId)
+            return (
+              <button
+                key={m.userId}
+                type="button"
+                onClick={() =>
+                  setEvaluateurIds((prev) =>
+                    selected ? prev.filter((id) => id !== m.userId) : [...prev, m.userId]
+                  )
+                }
+                className={cn(
+                  'text-xs px-3 py-1 rounded-full border transition-colors',
+                  selected
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border hover:bg-accent'
+                )}
+              >
+                {name}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Informations contractuelles (rétractable) */}
@@ -303,6 +330,19 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
     queryFn: () => supplierComplianceApi.listEvaluations(supplierId, token!),
     enabled: !!token,
   })
+
+  const { data: membersData } = useQuery({
+    queryKey: ['cabinet-members', token],
+    queryFn: () => memberApi.list(token!),
+    enabled: !!token,
+  })
+  const members: CabinetMember[] = membersData?.data.members ?? []
+
+  const resolveName = (userId: string) => {
+    const m = members.find((m) => m.userId === userId)
+    if (!m) return userId
+    return [m.user.firstName, m.user.lastName].filter(Boolean).join(' ') || m.user.email
+  }
 
   const evaluations = data?.data.evaluations ?? []
   const latest = evaluations[0] ?? null
@@ -426,7 +466,7 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
                       </div>
                     ) : '—'}
                   </td>
-                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{ev.evaluateurs.join(', ') || '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{ev.evaluateurIds.map(resolveName).join(', ') || '—'}</td>
                   <td className="px-4 py-2.5">
                     <span className={cn('text-xs px-2 py-0.5 rounded-full', ev.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground')}>
                       {ev.status === 'completed' ? 'Complété' : 'Brouillon'}

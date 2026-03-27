@@ -1038,7 +1038,7 @@ export type SupplierEvaluation = {
   scoreGlobal: number | null
   evaluationDate: string
   nextReviewDate: string | null
-  evaluateurs: string[]
+  evaluateurIds: string[]
   contratSigneLe: string | null
   contratDuree: string | null
   contratPreavis: string | null
