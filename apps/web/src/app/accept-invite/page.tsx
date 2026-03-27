@@ -38,7 +38,7 @@ export default function AcceptInvitePage() {
       setAuth(result.session.access_token, result.user)
 
       // Les rôles plateforme (chamber, regulator, platform_admin) n'ont pas de cabinet
-      const noCabinet = ['chamber', 'regulator', 'platform_admin'].includes(result.user.globalRole)
+      const noCabinet = ['chamber', 'regulator', 'platform_admin', 'supplier'].includes(result.user.globalRole)
       if (noCabinet) {
         router.push('/dashboard')
         return

@@ -3,6 +3,7 @@ import './types' // Augmentations Fastify
 import Fastify from 'fastify'
 import cron from 'node-cron'
 import { runComplianceNotificationsJob } from './jobs/compliance-notifications'
+import { runSupplierReviewNotificationsJob } from './jobs/supplier-review-notifications'
 import { runExportCabinetDataJob } from './jobs/export-cabinet-data'
 import { runGdprExportJob } from './jobs/gdpr-export'
 import { runGdprErasureJob, runGdprPurgeFinalJob } from './jobs/gdpr-erasure'
@@ -118,6 +119,14 @@ const start = async () => {
     )
   })
   app.log.info('Job compliance-notifications planifié (0 6 * * *)')
+
+  // Job nuit à 6h05 UTC — alertes révisions annuelles fournisseurs
+  cron.schedule('5 6 * * *', () => {
+    runSupplierReviewNotificationsJob().catch((err) =>
+      app.log.error({ err }, '[supplier-review-notifications] Erreur job')
+    )
+  })
+  app.log.info('Job supplier-review-notifications planifié (5 6 * * *)')
 
   // Job toutes les 5 minutes — traitement des exports cabinet
   cron.schedule('*/5 * * * *', () => {

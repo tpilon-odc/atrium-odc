@@ -38,7 +38,7 @@ export default function LoginPage() {
       setAuth(result.session.access_token, result.user)
 
       // Les rôles plateforme n'ont pas de cabinet
-      const noCabinet = ['chamber', 'regulator', 'platform_admin'].includes(result.user.globalRole)
+      const noCabinet = ['chamber', 'regulator', 'platform_admin', 'supplier'].includes(result.user.globalRole)
       if (noCabinet) {
         router.push('/dashboard')
         return

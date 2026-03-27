@@ -11,8 +11,11 @@ import {
   upsertCabinetSupplierBody,
   publicRatingBody,
 } from './schemas'
+import { supplierComplianceRoutes } from './compliance'
 
 export const supplierRoutes: FastifyPluginAsync = async (app) => {
+  app.register(supplierComplianceRoutes)
+
   // ── GET /api/v1/suppliers ─────────────────────────────────────────────────
   app.get('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const query = listSuppliersQuery.safeParse(request.query)

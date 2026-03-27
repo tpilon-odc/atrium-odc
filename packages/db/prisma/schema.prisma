@@ -227,8 +227,10 @@ model Cabinet {
   members               CabinetMember[]
   complianceAnswers     CabinetComplianceAnswer[]
   complianceNotifs      ComplianceNotification[]
-  cabinetSuppliers      CabinetSupplier[]
-  supplierEdits         SupplierEdit[]
+  cabinetSuppliers         CabinetSupplier[]
+  supplierEvaluations      CabinetSupplierEvaluation[]
+  supplierVerifications    CabinetSupplierVerification[]
+  supplierEdits            SupplierEdit[]
   supplierPublicRatings SupplierPublicRating[]
   cabinetProducts       CabinetProduct[]
   productEdits          ProductEdit[]
@@ -423,7 +425,7 @@ model Supplier {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
 
-  creator          User                   @relation(fields: [createdBy], references: [id])
+  creator          User                          @relation(fields: [createdBy], references: [id])
   edits            SupplierEdit[]
   cabinetSuppliers CabinetSupplier[]
   publicRatings    SupplierPublicRating[]
@@ -431,6 +433,8 @@ model Supplier {
   reviews          SupplierReview[]
   supplierUsers    SupplierUser[]
   documents        Document[]
+  evaluations      CabinetSupplierEvaluation[]
+  verifications    CabinetSupplierVerification[]
 
   @@index([createdAt])
   @@map("suppliers")
@@ -477,12 +481,74 @@ model CabinetSupplier {
   customFields  Json?     @db.JsonB @map("custom_fields")
   deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
 
-  cabinet  Cabinet  @relation(fields: [cabinetId], references: [id])
-  supplier Supplier @relation(fields: [supplierId], references: [id])
+  cabinet      Cabinet                      @relation(fields: [cabinetId], references: [id])
+  supplier     Supplier                     @relation(fields: [supplierId], references: [id])
+  verification CabinetSupplierVerification?
 
   @@unique([cabinetId, supplierId])
   @@index([cabinetId])
   @@map("cabinet_suppliers")
+}
+
+model CabinetSupplierEvaluation {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cabinetId           String    @map("cabinet_id") @db.Uuid
+  supplierId          String    @map("supplier_id") @db.Uuid
+
+  scoreSolvabilite    Int?      @map("score_solvabilite")
+  noteSolvabilite     String?   @map("note_solvabilite")
+  scoreReputation     Int?      @map("score_reputation")
+  noteReputation      String?   @map("note_reputation")
+  scoreMoyens         Int?      @map("score_moyens")
+  noteMoyens          String?   @map("note_moyens")
+  scoreRelation       Int?      @map("score_relation")
+  noteRelation        String?   @map("note_relation")
+  scoreRemuneration   Int?      @map("score_remuneration")
+  noteRemuneration    String?   @map("note_remuneration")
+  scoreGlobal         Float?    @map("score_global")
+
+  evaluationDate      DateTime  @default(now()) @map("evaluation_date") @db.Date
+  nextReviewDate      DateTime? @map("next_review_date") @db.Date
+  evaluateurs         String[]
+  contratSigneLe      DateTime? @map("contrat_signe_le") @db.Date
+  contratDuree        String?   @map("contrat_duree")
+  contratPreavis      String?   @map("contrat_preavis")
+  contratDocumentId   String?   @map("contrat_document_id") @db.Uuid
+
+  status              String    @default("draft")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet  Cabinet  @relation(fields: [cabinetId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([cabinetId, supplierId])
+  @@index([nextReviewDate])
+  @@map("cabinet_supplier_evaluations")
+}
+
+model CabinetSupplierVerification {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cabinetId             String    @map("cabinet_id") @db.Uuid
+  supplierId            String    @map("supplier_id") @db.Uuid
+  supplierType          String    @map("supplier_type")
+  checklist             Json      @default("[]")
+  beneficiairesVerifies Boolean   @default(false) @map("beneficiaires_verifies")
+  beneficiairesSource   String?   @map("beneficiaires_source")
+  verificationDate      DateTime? @map("verification_date") @db.Date
+  verifiedBy            String?   @map("verified_by") @db.Uuid
+  decision              String?
+  decisionNote          String?   @map("decision_note")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet         Cabinet         @relation(fields: [cabinetId], references: [id])
+  supplier        Supplier        @relation(fields: [supplierId], references: [id])
+  cabinetSupplier CabinetSupplier @relation(fields: [cabinetId, supplierId], references: [cabinetId, supplierId])
+
+  @@unique([cabinetId, supplierId])
+  @@index([cabinetId])
+  @@map("cabinet_supplier_verification")
 }
 
 /// 1 note publique par cabinet par fournisseur — avg_public_rating recalculé par trigger

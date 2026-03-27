@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { supplierApi } from '@/lib/api'
+import { supplierApi, supplierComplianceApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
 import { ReviewSection } from '@/components/ReviewSection'
+import { VerificationTab } from '@/components/fournisseurs/VerificationTab'
+import { EvaluationTab } from '@/components/fournisseurs/EvaluationTab'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -123,12 +125,22 @@ function CabinetSection({ supplierId }: { supplierId: string }) {
   )
 }
 
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+const TABS = [
+  { key: 'infos', label: 'Informations' },
+  { key: 'verification', label: 'Vérification' },
+  { key: 'evaluation', label: 'Évaluation' },
+] as const
+
+type TabKey = typeof TABS[number]['key']
+
 // ── Page principale ────────────────────────────────────────────────────────────
 
 export default function FournisseurDetailPage({ params }: { params: { id: string } }) {
   const { token, cabinet } = useAuthStore()
-  const queryClient = useQueryClient()
   const { id } = params
+  const [activeTab, setActiveTab] = useState<TabKey>('infos')
 
   const { data, isLoading } = useQuery({
     queryKey: ['supplier', id, token],
@@ -136,8 +148,33 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
     enabled: !!token,
   })
 
+  // Badges conformité dans l'en-tête
+  const { data: verifData } = useQuery({
+    queryKey: ['supplier-verification', id, token],
+    queryFn: () => supplierComplianceApi.getVerification(id, token!),
+    enabled: !!token,
+  })
+  const { data: evalData } = useQuery({
+    queryKey: ['supplier-evaluations', id, token],
+    queryFn: () => supplierComplianceApi.listEvaluations(id, token!),
+    enabled: !!token,
+  })
+
   const supplier = data?.data.supplier
   const [avgRating, setAvgRating] = useState<number | null>(null)
+
+  const verification = verifData?.data.verification
+  const evaluations = evalData?.data.evaluations ?? []
+  const latestEval = evaluations[0] ?? null
+  const isDueForReview = latestEval?.nextReviewDate
+    ? new Date(latestEval.nextReviewDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    : false
+
+  const DECISION_COLORS = {
+    approved: 'bg-green-100 text-green-700',
+    rejected: 'bg-red-100 text-red-700',
+    pending: 'bg-yellow-100 text-yellow-700',
+  }
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -173,14 +210,30 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-xl font-semibold">{supplier.name}</h2>
-                    {supplier.isVerified && (
-                      <BadgeCheck className="h-5 w-5 text-blue-500" />
-                    )}
+                    {supplier.isVerified && <BadgeCheck className="h-5 w-5 text-blue-500" />}
                     {avgRating !== null && (
                       <div className="flex items-center gap-1 text-sm">
                         <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                         <span className="font-medium">{avgRating.toFixed(1)}</span>
                       </div>
+                    )}
+                    {/* Badges conformité */}
+                    {verification?.decision && (
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', DECISION_COLORS[verification.decision as keyof typeof DECISION_COLORS])}>
+                        {verification.decision === 'approved' ? '✓ Vérifié' : verification.decision === 'rejected' ? '✗ Rejeté' : '⏳ En attente'}
+                      </span>
+                    )}
+                    {isDueForReview && (
+                      <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        <AlertTriangle className="h-3 w-3" />
+                        Révision due
+                      </span>
+                    )}
+                    {latestEval?.scoreGlobal !== null && latestEval?.scoreGlobal !== undefined && (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        {latestEval.scoreGlobal.toFixed(1)}/5
+                      </span>
                     )}
                   </div>
                   {supplier.category && (
@@ -202,30 +255,20 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
               <p className="text-sm text-muted-foreground">{supplier.description}</p>
             )}
 
-            {/* Contacts */}
             <div className="flex flex-wrap gap-4 text-sm">
               {supplier.website && (
-                <a
-                  href={supplier.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-primary hover:underline"
-                >
-                  <Globe className="h-4 w-4" />
-                  Site web
-                  <ExternalLink className="h-3 w-3" />
+                <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline">
+                  <Globe className="h-4 w-4" />Site web<ExternalLink className="h-3 w-3" />
                 </a>
               )}
               {supplier.email && (
                 <a href={`mailto:${supplier.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                  <Mail className="h-4 w-4" />
-                  {supplier.email}
+                  <Mail className="h-4 w-4" />{supplier.email}
                 </a>
               )}
               {supplier.phone && (
                 <a href={`tel:${supplier.phone}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                  <Phone className="h-4 w-4" />
-                  {supplier.phone}
+                  <Phone className="h-4 w-4" />{supplier.phone}
                 </a>
               )}
             </div>
@@ -235,15 +278,42 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
             </p>
           </div>
 
-          {/* Données privées */}
-          <CabinetSection supplierId={id} />
-
-          <ReviewSection entityType="supplier" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
-
-          {/* Documents */}
-          <div className="bg-card border border-border rounded-lg p-5">
-            <EntityDocuments entityType="supplier" entityId={id} readonlySupplierId={id} />
+          {/* Navigation onglets */}
+          <div className="flex gap-1 border-b border-border">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
+                  activeTab === tab.key
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          {/* Contenu onglets */}
+          {activeTab === 'infos' && (
+            <>
+              <CabinetSection supplierId={id} />
+              <ReviewSection entityType="supplier" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
+              <div className="bg-card border border-border rounded-lg p-5">
+                <EntityDocuments entityType="supplier" entityId={id} readonlySupplierId={id} />
+              </div>
+            </>
+          )}
+
+          {activeTab === 'verification' && (
+            <VerificationTab supplierId={id} />
+          )}
+
+          {activeTab === 'evaluation' && (
+            <EvaluationTab supplierId={id} />
+          )}
         </>
       )}
     </div>

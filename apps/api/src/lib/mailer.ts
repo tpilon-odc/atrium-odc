@@ -163,3 +163,29 @@ export async function sendGdprRequestConfirmEmail(params: {
 
   await sendEmail({ to, subject, html })
 }
+
+export async function sendSupplierReviewEmail(params: {
+  to: string
+  supplierName: string
+  cabinetName: string
+  nextReviewDate: Date
+  daysLeft: number
+  supplierUrl: string
+}): Promise<void> {
+  const { to, supplierName, nextReviewDate, daysLeft, supplierUrl } = params
+  const isOverdue = daysLeft <= 0
+  const subject = isOverdue
+    ? `[CGP Platform] Révision fournisseur en retard : ${supplierName}`
+    : `[CGP Platform] Révision fournisseur dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''} : ${supplierName}`
+  const html = `
+    <h2>${subject}</h2>
+    <p>Bonjour,</p>
+    <p>${isOverdue
+      ? `La révision annuelle du fournisseur <strong>${supplierName}</strong> était prévue le <strong>${nextReviewDate.toLocaleDateString('fr-FR')}</strong>. Veuillez la réaliser dès que possible.`
+      : `La révision annuelle du fournisseur <strong>${supplierName}</strong> est due le <strong>${nextReviewDate.toLocaleDateString('fr-FR')}</strong> (dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''}).`
+    }</p>
+    <p><a href="${supplierUrl}">Accéder à la fiche fournisseur →</a></p>
+    <p>— CGP Platform</p>
+  `
+  await sendEmail({ to, subject, html })
+}

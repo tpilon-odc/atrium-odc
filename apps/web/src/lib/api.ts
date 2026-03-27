@@ -961,7 +961,7 @@ export const supplierPortalApi = {
       body: formData,
     })
     const json = await res.json()
-    if (!res.ok) throw new ApiError(json.error ?? 'Erreur upload', res.status, json.code)
+    if (!res.ok) throw new ApiError(json.error ?? 'Erreur upload', json.code ?? 'UPLOAD_ERROR', res.status)
     return json as { data: { document: Document } }
   },
 
@@ -991,6 +991,112 @@ export const supplierPublicApi = {
 
   getDocumentUrl: (supplierId: string, docId: string, token: string) =>
     call<{ url: string; expiresIn: number | null }>(`/api/v1/suppliers/${supplierId}/documents/${docId}/url`, { token }),
+}
+
+// ── Types conformité fournisseur ───────────────────────────────────────────────
+
+export type ChecklistItemState = {
+  key: string
+  label: string
+  description: string
+  verification_url?: string
+  requires_document: boolean
+  allows_online_verification: boolean
+  completed: boolean
+  mode: 'document' | 'online' | 'na' | null
+  document_id: string | null
+  verified_url: string | null
+}
+
+export type SupplierVerification = {
+  id: string
+  cabinetId: string
+  supplierId: string
+  supplierType: string
+  checklist: ChecklistItemState[]
+  beneficiairesVerifies: boolean
+  beneficiairesSource: string | null
+  verificationDate: string | null
+  verifiedBy: string | null
+  decision: 'approved' | 'rejected' | 'pending' | null
+  decisionNote: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type SupplierEvaluation = {
+  id: string
+  cabinetId: string
+  supplierId: string
+  scoreSolvabilite: number | null
+  noteSolvabilite: string | null
+  scoreReputation: number | null
+  noteReputation: string | null
+  scoreMoyens: number | null
+  noteMoyens: string | null
+  scoreRelation: number | null
+  noteRelation: string | null
+  scoreRemuneration: number | null
+  noteRemuneration: string | null
+  scoreGlobal: number | null
+  evaluationDate: string
+  nextReviewDate: string | null
+  evaluateurs: string[]
+  contratSigneLe: string | null
+  contratDuree: string | null
+  contratPreavis: string | null
+  contratDocumentId: string | null
+  status: 'draft' | 'completed'
+  createdAt: string
+  updatedAt: string
+}
+
+export const supplierComplianceApi = {
+  getVerification: (supplierId: string, token: string) =>
+    call<{ verification: SupplierVerification | null }>(`/api/v1/suppliers/${supplierId}/verification`, { token }),
+
+  upsertVerification: (supplierId: string, data: object, token: string) =>
+    call<{ verification: SupplierVerification }>(`/api/v1/suppliers/${supplierId}/verification`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  decide: (supplierId: string, data: { decision: string; decisionNote?: string | null; verificationDate?: string }, token: string) =>
+    call<{ verification: SupplierVerification }>(`/api/v1/suppliers/${supplierId}/verification/decide`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  listEvaluations: (supplierId: string, token: string) =>
+    call<{ evaluations: SupplierEvaluation[] }>(`/api/v1/suppliers/${supplierId}/evaluations`, { token }),
+
+  createEvaluation: (supplierId: string, data: object, token: string) =>
+    call<{ evaluation: SupplierEvaluation }>(`/api/v1/suppliers/${supplierId}/evaluations`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updateEvaluation: (supplierId: string, evalId: string, data: object, token: string) =>
+    call<{ evaluation: SupplierEvaluation }>(`/api/v1/suppliers/${supplierId}/evaluations/${evalId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  completeEvaluation: (supplierId: string, evalId: string, token: string) =>
+    call<{ evaluation: SupplierEvaluation }>(`/api/v1/suppliers/${supplierId}/evaluations/${evalId}/complete`, {
+      method: 'POST',
+      token,
+    }),
+
+  getDueReviews: (token: string) =>
+    call<{ evaluations: (SupplierEvaluation & { supplier: { id: string; name: string; category: string | null } })[] }>(
+      '/api/v1/suppliers/evaluations/due-review',
+      { token }
+    ),
 }
 
 // ── Cabinet (paramètres) ───────────────────────────────────────────────────────
@@ -1089,7 +1195,7 @@ export type Document = {
   id: string
   name: string
   description: string | null
-  isPublic: boolean
+  isPublic?: boolean
   storageMode: 'hosted' | 'external'
   mimeType: string | null
   sizeBytes: string | null
