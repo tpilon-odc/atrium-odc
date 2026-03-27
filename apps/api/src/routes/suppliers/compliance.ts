@@ -9,7 +9,7 @@ const VALID_CRITERES = ['solvabilite', 'reputation', 'moyens', 'relation', 'remu
 
 const evaluationNoteSchema = z.object({
   critere_id: z.enum(VALID_CRITERES),
-  note: z.number().min(1).max(5),
+  note: z.number().min(0.5).max(5).refine((v) => v % 0.5 === 0, { message: 'La note doit être un multiple de 0.5' }),
   commentaire: z.string().optional(),
 })
 

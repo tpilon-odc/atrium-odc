@@ -40,29 +40,45 @@ const CRITERIA = [
 
 type CriteriaKey = typeof CRITERIA[number]['key']
 
+// Chaque étoile = 2 demi-zones (gauche = x-0.5, droite = x)
 function StarPicker({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
   const [hovered, setHovered] = useState(0)
+  const active = hovered || (value ?? 0)
+
   return (
     <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <button
-          key={s}
-          type="button"
-          onMouseEnter={() => setHovered(s)}
-          onMouseLeave={() => setHovered(0)}
-          onClick={() => onChange(s)}
-          className="transition-colors"
-        >
-          <Star
-            className={cn(
-              'h-5 w-5 transition-colors',
-              (hovered ? s <= hovered : s <= (value ?? 0))
-                ? 'fill-yellow-400 text-yellow-400'
-                : 'text-muted-foreground'
+      {[1, 2, 3, 4, 5].map((s) => {
+        const full = active >= s
+        const half = !full && active >= s - 0.5
+        return (
+          <div
+            key={s}
+            className="relative h-5 w-5"
+            onMouseLeave={() => setHovered(0)}
+          >
+            {/* Zone gauche → demi-étoile */}
+            <div
+              className="absolute inset-y-0 left-0 w-1/2 cursor-pointer z-10"
+              onMouseEnter={() => setHovered(s - 0.5)}
+              onClick={() => onChange(s - 0.5)}
+            />
+            {/* Zone droite → étoile pleine */}
+            <div
+              className="absolute inset-y-0 right-0 w-1/2 cursor-pointer z-10"
+              onMouseEnter={() => setHovered(s)}
+              onClick={() => onChange(s)}
+            />
+            {/* Étoile de fond (vide) */}
+            <Star className="h-5 w-5 text-muted-foreground absolute inset-0" />
+            {/* Demi-remplissage ou remplissage complet */}
+            {(half || full) && (
+              <div className={cn('absolute inset-0 overflow-hidden', half ? 'w-1/2' : 'w-full')}>
+                <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+              </div>
             )}
-          />
-        </button>
-      ))}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -175,7 +191,14 @@ function EvaluationForm({
           <div className="flex items-center gap-2">
             <div className="flex gap-0.5">
               {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} className={cn('h-4 w-4', s <= Math.round(liveScore) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
+                <div key={s} className="relative h-4 w-4">
+                  <Star className="h-4 w-4 text-muted-foreground absolute inset-0" />
+                  {liveScore >= s ? (
+                    <div className="absolute inset-0 overflow-hidden"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /></div>
+                  ) : liveScore >= s - 0.5 ? (
+                    <div className="absolute inset-0 overflow-hidden w-1/2"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /></div>
+                  ) : null}
+                </div>
               ))}
             </div>
             <span className="text-sm font-semibold">{liveScore.toFixed(1)} / 5</span>
@@ -320,9 +343,19 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
               {latest.scoreGlobal !== null && (
                 <div className="flex items-center gap-2 mt-2">
                   <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} className={cn('h-4 w-4', s <= Math.round(Number(latest.scoreGlobal)) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
-                    ))}
+                    {[1, 2, 3, 4, 5].map((s) => {
+                      const sg = Number(latest.scoreGlobal)
+                      return (
+                        <div key={s} className="relative h-4 w-4">
+                          <Star className="h-4 w-4 text-muted-foreground absolute inset-0" />
+                          {sg >= s ? (
+                            <div className="absolute inset-0 overflow-hidden"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /></div>
+                          ) : sg >= s - 0.5 ? (
+                            <div className="absolute inset-0 overflow-hidden w-1/2"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /></div>
+                          ) : null}
+                        </div>
+                      )
+                    })}
                   </div>
                   <span className="text-sm font-semibold">{Number(latest.scoreGlobal).toFixed(1)} / 5</span>
                 </div>
@@ -375,9 +408,19 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
                     {ev.scoreGlobal !== null ? (
                       <div className="flex items-center gap-1">
                         <div className="flex gap-0.5">
-                          {[1, 2, 3, 4, 5].map((s) => (
-                            <Star key={s} className={cn('h-3 w-3', s <= Math.round(Number(ev.scoreGlobal)) ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground')} />
-                          ))}
+                          {[1, 2, 3, 4, 5].map((s) => {
+                            const sg = Number(ev.scoreGlobal)
+                            return (
+                              <div key={s} className="relative h-3 w-3">
+                                <Star className="h-3 w-3 text-muted-foreground absolute inset-0" />
+                                {sg >= s ? (
+                                  <div className="absolute inset-0 overflow-hidden"><Star className="h-3 w-3 fill-yellow-400 text-yellow-400" /></div>
+                                ) : sg >= s - 0.5 ? (
+                                  <div className="absolute inset-0 overflow-hidden w-1/2"><Star className="h-3 w-3 fill-yellow-400 text-yellow-400" /></div>
+                                ) : null}
+                              </div>
+                            )
+                          })}
                         </div>
                         <span className="text-xs">{Number(ev.scoreGlobal).toFixed(1)}</span>
                       </div>
