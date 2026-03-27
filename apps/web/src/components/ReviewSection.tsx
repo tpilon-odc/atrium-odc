@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Star } from 'lucide-react'
+import { Star, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -75,6 +75,7 @@ export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgCha
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
   const [initialized, setInitialized] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   // Pre-fill form once myReview loads
   if (myReview && !initialized) {
@@ -84,6 +85,7 @@ export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgCha
   }
   if (!myReview && initialized) {
     setInitialized(false)
+    setEditing(false)
   }
 
   const mutation = useMutation({
@@ -107,6 +109,7 @@ export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgCha
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey })
+      setEditing(false)
     },
   })
 
@@ -133,38 +136,63 @@ export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgCha
         )}
       </div>
 
-      {/* Form */}
-      <div className="space-y-3 border-b border-border pb-5">
-        <p className="text-sm font-medium text-muted-foreground">
-          {myReview ? 'Modifier votre avis' : 'Publier un avis'}
-        </p>
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">Note</p>
-          <StarPicker value={rating} onChange={setRating} />
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">Commentaire</p>
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Partagez votre expérience avec la communauté…"
-            rows={3}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-          />
-        </div>
-        {mutation.isError && (
-          <p className="text-xs text-destructive">{(mutation.error as Error).message}</p>
+      {/* Mon avis */}
+      <div className="border-b border-border pb-5">
+        {myReview && !editing ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Votre avis</p>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <StarDisplay value={myReview.rating} />
+            </div>
+            <p className="text-sm text-muted-foreground">{myReview.comment}</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">
+              {myReview ? 'Modifier votre avis' : 'Publier un avis'}
+            </p>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Note</p>
+              <StarPicker value={rating} onChange={setRating} />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Commentaire</p>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Partagez votre expérience avec la communauté…"
+                rows={3}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+              />
+            </div>
+            {mutation.isError && (
+              <p className="text-xs text-destructive">{(mutation.error as Error).message}</p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => mutation.mutate()}
+                disabled={!canSubmit || mutation.isPending}
+              >
+                {mutation.isPending ? 'Enregistrement…' : myReview ? 'Modifier' : 'Publier'}
+              </Button>
+              {myReview && (
+                <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+                  Annuler
+                </Button>
+              )}
+            </div>
+          </div>
         )}
-        {mutation.isSuccess && (
-          <p className="text-xs text-green-600">Avis enregistré.</p>
-        )}
-        <Button
-          size="sm"
-          onClick={() => mutation.mutate()}
-          disabled={!canSubmit || mutation.isPending}
-        >
-          {mutation.isPending ? 'Enregistrement…' : myReview ? 'Modifier' : 'Publier'}
-        </Button>
       </div>
 
       {/* Reviews list */}
@@ -179,9 +207,9 @@ export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgCha
         <p className="text-sm text-muted-foreground italic">Aucun avis pour le moment.</p>
       )}
 
-      {!isLoading && reviews.length > 0 && (
+      {!isLoading && reviews.filter((r) => r.cabinet.id !== cabinetId).length > 0 && (
         <div className="space-y-4">
-          {reviews.map((review) => (
+          {reviews.filter((r) => r.cabinet.id !== cabinetId).map((review) => (
             <div key={review.id} className="space-y-1">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
