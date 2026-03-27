@@ -115,7 +115,7 @@ export default function NouveauProduitPage() {
                 placeholder="Rechercher un fournisseur…"
               />
               {showDropdown && supplierResults.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-md overflow-hidden">
+                <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-md shadow-md overflow-hidden">
                   {supplierResults.map((s) => (
                     <button
                       key={s.id}
