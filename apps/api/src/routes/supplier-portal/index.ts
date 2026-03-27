@@ -130,6 +130,23 @@ export const supplierPortalRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { users } })
   })
 
+  // ── GET /api/v1/supplier-portal/:id/reviews ──────────────────────────────
+  app.get('/:id/reviews', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    if (!request.supplierIds.includes(id)) {
+      return reply.status(403).send({ error: 'Accès refusé', code: 'FORBIDDEN' })
+    }
+
+    const reviews = await prisma.supplierReview.findMany({
+      where: { supplierId: id },
+      orderBy: { createdAt: 'desc' },
+      include: { cabinet: { select: { id: true, name: true } } },
+    })
+
+    return reply.send({ data: { reviews } })
+  })
+
   // ── POST /api/v1/supplier-portal/:id/documents/upload ─────────────────────
   app.post('/:id/documents/upload', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }

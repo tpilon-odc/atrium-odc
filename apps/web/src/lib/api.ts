@@ -908,6 +908,17 @@ export const adminApi = {
 
 // ── Supplier portal ──────────────────────────────────────────────────────────
 
+export type SupplierReview = {
+  id: string
+  supplierId: string
+  cabinetId: string
+  rating: number
+  comment: string | null
+  createdAt: string
+  updatedAt: string
+  cabinet: { id: string; name: string }
+}
+
 export type SupplierPortalEntry = {
   id: string
   name: string
@@ -953,6 +964,9 @@ export const supplierPortalApi = {
     if (!res.ok) throw new ApiError(json.error ?? 'Erreur upload', res.status, json.code)
     return json as { data: { document: Document } }
   },
+
+  listReviews: (supplierId: string, token: string) =>
+    call<{ reviews: SupplierReview[] }>(`/api/v1/supplier-portal/${supplierId}/reviews`, { token }),
 
   listDocuments: (supplierId: string, token: string) =>
     call<{ documents: Document[] }>(`/api/v1/supplier-portal/${supplierId}/documents`, { token }),

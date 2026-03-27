@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { ChevronLeft, BadgeCheck, Save } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Save, Star, MessageSquare } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { supplierPortalApi } from '@/lib/api'
+import { supplierPortalApi, type SupplierReview } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,16 @@ export default function SupplierPortalDetailPage({ params }: { params: { id: str
     queryFn: () => supplierPortalApi.getSupplier(id, token!),
     enabled: !!token,
   })
+
+  const { data: reviewsData } = useQuery({
+    queryKey: ['supplier-portal-reviews', id, token],
+    queryFn: () => supplierPortalApi.listReviews(id, token!),
+    enabled: !!token,
+  })
+  const reviews: SupplierReview[] = reviewsData?.data.reviews ?? []
+  const avgRating = reviews.length
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : null
 
   const supplier = data?.data.supplier
 
@@ -161,6 +171,49 @@ export default function SupplierPortalDetailPage({ params }: { params: { id: str
           <div className="bg-card border border-border rounded-lg p-5">
             <h3 className="font-medium text-sm mb-4">Documents</h3>
             <EntityDocuments entityType="supplier" entityId={id} supplierId={id} />
+          </div>
+
+          {/* Avis cabinets */}
+          <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-sm flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Avis cabinets ({reviews.length})
+              </h3>
+              {avgRating !== null && (
+                <div className="flex items-center gap-1 text-sm">
+                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <span className="font-medium">{avgRating.toFixed(1)}</span>
+                  <span className="text-muted-foreground text-xs">/ 5</span>
+                </div>
+              )}
+            </div>
+
+            {reviews.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun avis pour le moment.</p>
+            ) : (
+              <ul className="space-y-3">
+                {reviews.map((r) => (
+                  <li key={r.id} className="border border-border rounded-lg p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{r.cabinet.name}</span>
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={`h-3.5 w-3.5 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {r.comment && <p className="text-sm text-muted-foreground">{r.comment}</p>}
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(r.createdAt).toLocaleDateString('fr-FR')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </>
       )}
