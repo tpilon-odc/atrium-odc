@@ -73,32 +73,44 @@ function AxisBlock({
   onChange: (field: string, value: MarcheCibleValue) => void
   readOnly?: boolean
 }) {
+  const [open, setOpen] = useState(true)
   return (
     <div className="border border-border rounded-lg overflow-hidden">
-      <div className="bg-muted/50 px-4 py-2.5 border-b border-border">
-        <p className="text-sm font-medium">{axis.label}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{axis.description}</p>
-      </div>
-      <div className="divide-y divide-border">
-        {axis.criteria.map((c) => (
-          <div key={c.field} className="flex items-center justify-between gap-4 px-4 py-2.5">
-            <div className="min-w-0">
-              <span className="text-sm">{c.label}</span>
-              {c.sublabel && (
-                <span className="text-xs text-muted-foreground ml-1.5">— {c.sublabel}</span>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/50 text-left"
+      >
+        <div>
+          <p className="text-sm font-medium">{axis.label}</p>
+          {!open && (
+            <p className="text-xs text-muted-foreground mt-0.5">{axis.description}</p>
+          )}
+        </div>
+        {open ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+      </button>
+      {open && (
+        <div className="divide-y divide-border">
+          {axis.criteria.map((c) => (
+            <div key={c.field} className="flex items-center justify-between gap-4 px-4 py-2.5">
+              <div className="min-w-0">
+                <span className="text-sm">{c.label}</span>
+                {c.sublabel && (
+                  <span className="text-xs text-muted-foreground ml-1.5">— {c.sublabel}</span>
+                )}
+              </div>
+              {readOnly ? (
+                <MarcheBadge value={form[c.field] as MarcheCibleValue | null} />
+              ) : (
+                <MarcheRadio
+                  value={form[c.field] as MarcheCibleValue | null}
+                  onChange={(v) => onChange(c.field, v)}
+                />
               )}
             </div>
-            {readOnly ? (
-              <MarcheBadge value={form[c.field] as MarcheCibleValue | null} />
-            ) : (
-              <MarcheRadio
-                value={form[c.field] as MarcheCibleValue | null}
-                onChange={(v) => onChange(c.field, v)}
-              />
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -114,6 +126,7 @@ function DurabiliteBlock({
   onChange: (patch: Partial<GovernanceInput>) => void
   readOnly?: boolean
 }) {
+  const [open, setOpen] = useState(true)
   const communique = form.durabiliteCommuniquee !== false
 
   const paiSocietes = [
@@ -134,10 +147,15 @@ function DurabiliteBlock({
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
-      <div className="bg-muted/50 px-4 py-2.5 border-b border-border">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/50 text-left"
+      >
         <p className="text-sm font-medium">Préférences en matière de durabilité</p>
-      </div>
-      <div className="p-4 space-y-4">
+        {open ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+      </button>
+      {open && <div className="p-4 space-y-4">
         {/* Communiqué par producteur */}
         <div className="flex items-center justify-between">
           <span className="text-sm">Ces données ont-elles été communiquées par le producteur ?</span>
@@ -232,7 +250,7 @@ function DurabiliteBlock({
             </div>
           ))}
         </div>
-      </div>
+      </div>}
     </div>
   )
 }
