@@ -319,10 +319,107 @@ function EvaluationForm({
   )
 }
 
+function EvaluationDetail({
+  evaluation,
+  resolveName,
+  onClose,
+}: {
+  evaluation: SupplierEvaluation
+  resolveName: (id: string) => string
+  onClose: () => void
+}) {
+  const sg = Number(evaluation.scoreGlobal)
+  return (
+    <div className="space-y-4">
+      {/* En-tête */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <p className="text-sm text-muted-foreground">
+            Évaluation du {new Date(evaluation.evaluationDate).toLocaleDateString('fr-FR')}
+          </p>
+          {evaluation.nextReviewDate && (
+            <p className="text-xs text-muted-foreground">
+              Prochaine révision : {new Date(evaluation.nextReviewDate).toLocaleDateString('fr-FR')}
+            </p>
+          )}
+        </div>
+        {evaluation.scoreGlobal !== null && (
+          <div className="flex items-center gap-2">
+            <div className="flex gap-0.5">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <div key={s} className="relative h-5 w-5">
+                  <Star className="h-5 w-5 text-muted-foreground absolute inset-0" />
+                  {sg >= s ? (
+                    <div className="absolute inset-0 overflow-hidden"><Star className="h-5 w-5 fill-yellow-400 text-yellow-400" /></div>
+                  ) : sg >= s - 0.5 ? (
+                    <div className="absolute inset-0 overflow-hidden w-1/2"><Star className="h-5 w-5 fill-yellow-400 text-yellow-400" /></div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <span className="text-base font-semibold">{sg.toFixed(1)} / 5</span>
+          </div>
+        )}
+      </div>
+
+      {/* Critères */}
+      {CRITERIA.map((criterion) => {
+        const note = evaluation.evaluationNotes.find((n) => n.critere_id === criterion.key)
+        if (!note) return null
+        const n = note.note
+        return (
+          <div key={criterion.key} className="bg-card border border-border rounded-lg p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">{criterion.label}</p>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <div key={s} className="relative h-4 w-4">
+                      <Star className="h-4 w-4 text-muted-foreground absolute inset-0" />
+                      {n >= s ? (
+                        <div className="absolute inset-0 overflow-hidden"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /></div>
+                      ) : n >= s - 0.5 ? (
+                        <div className="absolute inset-0 overflow-hidden w-1/2"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /></div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">{n.toFixed(1)}</span>
+              </div>
+            </div>
+            {note.commentaire && (
+              <p className="text-sm text-muted-foreground">{note.commentaire}</p>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Évaluateurs */}
+      {evaluation.evaluateurIds?.length > 0 && (
+        <div className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Évaluateurs : </span>
+          {evaluation.evaluateurIds.map(resolveName).join(', ')}
+        </div>
+      )}
+
+      {/* Infos contractuelles */}
+      {(evaluation.contratDuree || evaluation.contratPreavis) && (
+        <div className="bg-muted/40 rounded-lg p-3 space-y-1 text-sm text-muted-foreground">
+          {evaluation.contratDuree && <p><span className="font-medium text-foreground">Durée : </span>{evaluation.contratDuree}</p>}
+          {evaluation.contratPreavis && <p><span className="font-medium text-foreground">Préavis : </span>{evaluation.contratPreavis}</p>}
+        </div>
+      )}
+
+      <Button size="sm" variant="outline" onClick={onClose}>Fermer</Button>
+    </div>
+  )
+}
+
 export function EvaluationTab({ supplierId }: { supplierId: string }) {
   const { token } = useAuthStore()
   const [showForm, setShowForm] = useState(false)
   const [editingEval, setEditingEval] = useState<SupplierEvaluation | undefined>(undefined)
+  const [viewingEval, setViewingEval] = useState<SupplierEvaluation | undefined>(undefined)
 
   const qKey = ['supplier-evaluations', supplierId, token]
   const { data, isLoading } = useQuery({
@@ -360,6 +457,16 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
         supplierId={supplierId}
         evaluation={editingEval}
         onClose={() => { setShowForm(false); setEditingEval(undefined) }}
+      />
+    )
+  }
+
+  if (viewingEval) {
+    return (
+      <EvaluationDetail
+        evaluation={viewingEval}
+        resolveName={resolveName}
+        onClose={() => setViewingEval(undefined)}
       />
     )
   }
@@ -473,12 +580,19 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    {ev.status === 'draft' && (
+                    {ev.status === 'draft' ? (
                       <button
                         onClick={() => { setEditingEval(ev); setShowForm(true) }}
                         className="text-xs text-primary hover:underline"
                       >
                         Modifier
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setViewingEval(ev)}
+                        className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        Consulter
                       </button>
                     )}
                   </td>
