@@ -940,6 +940,28 @@ export const supplierPortalApi = {
       body: JSON.stringify(data),
       token,
     }),
+
+  uploadDocument: async (supplierId: string, file: File, token: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(`/api/v1/supplier-portal/${supplierId}/documents/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    })
+    const json = await res.json()
+    if (!res.ok) throw new ApiError(json.error ?? 'Erreur upload', res.status, json.code)
+    return json as { data: { document: Document } }
+  },
+
+  listDocuments: (supplierId: string, token: string) =>
+    call<{ documents: Document[] }>(`/api/v1/supplier-portal/${supplierId}/documents`, { token }),
+
+  getDocumentUrl: (supplierId: string, docId: string, token: string) =>
+    call<{ url: string; expiresIn: number | null }>(`/api/v1/supplier-portal/${supplierId}/documents/${docId}/url`, { token }),
+
+  deleteDocument: (supplierId: string, docId: string, token: string) =>
+    call<void>(`/api/v1/supplier-portal/${supplierId}/documents/${docId}`, { method: 'DELETE', token }),
 }
 
 // ── Cabinet (paramètres) ───────────────────────────────────────────────────────

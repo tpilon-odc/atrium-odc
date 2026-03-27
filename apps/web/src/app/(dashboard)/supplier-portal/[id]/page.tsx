@@ -160,7 +160,7 @@ export default function SupplierPortalDetailPage({ params }: { params: { id: str
           {/* Documents */}
           <div className="bg-card border border-border rounded-lg p-5">
             <h3 className="font-medium text-sm mb-4">Documents</h3>
-            <EntityDocuments entityType="supplier" entityId={id} />
+            <EntityDocuments entityType="supplier" entityId={id} supplierId={id} />
           </div>
         </>
       )}

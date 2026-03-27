@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { FolderOpen, ExternalLink, X, Plus, Loader2, Upload, FileText, FileImage, File } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { documentApi, type Document } from '@/lib/api'
+import { documentApi, supplierPortalApi, type Document } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -103,11 +103,13 @@ function DocumentPicker({
 function InlineUpload({
   entityType,
   entityId,
+  supplierId,
   onDone,
   onClose,
 }: {
   entityType: EntityType
   entityId: string
+  supplierId?: string
   onDone: (doc: Document) => void
   onClose: () => void
 }) {
@@ -121,8 +123,15 @@ function InlineUpload({
     setError(null)
     setUploading(true)
     try {
-      const res = await documentApi.upload(files[0], token!)
-      onDone(res.data.document)
+      let doc: Document
+      if (supplierId) {
+        const res = await supplierPortalApi.uploadDocument(supplierId, files[0], token!)
+        doc = res.data.document
+      } else {
+        const res = await documentApi.upload(files[0], token!)
+        doc = res.data.document
+      }
+      onDone(doc)
     } catch (e: unknown) {
       setError((e as Error).message)
       setUploading(false)
@@ -162,17 +171,30 @@ function InlineUpload({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function EntityDocuments({ entityType, entityId }: { entityType: EntityType; entityId: string }) {
+export function EntityDocuments({
+  entityType,
+  entityId,
+  supplierId,
+}: {
+  entityType: EntityType
+  entityId: string
+  supplierId?: string  // si fourni, utilise les routes supplier-portal au lieu de document cabinet
+}) {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
   const [picker, setPicker] = useState<'existing' | 'upload' | null>(null)
   const [openingId, setOpeningId] = useState<string | null>(null)
 
-  const qKey = ['documents', token, entityType, entityId]
+  const isSupplierMode = !!supplierId
+  const qKey = isSupplierMode
+    ? ['supplier-docs', token, supplierId]
+    : ['documents', token, entityType, entityId]
 
   const { data, isLoading } = useQuery({
     queryKey: qKey,
-    queryFn: () => documentApi.list(token!, { limit: 100, entityType, entityId }),
+    queryFn: () => isSupplierMode
+      ? supplierPortalApi.listDocuments(supplierId!, token!)
+      : documentApi.list(token!, { limit: 100, entityType, entityId }),
     enabled: !!token,
   })
 
@@ -180,8 +202,8 @@ export function EntityDocuments({ entityType, entityId }: { entityType: EntityTy
   const linkedDocIds = new Set(docs.map((d) => d.id))
 
   const linkMutation = useMutation({
-    mutationFn: (doc: Document) => {
-      const existingLink = doc.links.find(
+    mutationFn: (doc: Document): Promise<unknown> => {
+      const existingLink = doc.links?.find(
         (l) => l.entityType === entityType && l.entityId === entityId
       )
       if (existingLink) return Promise.resolve()
@@ -194,30 +216,37 @@ export function EntityDocuments({ entityType, entityId }: { entityType: EntityTy
     },
   })
 
-  const unlinkMutation = useMutation({
-    mutationFn: (doc: Document) => {
-      const link = doc.links.find((l) => l.entityType === entityType && l.entityId === entityId)
+  const deleteMutation = useMutation({
+    mutationFn: (doc: Document): Promise<unknown> => {
+      if (isSupplierMode) {
+        return supplierPortalApi.deleteDocument(supplierId!, doc.id, token!)
+      }
+      const link = doc.links?.find((l) => l.entityType === entityType && l.entityId === entityId)
       if (!link) return Promise.resolve()
       return documentApi.removeLink(doc.id, link.id, token!)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qKey })
-      queryClient.invalidateQueries({ queryKey: ['documents-all'] })
+      if (!isSupplierMode) queryClient.invalidateQueries({ queryKey: ['documents-all'] })
     },
   })
 
   const handleUploadDone = async (doc: Document) => {
     setPicker(null)
-    await documentApi.addLink(doc.id, entityType, entityId, token!)
+    if (!isSupplierMode) {
+      await documentApi.addLink(doc.id, entityType, entityId, token!)
+      queryClient.invalidateQueries({ queryKey: ['documents', token] })
+      queryClient.invalidateQueries({ queryKey: ['documents-all'] })
+    }
     queryClient.invalidateQueries({ queryKey: qKey })
-    queryClient.invalidateQueries({ queryKey: ['documents', token] })
-    queryClient.invalidateQueries({ queryKey: ['documents-all'] })
   }
 
   const handleOpen = async (doc: Document) => {
     setOpeningId(doc.id)
     try {
-      const res = await documentApi.getUrl(doc.id, token!)
+      const res = isSupplierMode
+        ? await supplierPortalApi.getDocumentUrl(supplierId!, doc.id, token!)
+        : await documentApi.getUrl(doc.id, token!)
       window.open(res.data.url, '_blank', 'noopener,noreferrer')
     } finally {
       setOpeningId(null)
@@ -233,10 +262,12 @@ export function EntityDocuments({ entityType, entityId }: { entityType: EntityTy
         </h3>
         {picker === null && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPicker('existing')}>
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Rattacher
-            </Button>
+            {!isSupplierMode && (
+              <Button variant="outline" size="sm" onClick={() => setPicker('existing')}>
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Rattacher
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setPicker('upload')}>
               <Upload className="h-3.5 w-3.5 mr-1" />
               Importer
@@ -245,7 +276,7 @@ export function EntityDocuments({ entityType, entityId }: { entityType: EntityTy
         )}
       </div>
 
-      {picker === 'existing' && (
+      {picker === 'existing' && !isSupplierMode && (
         <DocumentPicker
           entityType={entityType}
           entityId={entityId}
@@ -259,6 +290,7 @@ export function EntityDocuments({ entityType, entityId }: { entityType: EntityTy
         <InlineUpload
           entityType={entityType}
           entityId={entityId}
+          supplierId={supplierId}
           onDone={handleUploadDone}
           onClose={() => setPicker(null)}
         />
@@ -289,7 +321,7 @@ export function EntityDocuments({ entityType, entityId }: { entityType: EntityTy
                     }
                   </button>
                   <button
-                    onClick={() => unlinkMutation.mutate(doc)}
+                    onClick={() => deleteMutation.mutate(doc)}
                     className="text-muted-foreground hover:text-destructive transition-colors"
                   >
                     <X className="h-3.5 w-3.5" />

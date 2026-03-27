@@ -1,8 +1,18 @@
 import { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
+import multipart from '@fastify/multipart'
+import { StorageMode } from '@cgp/db'
 import { authMiddleware } from '../../middleware/auth'
 import { supplierMiddleware } from '../../middleware/supplier'
 import { prisma } from '../../lib/prisma'
+import {
+  uploadToMinio,
+  deleteFromMinio,
+  getPresignedUrl,
+  buildStoragePath,
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE,
+} from '../../lib/minio'
 
 const updateSupplierBody = z.object({
   name: z.string().min(1, 'Le nom est requis').optional(),
@@ -14,6 +24,8 @@ const updateSupplierBody = z.object({
 })
 
 export const supplierPortalRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(multipart, { limits: { fileSize: MAX_FILE_SIZE } })
+
   // ── GET /api/v1/supplier-portal/me ────────────────────────────────────────
   // Retourne les fiches que cet utilisateur supplier peut gérer
   app.get('/me', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
@@ -116,5 +128,100 @@ export const supplierPortalRoutes: FastifyPluginAsync = async (app) => {
     })
 
     return reply.send({ data: { users } })
+  })
+
+  // ── POST /api/v1/supplier-portal/:id/documents/upload ─────────────────────
+  app.post('/:id/documents/upload', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    if (!request.supplierIds.includes(id)) {
+      return reply.status(403).send({ error: 'Accès refusé', code: 'FORBIDDEN' })
+    }
+
+    const file = await request.file()
+    if (!file) return reply.status(400).send({ error: 'Aucun fichier reçu', code: 'NO_FILE' })
+
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return reply.status(400).send({ error: `Type de fichier non autorisé : ${file.mimetype}`, code: 'INVALID_MIME_TYPE' })
+    }
+
+    const buffer = await file.toBuffer()
+    if (buffer.length > MAX_FILE_SIZE) {
+      return reply.status(400).send({ error: 'Fichier trop volumineux (max 10 Mo)', code: 'FILE_TOO_LARGE' })
+    }
+
+    const storagePath = buildStoragePath(`supplier-${id}`, file.filename)
+    await uploadToMinio(storagePath, buffer, file.mimetype)
+
+    const document = await prisma.document.create({
+      data: {
+        supplierId: id,
+        uploadedBy: request.user.id,
+        name: file.filename,
+        storageMode: StorageMode.hosted,
+        storagePath,
+        mimeType: file.mimetype,
+        sizeBytes: BigInt(buffer.length),
+      },
+    })
+
+    return reply.status(201).send({ data: { document: { ...document, sizeBytes: document.sizeBytes?.toString() } } })
+  })
+
+  // ── GET /api/v1/supplier-portal/:id/documents ─────────────────────────────
+  app.get('/:id/documents', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    if (!request.supplierIds.includes(id)) {
+      return reply.status(403).send({ error: 'Accès refusé', code: 'FORBIDDEN' })
+    }
+
+    const documents = await prisma.document.findMany({
+      where: { supplierId: id, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const data = documents.map((d) => ({ ...d, sizeBytes: d.sizeBytes?.toString() ?? null }))
+    return reply.send({ data: { documents: data } })
+  })
+
+  // ── GET /api/v1/supplier-portal/:id/documents/:docId/url ──────────────────
+  app.get('/:id/documents/:docId/url', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
+    const { id, docId } = request.params as { id: string; docId: string }
+
+    if (!request.supplierIds.includes(id)) {
+      return reply.status(403).send({ error: 'Accès refusé', code: 'FORBIDDEN' })
+    }
+
+    const document = await prisma.document.findFirst({
+      where: { id: docId, supplierId: id, deletedAt: null },
+    })
+    if (!document) return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
+
+    if (!document.storagePath) return reply.status(500).send({ error: 'Chemin de stockage manquant', code: 'STORAGE_ERROR' })
+
+    const url = getPresignedUrl(document.storagePath)
+    return reply.send({ data: { url, expiresIn: 3600 } })
+  })
+
+  // ── DELETE /api/v1/supplier-portal/:id/documents/:docId ───────────────────
+  app.delete('/:id/documents/:docId', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
+    const { id, docId } = request.params as { id: string; docId: string }
+
+    if (!request.supplierIds.includes(id)) {
+      return reply.status(403).send({ error: 'Accès refusé', code: 'FORBIDDEN' })
+    }
+
+    const document = await prisma.document.findFirst({
+      where: { id: docId, supplierId: id, deletedAt: null },
+    })
+    if (!document) return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
+
+    if (document.storagePath) {
+      await deleteFromMinio(document.storagePath)
+    }
+
+    await prisma.document.update({ where: { id: docId }, data: { deletedAt: new Date() } })
+    return reply.status(204).send()
   })
 }
