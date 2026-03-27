@@ -289,7 +289,15 @@ function ContexteBlock({
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Source du marché cible</label>
             {readOnly ? (
-              <p className="text-sm">{form.marcheCibleSource ?? '—'}</p>
+              <p className="text-sm">
+                {form.marcheCibleSource === 'producteur'
+                  ? 'Communiqué par le producteur'
+                  : form.marcheCibleSource === 'distributeur_intermediaire'
+                  ? 'Via distributeur intermédiaire'
+                  : form.marcheCibleSource === 'determine_par_cabinet'
+                  ? 'Déterminé par le cabinet'
+                  : '—'}
+              </p>
             ) : (
               <select
                 value={form.marcheCibleSource ?? ''}
@@ -335,7 +343,14 @@ function HistoryModal({ gov, onClose }: { gov: Governance; onClose: () => void }
           <div>
             <h3 className="font-semibold">Révision du {new Date(gov.revisionDate).toLocaleDateString('fr-FR')}</h3>
             <p className="text-xs text-muted-foreground">
-              Statut : {gov.status} · Source : {gov.marcheCibleSource ?? '—'}
+              Statut : {gov.status === 'active' ? 'Active' : gov.status === 'draft' ? 'Brouillon' : 'Archivée'} · Source :{' '}
+              {gov.marcheCibleSource === 'producteur'
+                ? 'Communiqué par le producteur'
+                : gov.marcheCibleSource === 'distributeur_intermediaire'
+                ? 'Via distributeur intermédiaire'
+                : gov.marcheCibleSource === 'determine_par_cabinet'
+                ? 'Déterminé par le cabinet'
+                : '—'}
             </p>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>✕</Button>
@@ -640,7 +655,13 @@ export function GovernanceTab({ productId, token }: { productId: string; token: 
                     {gov.status === 'active' ? '● Active' : gov.status === 'draft' ? '○ Brouillon' : 'Archivée'}
                   </span>
                   {gov.marcheCibleSource && (
-                    <span className="text-xs text-muted-foreground">{gov.marcheCibleSource}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {gov.marcheCibleSource === 'producteur'
+                        ? 'Communiqué par le producteur'
+                        : gov.marcheCibleSource === 'distributeur_intermediaire'
+                        ? 'Via distributeur intermédiaire'
+                        : 'Déterminé par le cabinet'}
+                    </span>
                   )}
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => setHistoryGov(gov)}>Voir</Button>
