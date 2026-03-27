@@ -54,6 +54,11 @@ export function useProductGovernance(productId: string, token: string) {
     onSuccess: invalidate,
   })
 
+  const deleteDraftMutation = useMutation({
+    mutationFn: (govId: string) => productApi.deleteGovernanceDraft(productId, govId, token),
+    onSuccess: invalidate,
+  })
+
   // Debounced update (1500ms) for form auto-save
   const updateDraftDebounced = useCallback(
     (govId: string, data: GovernanceInput) => {
@@ -85,6 +90,11 @@ export function useProductGovernance(productId: string, token: string) {
     return res.data.governance
   }
 
+  const deleteDraft = async () => {
+    if (!draft) return
+    await deleteDraftMutation.mutateAsync(draft.id)
+  }
+
   const exportTableau = async () => {
     const res = await productApi.exportGovernance(token)
     if (!res.ok) throw new Error("Erreur lors de l'export")
@@ -111,12 +121,14 @@ export function useProductGovernance(productId: string, token: string) {
     updateDraftDebounced,
     activateGovernance,
     createRevision,
+    deleteDraft,
     exportTableau,
     isPending:
       createDraftMutation.isPending ||
       updateDraftMutation.isPending ||
       activateMutation.isPending ||
-      reviseMutation.isPending,
+      reviseMutation.isPending ||
+      deleteDraftMutation.isPending,
     error:
       createDraftMutation.error ||
       updateDraftMutation.error ||

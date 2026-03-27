@@ -327,4 +327,21 @@ export const governanceRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.status(201).send({ data: { governance: draft } })
   })
+
+  // ── DELETE /api/v1/products/:id/governance/:govId ─────────────────────────
+  app.delete('/:id/governance/:govId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, govId } = request.params as { id: string; govId: string }
+    const cabinetId = request.cabinetId
+
+    const existing = await prisma.cabinetProductGovernance.findUnique({ where: { id: govId } })
+    if (!existing || existing.cabinetId !== cabinetId || existing.productId !== id) {
+      return reply.status(404).send({ error: 'Gouvernance introuvable', code: 'NOT_FOUND' })
+    }
+    if (existing.status !== 'draft') {
+      return reply.status(400).send({ error: 'Seul un brouillon peut être supprimé', code: 'NOT_DRAFT' })
+    }
+
+    await prisma.cabinetProductGovernance.delete({ where: { id: govId } })
+    return reply.status(204).send()
+  })
 }

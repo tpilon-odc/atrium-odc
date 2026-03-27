@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, FileDown, Info } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { type Governance, type GovernanceInput } from '@/lib/api'
@@ -385,6 +385,7 @@ export function GovernanceTab({ productId, token }: { productId: string; token: 
     updateDraft,
     activateGovernance,
     createRevision,
+    deleteDraft,
     isPending,
     error,
   } = useProductGovernance(productId, token)
@@ -498,9 +499,25 @@ export function GovernanceTab({ productId, token }: { productId: string; token: 
               </Button>
             )}
             {draft && !editing && (
-              <Button size="sm" variant="outline" onClick={handleStartEditing}>
-                Modifier le brouillon
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={handleStartEditing}>
+                  Modifier le brouillon
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    if (confirm('Supprimer ce brouillon ?')) {
+                      await deleteDraft()
+                      setFormData({})
+                    }
+                  }}
+                  disabled={isPending}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
             )}
             {!draft && !active && !editing && (
               <Button size="sm" onClick={handleStartEditing}>
@@ -575,6 +592,24 @@ export function GovernanceTab({ productId, token }: { productId: string; token: 
               >
                 Annuler
               </Button>
+              {draft && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    if (confirm('Supprimer ce brouillon ?')) {
+                      await deleteDraft()
+                      setEditing(false)
+                      setFormData({})
+                    }
+                  }}
+                  disabled={isPending}
+                  className="text-destructive hover:text-destructive ml-auto"
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  Supprimer le brouillon
+                </Button>
+              )}
               {error && (
                 <span className="text-xs text-destructive self-center">
                   {(error as Error).message}

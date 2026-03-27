@@ -456,6 +456,12 @@ export const productApi = {
       token,
     }),
 
+  deleteGovernanceDraft: (id: string, govId: string, token: string) =>
+    call<unknown>(`/api/v1/products/${id}/governance/${govId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
   exportGovernance: (token: string) =>
     fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/products/governance/export`, {
       headers: { Authorization: `Bearer ${token}` },
