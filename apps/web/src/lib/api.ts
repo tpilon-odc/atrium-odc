@@ -330,6 +330,9 @@ export const supplierApi = {
       body: JSON.stringify({ rating }),
       token,
     }),
+
+  listProducts: (id: string, token: string) =>
+    call<{ products: Product[] }>(`/api/v1/suppliers/${id}/products`, { token }),
 }
 
 // ── Produits ──────────────────────────────────────────────────────────────────

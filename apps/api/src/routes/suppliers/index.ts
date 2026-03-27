@@ -283,6 +283,38 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
 
   // ── GET /api/v1/suppliers/:id/documents ───────────────────────────────────
   // Documents publics d'un fournisseur — accessible à tout utilisateur authentifié
+  // ── GET /api/v1/suppliers/:id/products ───────────────────────────────────
+  app.get('/:id/products', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const links = await prisma.productSupplier.findMany({
+      where: { supplierId: id },
+      include: { product: true },
+      orderBy: { product: { name: 'asc' } },
+    })
+
+    const productIds = links.map((l) => l.productId)
+    const [cabinetProducts, publicRatings] = await Promise.all([
+      prisma.cabinetProduct.findMany({
+        where: { cabinetId: request.cabinetId, productId: { in: productIds }, deletedAt: null },
+      }),
+      prisma.productPublicRating.findMany({
+        where: { cabinetId: request.cabinetId, productId: { in: productIds } },
+      }),
+    ])
+
+    const cabinetDataMap = new Map(cabinetProducts.map((cp) => [cp.productId, cp]))
+    const ratingMap = new Map(publicRatings.map((r) => [r.productId, r.rating]))
+
+    const products = links.map(({ product }) => ({
+      ...product,
+      cabinetData: cabinetDataMap.get(product.id) ?? null,
+      myPublicRating: ratingMap.get(product.id) ?? null,
+    }))
+
+    return reply.send({ data: { products } })
+  })
+
   app.get('/:id/documents', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 

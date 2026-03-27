@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { supplierApi, supplierComplianceApi } from '@/lib/api'
+import { supplierApi, supplierComplianceApi, type Product } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
 import { ReviewSection } from '@/components/ReviewSection'
 import { VerificationTab } from '@/components/fournisseurs/VerificationTab'
@@ -129,6 +129,7 @@ function CabinetSection({ supplierId }: { supplierId: string }) {
 
 const TABS = [
   { key: 'infos', label: 'Informations' },
+  { key: 'produits', label: 'Produits' },
   { key: 'verification', label: 'Vérification' },
   { key: 'evaluation', label: 'Évaluation' },
 ] as const
@@ -159,6 +160,13 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
     queryFn: () => supplierComplianceApi.listEvaluations(id, token!),
     enabled: !!token,
   })
+
+  const { data: productsData } = useQuery({
+    queryKey: ['supplier-products', id, token],
+    queryFn: () => supplierApi.listProducts(id, token!),
+    enabled: !!token && activeTab === 'produits',
+  })
+  const supplierProducts: Product[] = productsData?.data.products ?? []
 
   const supplier = data?.data.supplier
   const [avgRating, setAvgRating] = useState<number | null>(null)
@@ -305,6 +313,40 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
                 <EntityDocuments entityType="supplier" entityId={id} readonlySupplierId={id} />
               </div>
             </>
+          )}
+
+          {activeTab === 'produits' && (
+            <div className="space-y-3">
+              {supplierProducts.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">Aucun produit lié à ce fournisseur.</p>
+              ) : (
+                supplierProducts.map((p) => (
+                  <Link key={p.id} href={`/produits/${p.id}`} className="flex items-start justify-between gap-4 bg-card border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{p.name}</span>
+                        {p.isVerified && <BadgeCheck className="h-4 w-4 text-blue-500 shrink-0" />}
+                        {p.category && (
+                          <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{p.category}</span>
+                        )}
+                        {p.cabinetData?.isCommercialized && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Commercialisé</span>
+                        )}
+                      </div>
+                      {p.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
+                      )}
+                    </div>
+                    {p.avgPublicRating !== null && (
+                      <div className="flex items-center gap-1 text-sm shrink-0">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-medium">{p.avgPublicRating.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </Link>
+                ))
+              )}
+            </div>
           )}
 
           {activeTab === 'verification' && (
