@@ -21,7 +21,7 @@ async function call<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...fetchOptions,
     headers: {
-      'Content-Type': 'application/json',
+      ...(fetchOptions.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(fetchOptions.headers ?? {}),
     },
