@@ -45,30 +45,43 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     const nextCursor = hasMore ? items[items.length - 1].id : null
 
     const productIds = items.map((p) => p.id)
-    const [cabinetProducts, publicRatings, governances] = await Promise.all([
+    const [cabinetProducts, publicRatings] = await Promise.all([
       prisma.cabinetProduct.findMany({
         where: { cabinetId: request.cabinetId, productId: { in: productIds }, deletedAt: null },
       }),
       prisma.productPublicRating.findMany({
         where: { cabinetId: request.cabinetId, productId: { in: productIds } },
       }),
-      prisma.cabinetProductGovernance.findMany({
-        where: { cabinetId: request.cabinetId, productId: { in: productIds } },
-        orderBy: { revisionDate: 'desc' },
-      }),
     ])
+
+    // Gouvernance : raw query pour résistance si la migration n'est pas encore appliquée
+    type GovRow = { product_id: string; status: string; next_revision_date: Date | null }
+    let governances: GovRow[] = []
+    if (productIds.length > 0) {
+      try {
+        governances = await prisma.$queryRaw<GovRow[]>`
+          SELECT DISTINCT ON (product_id) product_id, status, next_revision_date
+          FROM cabinet_product_governance
+          WHERE cabinet_id = ${request.cabinetId}::uuid
+            AND product_id = ANY(${productIds}::uuid[])
+          ORDER BY product_id,
+            CASE status WHEN 'active' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END
+        `
+      } catch {
+        // Table pas encore créée — on ignore silencieusement
+      }
+    }
 
     const cabinetDataMap = new Map(cabinetProducts.map((cp) => [cp.productId, cp]))
     const ratingMap = new Map(publicRatings.map((r) => [r.productId, r.rating]))
     const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    const govMap = new Map<string, { status: string; isDueForRevision: boolean }>()
-    for (const gov of governances) {
-      const existing = govMap.get(gov.productId)
-      const isDue = !!gov.nextRevisionDate && new Date(gov.nextRevisionDate) <= in30Days
-      if (!existing || gov.status === 'active' || (gov.status === 'draft' && existing.status !== 'active')) {
-        govMap.set(gov.productId, { status: gov.status, isDueForRevision: gov.status === 'active' && isDue })
-      }
-    }
+    const govMap = new Map(governances.map((g) => [
+      g.product_id,
+      {
+        status: g.status,
+        isDueForRevision: g.status === 'active' && !!g.next_revision_date && new Date(g.next_revision_date) <= in30Days,
+      },
+    ]))
 
     const data = items.map((p) => ({
       ...p,

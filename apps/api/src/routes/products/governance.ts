@@ -76,6 +76,16 @@ function xlsxValue(val: string | null | undefined, durabiliteCommuniquee: boolea
 // ── Plugin routes ─────────────────────────────────────────────────────────────
 
 export const governanceRoutes: FastifyPluginAsync = async (app) => {
+  // Intercepte les erreurs P2021 (table inexistante) pour tout ce plugin
+  app.setErrorHandler((err, _req, reply) => {
+    if ((err as { code?: string }).code === 'P2021') {
+      return reply.status(503).send({
+        error: 'Migration en attente : exécutez la migration cabinet_product_governance sur votre base de données.',
+        code: 'MIGRATION_PENDING',
+      })
+    }
+    reply.send(err)
+  })
   // ── GET /api/v1/products/governance/export ────────────────────────────────
   app.get('/export', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const cabinetId = request.cabinetId
