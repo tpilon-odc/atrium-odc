@@ -87,7 +87,7 @@ export const governanceRoutes: FastifyPluginAsync = async (app) => {
     reply.send(err)
   })
   // ── GET /api/v1/products/governance/export ────────────────────────────────
-  app.get('/export', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+  app.get('/governance/export', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const cabinetId = request.cabinetId
 
     const [governances, cabinet] = await Promise.all([
@@ -155,7 +155,7 @@ export const governanceRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // ── GET /api/v1/products/governance/list ─────────────────────────────────
-  app.get('/list', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+  app.get('/governance/list', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const items = await prisma.cabinetProductGovernance.findMany({
       where: { cabinetId: request.cabinetId, status: 'active' },
       include: { product: { select: { id: true, name: true, category: true } } },
@@ -165,7 +165,7 @@ export const governanceRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // ── GET /api/v1/products/governance/due-revision ──────────────────────────
-  app.get('/due-revision', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+  app.get('/governance/due-revision', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     const items = await prisma.cabinetProductGovernance.findMany({
       where: {
