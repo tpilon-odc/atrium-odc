@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, Circle, ExternalLink, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
@@ -40,15 +40,17 @@ export function VerificationTab({ supplierId }: { supplierId: string }) {
   const [showDecisionForm, setShowDecisionForm] = useState(false)
   const [typeChangeWarning, setTypeChangeWarning] = useState<string | null>(null)
 
-  // Sync état depuis query
-  if (!isLoading && verification && supplierType === '' && verification.supplierType) {
-    setSupplierType(verification.supplierType)
-    setChecklist(verification.checklist as ChecklistItemState[])
-    setBenefVerifies(verification.beneficiairesVerifies)
-    setBenefSource(verification.beneficiairesSource ?? '')
-    setDecision(verification.decision ?? '')
-    setDecisionNote(verification.decisionNote ?? '')
-  }
+  // Sync état depuis query (une seule fois à la réception des données)
+  useEffect(() => {
+    if (verification) {
+      setSupplierType(verification.supplierType ?? '')
+      setChecklist((verification.checklist as ChecklistItemState[]) ?? [])
+      setBenefVerifies(verification.beneficiairesVerifies ?? false)
+      setBenefSource(verification.beneficiairesSource ?? '')
+      setDecision(verification.decision ?? '')
+      setDecisionNote(verification.decisionNote ?? '')
+    }
+  }, [verification?.id])
 
   const upsertMutation = useMutation({
     mutationFn: (data: object) => supplierComplianceApi.upsertVerification(supplierId, data, token!),

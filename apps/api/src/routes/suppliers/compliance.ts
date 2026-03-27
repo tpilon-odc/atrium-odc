@@ -22,13 +22,18 @@ function computeScoreGlobal(notes: { note: number }[]): number {
 const upsertVerificationBody = z.object({
   supplierType: z.enum([
     'sgp', 'psi', 'psfp', 'psan', 'biens_divers', 'cif_plateforme', 'promoteur_non_regule',
-  ]),
+  ]).optional(),
   checklist: z.array(z.object({
     key: z.string(),
+    label: z.string().optional(),
+    description: z.string().optional(),
+    requires_document: z.boolean().optional(),
+    allows_online_verification: z.boolean().optional(),
+    verification_url: z.string().optional(),
     completed: z.boolean(),
     mode: z.enum(['document', 'online', 'na']).nullable(),
-    document_id: z.string().uuid().nullable(),
-    verified_url: z.string().nullable(),
+    document_id: z.string().nullable().optional(),
+    verified_url: z.string().nullable().optional(),
   })).optional(),
   beneficiairesVerifies: z.boolean().optional(),
   beneficiairesSource: z.string().nullable().optional(),
@@ -74,14 +79,19 @@ export const supplierComplianceRoutes: FastifyPluginAsync = async (app) => {
 
     const { supplierType, checklist, beneficiairesVerifies, beneficiairesSource } = result.data
 
-    // Si le type change on réinitialise la checklist
     const existing = await prisma.cabinetSupplierVerification.findUnique({
       where: { cabinetId_supplierId: { cabinetId: request.cabinetId, supplierId: id } },
     })
 
-    let resolvedChecklist = checklist
-    if (!resolvedChecklist || (existing && existing.supplierType !== supplierType)) {
-      resolvedChecklist = initChecklist(supplierType as any)
+    // Réinitialiser la checklist seulement si le type change
+    const typeChanged = supplierType && existing && existing.supplierType !== supplierType
+    const resolvedChecklist = typeChanged
+      ? initChecklist(supplierType as any)
+      : (checklist ?? (existing?.checklist as any[]) ?? (supplierType ? initChecklist(supplierType as any) : []))
+
+    const effectiveType = supplierType ?? existing?.supplierType
+    if (!effectiveType) {
+      return reply.status(400).send({ error: 'supplierType requis pour la première création', code: 'VALIDATION_ERROR' })
     }
 
     const verification = await prisma.cabinetSupplierVerification.upsert({
@@ -89,13 +99,13 @@ export const supplierComplianceRoutes: FastifyPluginAsync = async (app) => {
       create: {
         cabinetId: request.cabinetId,
         supplierId: id,
-        supplierType,
+        supplierType: effectiveType,
         checklist: resolvedChecklist as any,
         beneficiairesVerifies: beneficiairesVerifies ?? false,
         beneficiairesSource: beneficiairesSource ?? null,
       },
       update: {
-        supplierType,
+        ...(supplierType ? { supplierType } : {}),
         checklist: resolvedChecklist as any,
         ...(beneficiairesVerifies !== undefined ? { beneficiairesVerifies } : {}),
         ...(beneficiairesSource !== undefined ? { beneficiairesSource } : {}),
