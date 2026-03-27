@@ -466,7 +466,7 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
                       </div>
                     ) : '—'}
                   </td>
-                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{ev.evaluateurIds.map(resolveName).join(', ') || '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{(ev.evaluateurIds ?? []).map(resolveName).join(', ') || '—'}</td>
                   <td className="px-4 py-2.5">
                     <span className={cn('text-xs px-2 py-0.5 rounded-full', ev.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground')}>
                       {ev.status === 'completed' ? 'Complété' : 'Brouillon'}

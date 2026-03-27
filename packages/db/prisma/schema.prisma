@@ -500,7 +500,7 @@ model CabinetSupplierEvaluation {
 
   evaluationDate      DateTime  @default(now()) @map("evaluation_date") @db.Date
   nextReviewDate      DateTime? @map("next_review_date") @db.Date
-  evaluateurs         String[]
+  evaluateurIds       String[]  @map("evaluateurs")
   contratSigneLe      DateTime? @map("contrat_signe_le") @db.Date
   contratDuree        String?   @map("contrat_duree")
   contratPreavis      String?   @map("contrat_preavis")
