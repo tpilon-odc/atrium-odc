@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { ChevronLeft, BadgeCheck, Globe, Star, Pencil, ExternalLink, Link2, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi } from '@/lib/api'
@@ -148,6 +149,9 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
   const { token, cabinet } = useAuthStore()
   const queryClient = useQueryClient()
   const { id } = params
+  const searchParams = useSearchParams()
+  const backHref = searchParams.get('from') ?? '/produits'
+  const backLabel = backHref.startsWith('/fournisseurs') ? 'Retour au fournisseur' : 'Retour aux produits'
   const [avgRating, setAvgRating] = useState<number | null>(null)
 
   const { data, isLoading } = useQuery({
@@ -172,9 +176,9 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <Link href="/produits" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+      <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ChevronLeft className="h-4 w-4" />
-        Retour aux produits
+        {backLabel}
       </Link>
 
       {isLoading && (

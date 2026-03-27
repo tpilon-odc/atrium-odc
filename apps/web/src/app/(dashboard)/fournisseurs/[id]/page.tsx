@@ -321,7 +321,7 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
                 <p className="text-sm text-muted-foreground italic">Aucun produit lié à ce fournisseur.</p>
               ) : (
                 supplierProducts.map((p) => (
-                  <Link key={p.id} href={`/produits/${p.id}`} className="flex items-start justify-between gap-4 bg-card border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors">
+                  <Link key={p.id} href={`/produits/${p.id}?from=/fournisseurs/${id}`} className="flex items-start justify-between gap-4 bg-card border border-border rounded-lg p-4 hover:bg-accent/50 transition-colors">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">{p.name}</span>
