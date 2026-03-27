@@ -74,6 +74,7 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
         allow('canManageSuppliers') && { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
         allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
         { href: '/outils', label: 'Outils', icon: Wrench },
+        { href: '/cabinets', label: 'Annuaire', icon: Building2 },
         { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
@@ -123,6 +124,7 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, glo
   return ([
     allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
     { href: '/outils', label: 'Outils', icon: Wrench },
+    { href: '/cabinets', label: 'Annuaire', icon: Building2 },
     { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
     { href: '/agenda', label: 'Agenda', icon: CalendarDays },
     { href: '/ged', label: 'Documents', icon: FolderOpen },
@@ -149,6 +151,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   partage: 'Partage',
   parametres: 'Paramètres',
   pca: 'PCA',
+  cabinets: 'Annuaire des cabinets',
   clusters: 'Clusters',
   'supplier-portal': 'Mes fiches fournisseur',
   notifications: 'Notifications',

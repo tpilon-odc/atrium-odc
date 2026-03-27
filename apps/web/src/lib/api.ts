@@ -147,6 +147,18 @@ export type CabinetPublic = {
   members: CabinetMemberPublic[]
 }
 
+export type CabinetDirectoryItem = {
+  id: string
+  name: string
+  description: string | null
+  city: string | null
+  website: string | null
+  oriasNumber: string | null
+  logoUrl: string | null
+  createdAt: string
+  _count: { members: number }
+}
+
 type Cabinet = {
   id: string
   name: string
@@ -185,6 +197,18 @@ export const cabinetApi = {
       body: JSON.stringify(data),
       token,
     }),
+
+  list: (token: string, params?: { search?: string; city?: string; cursor?: string; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.search) q.set('search', params.search)
+    if (params?.city) q.set('city', params.city)
+    if (params?.cursor) q.set('cursor', params.cursor)
+    if (params?.limit) q.set('limit', String(params.limit))
+    return call<{ cabinets: CabinetDirectoryItem[]; nextCursor: string | null; hasMore: boolean }>(
+      `/api/v1/cabinets?${q}`,
+      { token }
+    )
+  },
 
   getById: (id: string, token: string) =>
     call<{ cabinet: CabinetPublic }>(`/api/v1/cabinets/${id}`, { token }),

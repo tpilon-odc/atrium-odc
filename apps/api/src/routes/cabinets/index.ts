@@ -72,6 +72,51 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
     return reply.status(201).send({ data })
   })
 
+  // ── GET /api/v1/cabinets ─────────────────────────────────────────────────
+  // Annuaire public des cabinets inscrits (tous utilisateurs connectés)
+  app.get('/', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const query = request.query as { search?: string; city?: string; cursor?: string; limit?: string }
+    const limit = Math.min(parseInt(query.limit ?? '20', 10), 50)
+    const search = query.search?.trim() || undefined
+    const city = query.city?.trim() || undefined
+    const cursor = query.cursor || undefined
+
+    const cabinets = await prisma.cabinet.findMany({
+      take: limit + 1,
+      skip: cursor ? 1 : 0,
+      cursor: cursor ? { id: cursor } : undefined,
+      where: {
+        deletionRequestedAt: null,
+        ...(search ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { city: { contains: search, mode: 'insensitive' } },
+          ],
+        } : {}),
+        ...(city ? { city: { contains: city, mode: 'insensitive' } } : {}),
+      },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        city: true,
+        website: true,
+        oriasNumber: true,
+        logoUrl: true,
+        createdAt: true,
+        _count: { select: { members: { where: { deletedAt: null } } } },
+      },
+    })
+
+    const hasMore = cabinets.length > limit
+    const items = hasMore ? cabinets.slice(0, limit) : cabinets
+    const nextCursor = hasMore ? items[items.length - 1].id : null
+
+    return reply.send({ data: { cabinets: items, nextCursor, hasMore } })
+  })
+
   // ── GET /api/v1/cabinets/:id ─────────────────────────────────────────────
   // Fiche publique d'un cabinet (tout utilisateur connecté)
   app.get('/:id', { preHandler: [authMiddleware] }, async (request, reply) => {
