@@ -944,7 +944,7 @@ export const supplierPortalApi = {
   uploadDocument: async (supplierId: string, file: File, token: string) => {
     const formData = new FormData()
     formData.append('file', file)
-    const res = await fetch(`/api/v1/supplier-portal/${supplierId}/documents/upload`, {
+    const res = await fetch(`${API_URL}/api/v1/supplier-portal/${supplierId}/documents/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
