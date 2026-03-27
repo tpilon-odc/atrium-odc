@@ -1,7 +1,11 @@
 -- Refactoring : remplace les 10 colonnes individuelles + GENERATED score_global
 -- par evaluation_notes JSONB et score_global NUMERIC calculé côté app
 
--- Supprimer les colonnes individuelles et la colonne générée
+-- Supprimer d'abord la colonne GENERATED (dépend des colonnes individuelles)
+ALTER TABLE "cabinet_supplier_evaluations"
+  DROP COLUMN IF EXISTS "score_global";
+
+-- Supprimer les colonnes individuelles
 ALTER TABLE "cabinet_supplier_evaluations"
   DROP COLUMN IF EXISTS "score_solvabilite",
   DROP COLUMN IF EXISTS "note_solvabilite",
@@ -12,8 +16,7 @@ ALTER TABLE "cabinet_supplier_evaluations"
   DROP COLUMN IF EXISTS "score_relation",
   DROP COLUMN IF EXISTS "note_relation",
   DROP COLUMN IF EXISTS "score_remuneration",
-  DROP COLUMN IF EXISTS "note_remuneration",
-  DROP COLUMN IF EXISTS "score_global";
+  DROP COLUMN IF EXISTS "note_remuneration";
 
 -- Ajouter les nouvelles colonnes
 ALTER TABLE "cabinet_supplier_evaluations"
