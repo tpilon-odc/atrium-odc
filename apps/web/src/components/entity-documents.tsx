@@ -2,9 +2,9 @@
 
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FolderOpen, ExternalLink, X, Plus, Loader2, Upload, FileText, FileImage, File } from 'lucide-react'
+import { FolderOpen, ExternalLink, X, Plus, Loader2, Upload, FileText, FileImage, File, Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { documentApi, supplierPortalApi, type Document } from '@/lib/api'
+import { documentApi, supplierPortalApi, supplierPublicApi, type Document } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -175,10 +175,12 @@ export function EntityDocuments({
   entityType,
   entityId,
   supplierId,
+  readonlySupplierId,
 }: {
   entityType: EntityType
   entityId: string
-  supplierId?: string  // si fourni, utilise les routes supplier-portal au lieu de document cabinet
+  supplierId?: string         // mode fournisseur (portail) : upload + toggle public/privé
+  readonlySupplierId?: string // mode lecture publique (fiche cabinet) : docs publics seulement
 }) {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
@@ -186,15 +188,20 @@ export function EntityDocuments({
   const [openingId, setOpeningId] = useState<string | null>(null)
 
   const isSupplierMode = !!supplierId
+  const isReadonlySupplier = !!readonlySupplierId
   const qKey = isSupplierMode
     ? ['supplier-docs', token, supplierId]
-    : ['documents', token, entityType, entityId]
+    : isReadonlySupplier
+      ? ['supplier-docs-public', token, readonlySupplierId]
+      : ['documents', token, entityType, entityId]
 
   const { data, isLoading } = useQuery({
     queryKey: qKey,
     queryFn: () => isSupplierMode
       ? supplierPortalApi.listDocuments(supplierId!, token!)
-      : documentApi.list(token!, { limit: 100, entityType, entityId }),
+      : isReadonlySupplier
+        ? supplierPublicApi.listDocuments(readonlySupplierId!, token!)
+        : documentApi.list(token!, { limit: 100, entityType, entityId }),
     enabled: !!token,
   })
 
@@ -241,12 +248,20 @@ export function EntityDocuments({
     queryClient.invalidateQueries({ queryKey: qKey })
   }
 
+  const toggleMutation = useMutation({
+    mutationFn: (doc: Document) =>
+      supplierPortalApi.toggleDocumentPublic(supplierId!, doc.id, !doc.isPublic, token!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qKey }),
+  })
+
   const handleOpen = async (doc: Document) => {
     setOpeningId(doc.id)
     try {
       const res = isSupplierMode
         ? await supplierPortalApi.getDocumentUrl(supplierId!, doc.id, token!)
-        : await documentApi.getUrl(doc.id, token!)
+        : isReadonlySupplier
+          ? await supplierPublicApi.getDocumentUrl(readonlySupplierId!, doc.id, token!)
+          : await documentApi.getUrl(doc.id, token!)
       window.open(res.data.url, '_blank', 'noopener,noreferrer')
     } finally {
       setOpeningId(null)
@@ -260,7 +275,7 @@ export function EntityDocuments({
           <FolderOpen className="h-4 w-4" />
           Documents ({docs.length})
         </h3>
-        {picker === null && (
+        {picker === null && !isReadonlySupplier && (
           <div className="flex gap-2">
             {!isSupplierMode && (
               <Button variant="outline" size="sm" onClick={() => setPicker('existing')}>
@@ -309,6 +324,11 @@ export function EntityDocuments({
                 <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-sm flex-1 truncate">{doc.name}</span>
                 <span className="text-xs text-muted-foreground shrink-0">{formatSize(doc.sizeBytes)}</span>
+                {isSupplierMode && (
+                  <span className={cn('text-xs px-1.5 py-0.5 rounded-full shrink-0', doc.isPublic ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground')}>
+                    {doc.isPublic ? 'Public' : 'Privé'}
+                  </span>
+                )}
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => handleOpen(doc)}
@@ -320,12 +340,23 @@ export function EntityDocuments({
                       : <ExternalLink className="h-3.5 w-3.5" />
                     }
                   </button>
-                  <button
-                    onClick={() => deleteMutation.mutate(doc)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  {isSupplierMode && (
+                    <button
+                      onClick={() => toggleMutation.mutate(doc)}
+                      title={doc.isPublic ? 'Rendre privé' : 'Rendre public'}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {doc.isPublic ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
+                  {!isReadonlySupplier && (
+                    <button
+                      onClick={() => deleteMutation.mutate(doc)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </li>
             )

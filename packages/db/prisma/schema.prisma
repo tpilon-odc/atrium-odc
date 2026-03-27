@@ -802,6 +802,7 @@ model Document {
   uploadedBy       String      @map("uploaded_by") @db.Uuid
   name             String
   description      String?
+  isPublic         Boolean     @default(true) @map("is_public")
   storageMode      StorageMode @map("storage_mode")
   storagePath      String?     @map("storage_path")
   externalConfigId String?     @map("external_config_id") @db.Uuid

@@ -242,7 +242,7 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
 
           {/* Documents */}
           <div className="bg-card border border-border rounded-lg p-5">
-            <EntityDocuments entityType="supplier" entityId={id} />
+            <EntityDocuments entityType="supplier" entityId={id} readonlySupplierId={id} />
           </div>
         </>
       )}

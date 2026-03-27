@@ -962,6 +962,21 @@ export const supplierPortalApi = {
 
   deleteDocument: (supplierId: string, docId: string, token: string) =>
     call<void>(`/api/v1/supplier-portal/${supplierId}/documents/${docId}`, { method: 'DELETE', token }),
+
+  toggleDocumentPublic: (supplierId: string, docId: string, isPublic: boolean, token: string) =>
+    call<{ document: Document }>(`/api/v1/supplier-portal/${supplierId}/documents/${docId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isPublic }),
+      token,
+    }),
+}
+
+export const supplierPublicApi = {
+  listDocuments: (supplierId: string, token: string) =>
+    call<{ documents: Document[] }>(`/api/v1/suppliers/${supplierId}/documents`, { token }),
+
+  getDocumentUrl: (supplierId: string, docId: string, token: string) =>
+    call<{ url: string; expiresIn: number | null }>(`/api/v1/suppliers/${supplierId}/documents/${docId}/url`, { token }),
 }
 
 // ── Cabinet (paramètres) ───────────────────────────────────────────────────────
@@ -1060,6 +1075,7 @@ export type Document = {
   id: string
   name: string
   description: string | null
+  isPublic: boolean
   storageMode: 'hosted' | 'external'
   mimeType: string | null
   sizeBytes: string | null

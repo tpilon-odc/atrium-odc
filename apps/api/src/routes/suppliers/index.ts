@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
+import { getPresignedUrl } from '../../lib/minio'
 import { computeDiff } from '../../lib/diff'
 import {
   listSuppliersQuery,
@@ -276,4 +277,32 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(204).send()
     }
   )
+
+  // ── GET /api/v1/suppliers/:id/documents ───────────────────────────────────
+  // Documents publics d'un fournisseur — accessible à tout utilisateur authentifié
+  app.get('/:id/documents', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const documents = await prisma.document.findMany({
+      where: { supplierId: id, isPublic: true, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const data = documents.map((d) => ({ ...d, sizeBytes: d.sizeBytes?.toString() ?? null }))
+    return reply.send({ data: { documents: data } })
+  })
+
+  // ── GET /api/v1/suppliers/:id/documents/:docId/url ────────────────────────
+  app.get('/:id/documents/:docId/url', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id, docId } = request.params as { id: string; docId: string }
+
+    const document = await prisma.document.findFirst({
+      where: { id: docId, supplierId: id, isPublic: true, deletedAt: null },
+    })
+    if (!document) return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
+    if (!document.storagePath) return reply.status(500).send({ error: 'Chemin de stockage manquant', code: 'STORAGE_ERROR' })
+
+    const url = getPresignedUrl(document.storagePath)
+    return reply.send({ data: { url, expiresIn: 3600 } })
+  })
 }

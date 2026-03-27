@@ -204,6 +204,30 @@ export const supplierPortalRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { url, expiresIn: 3600 } })
   })
 
+  // ── PATCH /api/v1/supplier-portal/:id/documents/:docId ───────────────────
+  // Toggle isPublic
+  app.patch('/:id/documents/:docId', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
+    const { id, docId } = request.params as { id: string; docId: string }
+
+    if (!request.supplierIds.includes(id)) {
+      return reply.status(403).send({ error: 'Accès refusé', code: 'FORBIDDEN' })
+    }
+
+    const { isPublic } = request.body as { isPublic: boolean }
+
+    const document = await prisma.document.findFirst({
+      where: { id: docId, supplierId: id, deletedAt: null },
+    })
+    if (!document) return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
+
+    const updated = await prisma.document.update({
+      where: { id: docId },
+      data: { isPublic },
+    })
+
+    return reply.send({ data: { document: { ...updated, sizeBytes: updated.sizeBytes?.toString() ?? null } } })
+  })
+
   // ── DELETE /api/v1/supplier-portal/:id/documents/:docId ───────────────────
   app.delete('/:id/documents/:docId', { preHandler: [authMiddleware, supplierMiddleware] }, async (request, reply) => {
     const { id, docId } = request.params as { id: string; docId: string }
