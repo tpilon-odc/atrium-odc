@@ -11,6 +11,7 @@ import {
   updateCabinetBody,
   inviteMemberBody,
   updateMemberBody,
+  addExternalMemberBody,
 } from './schemas'
 
 // Helper : récupère le membre courant avec son rôle
@@ -135,10 +136,14 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
         logoUrl: true,
         createdAt: true,
         members: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, isPublic: true },
           select: {
             id: true,
             role: true,
+            externalFirstName: true,
+            externalLastName: true,
+            externalEmail: true,
+            externalTitle: true,
             user: {
               select: {
                 id: true,
@@ -291,7 +296,12 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const members = await prisma.cabinetMember.findMany({
         where: { cabinetId: request.cabinetId, deletedAt: null },
-        include: { user: { select: { id: true, email: true, civility: true, firstName: true, lastName: true, globalRole: true } } },
+        select: {
+          id: true, cabinetId: true, userId: true, role: true,
+          canManageSuppliers: true, canManageProducts: true, canManageContacts: true,
+          isPublic: true, deletedAt: true,
+          user: { select: { id: true, email: true, civility: true, firstName: true, lastName: true, globalRole: true } },
+        },
         orderBy: { cabinet: { createdAt: 'asc' } },
       })
       return reply.send({ data: { members } })
@@ -368,7 +378,7 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
 
       }
 
-      // Vérifie qu'il n'est pas déjà membre
+      // Vérifie qu'il n'est pas déjà membre (avec compte)
       const alreadyMember = await prisma.cabinetMember.findFirst({
         where: { cabinetId: request.cabinetId, userId: targetUserId, deletedAt: null },
       })
@@ -487,6 +497,41 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
       })
 
       return reply.status(204).send()
+    }
+  )
+
+  // ── POST /api/v1/cabinets/me/members/external ─────────────────────────────
+  // Ajouter un collaborateur sans compte plateforme (affiché sur la fiche publique)
+  app.post(
+    '/me/members/external',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const currentMember = await getCurrentMember(request.user.id, request.cabinetId)
+      if (!currentMember || currentMember.role !== MemberRole.owner) {
+        return reply.status(403).send({ error: 'Seul le propriétaire peut ajouter des membres', code: 'FORBIDDEN' })
+      }
+
+      const result = addExternalMemberBody.safeParse(request.body)
+      if (!result.success) {
+        return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+      }
+
+      const { firstName, lastName, email, title, isPublic } = result.data
+
+      const member = await prisma.cabinetMember.create({
+        data: {
+          cabinetId: request.cabinetId,
+          userId: null,
+          role: MemberRole.member,
+          externalFirstName: firstName,
+          externalLastName: lastName,
+          externalEmail: email || null,
+          externalTitle: title || null,
+          isPublic,
+        },
+      })
+
+      return reply.status(201).send({ data: { member } })
     }
   )
 }

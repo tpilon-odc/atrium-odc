@@ -125,13 +125,18 @@ export const authApi = {
 export type CabinetMemberPublic = {
   id: string
   role: string
+  externalFirstName: string | null
+  externalLastName: string | null
+  externalEmail: string | null
+  externalTitle: string | null
   user: {
     id: string
+    civility: string | null
     firstName: string | null
     lastName: string | null
     email: string
     avatarUrl: string | null
-  }
+  } | null
 }
 
 export type CabinetPublic = {
@@ -1467,13 +1472,18 @@ export const supplierComplianceApi = {
 export type CabinetMember = {
   id: string
   cabinetId: string
-  userId: string
+  userId: string | null
   role: 'owner' | 'admin' | 'member'
   canManageSuppliers: boolean
   canManageProducts: boolean
   canManageContacts: boolean
+  isPublic: boolean
+  externalFirstName: string | null
+  externalLastName: string | null
+  externalEmail: string | null
+  externalTitle: string | null
   createdAt: string
-  user: { id: string; email: string; civility?: 'M.' | 'Mme' | null; firstName?: string | null; lastName?: string | null; globalRole: string }
+  user: { id: string; email: string; civility?: 'M.' | 'Mme' | null; firstName?: string | null; lastName?: string | null; globalRole: string } | null
 }
 
 export type StorageConfig = {
@@ -1496,7 +1506,7 @@ export const memberApi = {
       token,
     }),
 
-  update: (memberId: string, data: { role?: 'admin' | 'member'; canManageSuppliers?: boolean; canManageProducts?: boolean; canManageContacts?: boolean }, token: string) =>
+  update: (memberId: string, data: { role?: 'admin' | 'member'; canManageSuppliers?: boolean; canManageProducts?: boolean; canManageContacts?: boolean; isPublic?: boolean }, token: string) =>
     call<{ member: CabinetMember }>(`/api/v1/cabinets/me/members/${memberId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -1505,6 +1515,13 @@ export const memberApi = {
 
   remove: (memberId: string, token: string) =>
     call<unknown>(`/api/v1/cabinets/me/members/${memberId}`, { method: 'DELETE', token }),
+
+  addExternal: (data: { firstName: string; lastName: string; email?: string; title?: string; isPublic?: boolean }, token: string) =>
+    call<{ member: CabinetMember }>('/api/v1/cabinets/me/members/external', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
 }
 
 export const storageConfigApi = {

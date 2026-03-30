@@ -267,17 +267,22 @@ model Cabinet {
 model CabinetMember {
   id                String    @id @default(uuid()) @db.Uuid
   cabinetId         String    @map("cabinet_id") @db.Uuid
-  userId            String    @map("user_id") @db.Uuid
+  userId            String?   @map("user_id") @db.Uuid
   role              MemberRole
   canManageSuppliers Boolean  @default(false) @map("can_manage_suppliers")
   canManageProducts  Boolean  @default(false) @map("can_manage_products")
   canManageContacts  Boolean  @default(false) @map("can_manage_contacts")
+  isPublic           Boolean  @default(true) @map("is_public")
+  /// Champs pour les membres sans compte plateforme
+  externalFirstName  String?  @map("external_first_name")
+  externalLastName   String?  @map("external_last_name")
+  externalEmail      String?  @map("external_email")
+  externalTitle      String?  @map("external_title")
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
 
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
+  cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
 
-  @@unique([cabinetId, userId])
   @@index([cabinetId])
   @@map("cabinet_members")
 }

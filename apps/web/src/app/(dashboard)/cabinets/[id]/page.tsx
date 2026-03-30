@@ -132,17 +132,24 @@ export default function CabinetPublicPage() {
         </h2>
         <ul className="space-y-2">
           {cabinet.members.map((m) => {
-            const name = displayName(m.user) || m.user.email
+            const isExternal = !m.user
+            const name = isExternal
+              ? `${m.externalFirstName ?? ''} ${m.externalLastName ?? ''}`.trim()
+              : (displayName(m.user!) || m.user!.email)
+            const email = isExternal ? m.externalEmail : m.user!.email
             return (
               <li key={m.id} className="flex items-center gap-3">
-                <Avatar name={name} url={m.user.avatarUrl} />
+                <Avatar name={name} url={isExternal ? null : (m.user!.avatarUrl ?? null)} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{m.user.email}</p>
+                  {m.externalTitle && <p className="text-xs text-muted-foreground truncate">{m.externalTitle}</p>}
+                  {email && !m.externalTitle && <p className="text-xs text-muted-foreground truncate">{email}</p>}
                 </div>
-                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', ROLE_COLORS[m.role] ?? ROLE_COLORS.member)}>
-                  {ROLE_LABELS[m.role] ?? m.role}
-                </span>
+                {!isExternal && (
+                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', ROLE_COLORS[m.role] ?? ROLE_COLORS.member)}>
+                    {ROLE_LABELS[m.role] ?? m.role}
+                  </span>
+                )}
               </li>
             )
           })}

@@ -389,11 +389,12 @@ function CabinetProfileSection() {
 function MembersSection() {
   const { token, user } = useAuthStore()
   const queryClient = useQueryClient()
-  const [inviting, setInviting] = useState(false)
+  const [mode, setMode] = useState<null | 'invite' | 'external'>(null)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'admin' | 'member'>('member')
   const [perms, setPerms] = useState({ suppliers: false, products: false, contacts: false })
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null)
+  const [extForm, setExtForm] = useState({ firstName: '', lastName: '', email: '', title: '' })
 
   const { data, isLoading } = useQuery({
     queryKey: ['members', token],
@@ -403,6 +404,7 @@ function MembersSection() {
   const members = data?.data.members ?? []
   const currentMember = members.find((m) => m.userId === user?.id)
   const canManage = currentMember?.role === 'owner' || currentMember?.role === 'admin'
+  const isOwner = currentMember?.role === 'owner'
 
   const inviteMutation = useMutation({
     mutationFn: () => memberApi.invite({
@@ -414,14 +416,34 @@ function MembersSection() {
     }, token!),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['members'] })
-      setInviting(false)
+      setMode(null)
       setEmail('')
       setLastInviteUrl(res.data.inviteUrl ?? null)
     },
   })
 
+  const addExternalMutation = useMutation({
+    mutationFn: () => memberApi.addExternal({
+      firstName: extForm.firstName,
+      lastName: extForm.lastName,
+      email: extForm.email || undefined,
+      title: extForm.title || undefined,
+    }, token!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members'] })
+      setMode(null)
+      setExtForm({ firstName: '', lastName: '', email: '', title: '' })
+    },
+  })
+
   const removeMutation = useMutation({
     mutationFn: (memberId: string) => memberApi.remove(memberId, token!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members'] }),
+  })
+
+  const togglePublicMutation = useMutation({
+    mutationFn: ({ memberId, isPublic }: { memberId: string; isPublic: boolean }) =>
+      memberApi.update(memberId, { isPublic }, token!),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members'] }),
   })
 
@@ -432,19 +454,61 @@ function MembersSection() {
           <UserCheck className="h-4 w-4" />
           Membres ({members.length})
         </h3>
-        {canManage && !inviting && (
-          <Button size="sm" variant="outline" onClick={() => setInviting(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Inviter
-          </Button>
+        {canManage && !mode && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setMode('external')}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Ajouter sans compte
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setMode('invite')}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Inviter
+            </Button>
+          </div>
         )}
       </div>
 
-      {inviting && (
+      {/* Formulaire : membre sans compte */}
+      {mode === 'external' && (
+        <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Ajouter un collaborateur sans compte</span>
+            <button onClick={() => setMode(null)}><X className="h-4 w-4 text-muted-foreground" /></button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Prénom <span className="text-destructive">*</span></Label>
+              <Input value={extForm.firstName} onChange={(e) => setExtForm((f) => ({ ...f, firstName: e.target.value }))} placeholder="Jean" className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Nom <span className="text-destructive">*</span></Label>
+              <Input value={extForm.lastName} onChange={(e) => setExtForm((f) => ({ ...f, lastName: e.target.value }))} placeholder="Dupont" className="text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Titre / Poste</Label>
+            <Input value={extForm.title} onChange={(e) => setExtForm((f) => ({ ...f, title: e.target.value }))} placeholder="ex: Conseiller en gestion de patrimoine" className="text-sm" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Email (optionnel)</Label>
+            <Input value={extForm.email} onChange={(e) => setExtForm((f) => ({ ...f, email: e.target.value }))} placeholder="jean.dupont@cabinet.fr" className="text-sm" />
+          </div>
+          {addExternalMutation.isError && <p className="text-xs text-destructive">{(addExternalMutation.error as Error).message}</p>}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => addExternalMutation.mutate()} disabled={addExternalMutation.isPending || !extForm.firstName.trim() || !extForm.lastName.trim()}>
+              {addExternalMutation.isPending ? 'Ajout…' : 'Ajouter'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setMode(null)}>Annuler</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Formulaire : inviter avec compte */}
+      {mode === 'invite' && (
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Inviter un collaborateur</span>
-            <button onClick={() => setInviting(false)}><X className="h-4 w-4 text-muted-foreground" /></button>
+            <button onClick={() => setMode(null)}><X className="h-4 w-4 text-muted-foreground" /></button>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Email</Label>
@@ -480,7 +544,7 @@ function MembersSection() {
             <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending || !email}>
               {inviteMutation.isPending ? 'Invitation…' : 'Inviter'}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setInviting(false)}>Annuler</Button>
+            <Button size="sm" variant="outline" onClick={() => setMode(null)}>Annuler</Button>
           </div>
         </div>
       )}
@@ -502,37 +566,64 @@ function MembersSection() {
         <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}</div>
       ) : (
         <ul className="space-y-2">
-          {members.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <div className="flex-1 min-w-0">
-                {(m.user.firstName || m.user.lastName) && (
-                  <p className="text-sm font-medium truncate">{`${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim()}</p>
-                )}
-                <p className={cn('truncate', m.user.firstName || m.user.lastName ? 'text-xs text-muted-foreground' : 'text-sm font-medium')}>{m.user.email}</p>
-                <div className="flex gap-1.5 flex-wrap mt-0.5">
-                  <span className={cn(
-                    'text-xs px-2 py-0.5 rounded-full font-medium',
-                    m.role === 'owner' ? 'bg-primary/10 text-primary' :
-                    m.role === 'admin' ? 'bg-orange-100 text-orange-700' :
-                    'bg-muted text-muted-foreground'
-                  )}>
-                    {ROLE_LABELS[m.role]}
-                  </span>
-                  {m.canManageSuppliers && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Fournisseurs</span>}
-                  {m.canManageProducts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Produits</span>}
-                  {m.canManageContacts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Contacts</span>}
+          {members.map((m) => {
+            const isExternal = !m.user
+            const displayedName = isExternal
+              ? `${m.externalFirstName ?? ''} ${m.externalLastName ?? ''}`.trim()
+              : `${m.user?.firstName ?? ''} ${m.user?.lastName ?? ''}`.trim()
+            const displayedEmail = isExternal ? m.externalEmail : m.user?.email
+            return (
+              <li key={m.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                <div className="flex-1 min-w-0">
+                  {displayedName && <p className="text-sm font-medium truncate">{displayedName}</p>}
+                  {m.externalTitle && <p className="text-xs text-muted-foreground truncate">{m.externalTitle}</p>}
+                  {displayedEmail && (
+                    <p className={cn('truncate', displayedName ? 'text-xs text-muted-foreground' : 'text-sm font-medium')}>{displayedEmail}</p>
+                  )}
+                  <div className="flex gap-1.5 flex-wrap mt-0.5">
+                    {isExternal ? (
+                      <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Sans compte</span>
+                    ) : (
+                      <span className={cn(
+                        'text-xs px-2 py-0.5 rounded-full font-medium',
+                        m.role === 'owner' ? 'bg-primary/10 text-primary' :
+                        m.role === 'admin' ? 'bg-orange-100 text-orange-700' :
+                        'bg-muted text-muted-foreground'
+                      )}>
+                        {ROLE_LABELS[m.role]}
+                      </span>
+                    )}
+                    {m.canManageSuppliers && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Fournisseurs</span>}
+                    {m.canManageProducts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Produits</span>}
+                    {m.canManageContacts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Contacts</span>}
+                  </div>
                 </div>
-              </div>
-              {canManage && m.role !== 'owner' && m.userId !== user?.id && (
-                <button
-                  onClick={() => confirm(`Retirer ${m.user.email} ?`) && removeMutation.mutate(m.id)}
-                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </li>
-          ))}
+                <div className="flex items-center gap-2 shrink-0">
+                  {isOwner && (
+                    <button
+                      onClick={() => togglePublicMutation.mutate({ memberId: m.id, isPublic: !m.isPublic })}
+                      className={cn(
+                        'text-xs px-2.5 py-1 rounded-full font-medium transition-colors',
+                        m.isPublic
+                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      )}
+                    >
+                      {m.isPublic ? 'Visible' : 'Masqué'}
+                    </button>
+                  )}
+                  {canManage && m.role !== 'owner' && m.userId !== user?.id && (
+                    <button
+                      onClick={() => confirm(`Retirer ${displayedName || displayedEmail || 'ce membre'} ?`) && removeMutation.mutate(m.id)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>

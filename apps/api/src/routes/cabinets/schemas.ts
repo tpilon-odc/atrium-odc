@@ -29,6 +29,19 @@ export const updateMemberBody = z.object({
   canManageSuppliers: z.boolean().optional(),
   canManageProducts: z.boolean().optional(),
   canManageContacts: z.boolean().optional(),
+  isPublic: z.boolean().optional(),
+  externalFirstName: z.string().optional(),
+  externalLastName: z.string().optional(),
+  externalEmail: z.string().email().optional().or(z.literal('')),
+  externalTitle: z.string().optional(),
+})
+
+export const addExternalMemberBody = z.object({
+  firstName: z.string().min(1, 'Le prénom est requis'),
+  lastName: z.string().min(1, 'Le nom est requis'),
+  email: z.string().email('Email invalide').optional().or(z.literal('')),
+  title: z.string().optional(),
+  isPublic: z.boolean().default(true),
 })
 
 export type CreateCabinetBody = z.infer<typeof createCabinetBody>
