@@ -300,9 +300,10 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
           id: true, cabinetId: true, userId: true, role: true,
           canManageSuppliers: true, canManageProducts: true, canManageContacts: true,
           isPublic: true, deletedAt: true,
+          externalFirstName: true, externalLastName: true, externalEmail: true, externalTitle: true,
           user: { select: { id: true, email: true, civility: true, firstName: true, lastName: true, globalRole: true } },
         },
-        orderBy: { cabinet: { createdAt: 'asc' } },
+        orderBy: { id: 'asc' },
       })
       return reply.send({ data: { members } })
     }

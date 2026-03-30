@@ -447,6 +447,20 @@ function MembersSection() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members'] }),
   })
 
+  const [editingExtId, setEditingExtId] = useState<string | null>(null)
+  const [editExtForm, setEditExtForm] = useState({ firstName: '', lastName: '', email: '', title: '' })
+
+  const updateExternalMutation = useMutation({
+    mutationFn: ({ memberId, data }: { memberId: string; data: typeof editExtForm }) =>
+      memberApi.update(memberId, {
+        externalFirstName: data.firstName,
+        externalLastName: data.lastName,
+        externalEmail: data.email || undefined,
+        externalTitle: data.title || undefined,
+      }, token!),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['members'] }); setEditingExtId(null) },
+  })
+
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-4">
       <div className="flex items-center justify-between">
@@ -572,55 +586,92 @@ function MembersSection() {
               ? `${m.externalFirstName ?? ''} ${m.externalLastName ?? ''}`.trim()
               : `${m.user?.firstName ?? ''} ${m.user?.lastName ?? ''}`.trim()
             const displayedEmail = isExternal ? m.externalEmail : m.user?.email
+            const isEditingThis = editingExtId === m.id
+
             return (
-              <li key={m.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                <div className="flex-1 min-w-0">
-                  {displayedName && <p className="text-sm font-medium truncate">{displayedName}</p>}
-                  {m.externalTitle && <p className="text-xs text-muted-foreground truncate">{m.externalTitle}</p>}
-                  {displayedEmail && (
-                    <p className={cn('truncate', displayedName ? 'text-xs text-muted-foreground' : 'text-sm font-medium')}>{displayedEmail}</p>
-                  )}
-                  <div className="flex gap-1.5 flex-wrap mt-0.5">
-                    {isExternal ? (
-                      <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Sans compte</span>
-                    ) : (
-                      <span className={cn(
-                        'text-xs px-2 py-0.5 rounded-full font-medium',
-                        m.role === 'owner' ? 'bg-primary/10 text-primary' :
-                        m.role === 'admin' ? 'bg-orange-100 text-orange-700' :
-                        'bg-muted text-muted-foreground'
-                      )}>
-                        {ROLE_LABELS[m.role]}
-                      </span>
-                    )}
-                    {m.canManageSuppliers && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Fournisseurs</span>}
-                    {m.canManageProducts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Produits</span>}
-                    {m.canManageContacts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Contacts</span>}
+              <li key={m.id} className="py-2 border-b border-border last:border-0 space-y-2">
+                {isEditingThis ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input value={editExtForm.firstName} onChange={(e) => setEditExtForm((f) => ({ ...f, firstName: e.target.value }))} placeholder="Prénom" className="text-sm h-8" />
+                      <Input value={editExtForm.lastName} onChange={(e) => setEditExtForm((f) => ({ ...f, lastName: e.target.value }))} placeholder="Nom" className="text-sm h-8" />
+                    </div>
+                    <Input value={editExtForm.title} onChange={(e) => setEditExtForm((f) => ({ ...f, title: e.target.value }))} placeholder="Titre / Poste" className="text-sm h-8" />
+                    <Input value={editExtForm.email} onChange={(e) => setEditExtForm((f) => ({ ...f, email: e.target.value }))} placeholder="Email (optionnel)" className="text-sm h-8" />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => updateExternalMutation.mutate({ memberId: m.id, data: editExtForm })} disabled={updateExternalMutation.isPending || !editExtForm.firstName.trim() || !editExtForm.lastName.trim()}>
+                        {updateExternalMutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingExtId(null)}>Annuler</Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {isOwner && (
-                    <button
-                      onClick={() => togglePublicMutation.mutate({ memberId: m.id, isPublic: !m.isPublic })}
-                      className={cn(
-                        'text-xs px-2.5 py-1 rounded-full font-medium transition-colors',
-                        m.isPublic
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      {displayedName && <p className="text-sm font-medium truncate">{displayedName}</p>}
+                      {m.externalTitle && <p className="text-xs text-muted-foreground truncate">{m.externalTitle}</p>}
+                      {displayedEmail && (
+                        <p className={cn('truncate', displayedName ? 'text-xs text-muted-foreground' : 'text-sm font-medium')}>{displayedEmail}</p>
                       )}
-                    >
-                      {m.isPublic ? 'Visible' : 'Masqué'}
-                    </button>
-                  )}
-                  {canManage && m.role !== 'owner' && m.userId !== user?.id && (
-                    <button
-                      onClick={() => confirm(`Retirer ${displayedName || displayedEmail || 'ce membre'} ?`) && removeMutation.mutate(m.id)}
-                      className="text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
+                      <div className="flex gap-1.5 flex-wrap mt-0.5">
+                        {isExternal ? (
+                          <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Sans compte</span>
+                        ) : (
+                          <span className={cn(
+                            'text-xs px-2 py-0.5 rounded-full font-medium',
+                            m.role === 'owner' ? 'bg-primary/10 text-primary' :
+                            m.role === 'admin' ? 'bg-orange-100 text-orange-700' :
+                            'bg-muted text-muted-foreground'
+                          )}>
+                            {ROLE_LABELS[m.role]}
+                          </span>
+                        )}
+                        {m.canManageSuppliers && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Fournisseurs</span>}
+                        {m.canManageProducts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Produits</span>}
+                        {m.canManageContacts && <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">Contacts</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isOwner && (
+                        <button
+                          onClick={() => togglePublicMutation.mutate({ memberId: m.id, isPublic: !m.isPublic })}
+                          className={cn(
+                            'text-xs px-2.5 py-1 rounded-full font-medium transition-colors',
+                            m.isPublic
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          )}
+                        >
+                          {m.isPublic ? 'Visible' : 'Masqué'}
+                        </button>
+                      )}
+                      {isExternal && canManage && (
+                        <button
+                          onClick={() => {
+                            setEditExtForm({
+                              firstName: m.externalFirstName ?? '',
+                              lastName: m.externalLastName ?? '',
+                              email: m.externalEmail ?? '',
+                              title: m.externalTitle ?? '',
+                            })
+                            setEditingExtId(m.id)
+                          }}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canManage && m.role !== 'owner' && m.userId !== user?.id && (
+                        <button
+                          onClick={() => confirm(`Retirer ${displayedName || displayedEmail || 'ce membre'} ?`) && removeMutation.mutate(m.id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </li>
             )
           })}
