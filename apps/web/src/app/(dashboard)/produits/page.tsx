@@ -172,6 +172,7 @@ export default function ProduitsPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<string | null>(null)
   const [supplier, setSupplier] = useState<{ id: string; name: string } | null>(null)
+  const [commercialized, setCommercialized] = useState<'yes' | 'no' | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [allItems, setAllItems] = useState<Product[]>([])
 
@@ -181,7 +182,7 @@ export default function ProduitsPage() {
   }
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['products', token, search, category, supplier?.id, cursor],
+    queryKey: ['products', token, search, category, supplier?.id, commercialized, cursor],
     queryFn: () =>
       productApi.list(token!, {
         search: search || undefined,
@@ -189,6 +190,7 @@ export default function ProduitsPage() {
         limit: 20,
         category: category ?? undefined,
         supplierId: supplier?.id ?? undefined,
+        commercialized: commercialized ?? undefined,
       }),
     enabled: !!token,
   })
@@ -221,7 +223,12 @@ export default function ProduitsPage() {
     resetPagination()
   }
 
-  const hasFilters = !!search || !!category || !!supplier
+  const handleCommercializedToggle = (val: 'yes' | 'no') => {
+    setCommercialized((prev) => (prev === val ? null : val))
+    resetPagination()
+  }
+
+  const hasFilters = !!search || !!category || !!supplier || !!commercialized
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -281,6 +288,27 @@ export default function ProduitsPage() {
           ))}
         </div>
 
+        {/* Commercialisation */}
+        <div className="flex items-center gap-2">
+          {(['yes', 'no'] as const).map((val) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => handleCommercializedToggle(val)}
+              className={cn(
+                'text-xs px-3 py-1 rounded-full font-medium transition-colors border',
+                commercialized === val
+                  ? val === 'yes'
+                    ? 'bg-green-100 text-green-700 border-green-300'
+                    : 'bg-muted text-muted-foreground border-border'
+                  : 'bg-background text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {val === 'yes' ? 'Commercialisé' : 'Non commercialisé'}
+            </button>
+          ))}
+        </div>
+
         {/* Fournisseur */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground shrink-0">Fournisseur :</span>
@@ -295,6 +323,7 @@ export default function ProduitsPage() {
               setSearchInput('')
               setCategory(null)
               setSupplier(null)
+              setCommercialized(null)
               resetPagination()
             }}
             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"

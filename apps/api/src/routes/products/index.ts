@@ -23,7 +23,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: query.error.errors[0].message, code: 'VALIDATION_ERROR' })
     }
 
-    const { cursor, limit, search, category, supplierId } = query.data
+    const { cursor, limit, search, category, supplierId, commercialized } = query.data
 
     const products = await prisma.product.findMany({
       take: limit + 1,
@@ -33,6 +33,9 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
         deletedAt: null,
         ...(category ? { category } : {}),
         ...(supplierId ? { supplierLinks: { some: { supplierId } } } : {}),
+        ...(commercialized
+          ? { cabinetProducts: { some: { cabinetId: request.cabinetId, deletedAt: null, isCommercialized: commercialized === 'yes' } } }
+          : {}),
         ...(search
           ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] }
           : {}),

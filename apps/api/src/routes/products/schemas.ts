@@ -6,6 +6,7 @@ export const listProductsQuery = z.object({
   search: z.string().optional(),
   category: z.string().optional(),
   supplierId: z.string().uuid().optional(),
+  commercialized: z.enum(['yes', 'no']).optional(),
 })
 
 export const createProductBody = z.object({
