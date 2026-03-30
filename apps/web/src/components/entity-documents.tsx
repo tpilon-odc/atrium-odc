@@ -176,11 +176,13 @@ export function EntityDocuments({
   entityId,
   supplierId,
   readonlySupplierId,
+  title,
 }: {
   entityType: EntityType
   entityId: string
   supplierId?: string         // mode fournisseur (portail) : upload + toggle public/privé
   readonlySupplierId?: string // mode lecture publique (fiche cabinet) : docs publics seulement
+  title?: string
 }) {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
@@ -273,7 +275,7 @@ export function EntityDocuments({
       <div className="flex items-center justify-between">
         <h3 className="font-medium flex items-center gap-2 text-sm">
           <FolderOpen className="h-4 w-4" />
-          Documents ({docs.length})
+          {title ?? 'Documents'} ({docs.length})
         </h3>
         {picker === null && !isReadonlySupplier && (
           <div className="flex gap-2">

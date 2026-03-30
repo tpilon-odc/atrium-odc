@@ -1,23 +1,29 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { productApi } from '@/lib/api'
+import { productApi, productSubcategoryApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+
+const MAIN_CATEGORIES = [
+  { value: 'assurance', label: 'Assurance' },
+  { value: 'cif', label: 'Conseil en investissement financier (CIF)' },
+] as const
 
 const schema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
   description: z.string().optional(),
   category: z.string().optional(),
   website: z.string().optional(),
+  mainCategory: z.enum(['assurance', 'cif']).nullable().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -36,15 +42,25 @@ export default function ModifierProduitPage({ params }: { params: { id: string }
 
   const product = data?.data.product
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     values: product ? {
       name: product.name,
       description: product.description ?? '',
       category: product.category ?? '',
       website: product.website ?? '',
+      mainCategory: product.mainCategory ?? null,
     } : undefined,
   })
+
+  const selectedMainCategory = useWatch({ control, name: 'mainCategory' })
+
+  const { data: subcatData } = useQuery({
+    queryKey: ['product-subcategories', selectedMainCategory],
+    queryFn: () => productSubcategoryApi.list(token!, selectedMainCategory ?? undefined),
+    enabled: !!token && !!selectedMainCategory,
+  })
+  const subcategories = subcatData?.data.subcategories ?? []
 
   const mutation = useMutation({
     mutationFn: (data: FormData) => productApi.update(id, data, token!),
@@ -76,8 +92,29 @@ export default function ModifierProduitPage({ params }: { params: { id: string }
           {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
         </div>
         <div className="space-y-1.5">
-          <Label>Catégorie</Label>
-          <Input {...register('category')} />
+          <Label>Catégorie principale</Label>
+          <div className="flex gap-3">
+            {MAIN_CATEGORIES.map((mc) => (
+              <label key={mc.value} className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" value={mc.value} {...register('mainCategory')} className="accent-primary" />
+                <span className="text-sm">{mc.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Sous-catégorie</Label>
+          {subcategories.length > 0 ? (
+            <select {...register('category')} className="w-full h-9 text-sm rounded-md border border-input bg-background px-3">
+              <option value="">— Sélectionner —</option>
+              {subcategories.map((s) => (
+                <option key={s.id} value={s.label}>{s.label}</option>
+              ))}
+            </select>
+          ) : (
+            <Input {...register('category')} placeholder={selectedMainCategory ? 'Saisir manuellement…' : 'Choisir d\'abord une catégorie principale'} disabled={!selectedMainCategory} />
+          )}
         </div>
         <div className="space-y-1.5">
           <Label>Description</Label>

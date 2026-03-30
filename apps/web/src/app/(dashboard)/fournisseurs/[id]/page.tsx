@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Globe, Mail, Phone, Star, Pencil, ExternalLink, CheckCircle2, AlertTriangle, Plus, Trash2, UserRound } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { supplierApi, supplierComplianceApi, type Product } from '@/lib/api'
+import { supplierApi, supplierComplianceApi, type Product, type SupplierCommercialContact } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
 import { ReviewSection } from '@/components/ReviewSection'
 import { VerificationTab } from '@/components/fournisseurs/VerificationTab'
@@ -120,6 +120,190 @@ function CabinetSection({ supplierId }: { supplierId: string }) {
               ))}
             </div>
           ) : null}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Section contacts commerciaux ──────────────────────────────────────────────
+
+const REGIONS = [
+  'Île-de-France', 'Auvergne-Rhône-Alpes', 'Nouvelle-Aquitaine', 'Occitanie',
+  'Hauts-de-France', 'Grand Est', 'Pays de la Loire', 'Provence-Alpes-Côte d\'Azur',
+  'Normandie', 'Bretagne', 'Bourgogne-Franche-Comté', 'Centre-Val de Loire',
+  'Corse', 'Guadeloupe', 'Martinique', 'Guyane', 'La Réunion', 'Mayotte',
+]
+
+type ContactForm = { firstName: string; lastName: string; phone: string; email: string; region: string }
+const emptyForm: ContactForm = { firstName: '', lastName: '', phone: '', email: '', region: '' }
+
+function ContactFormFields({
+  form,
+  setForm,
+  onSubmit,
+  onCancel,
+  isPending,
+}: {
+  form: ContactForm
+  setForm: React.Dispatch<React.SetStateAction<ContactForm>>
+  onSubmit: () => void
+  onCancel: () => void
+  isPending: boolean
+}) {
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Prénom *</label>
+          <Input value={form.firstName} onChange={(e) => setForm(f => ({ ...f, firstName: e.target.value }))} placeholder="Jean" className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Nom *</label>
+          <Input value={form.lastName} onChange={(e) => setForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Dupont" className="h-8 text-sm" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Téléphone</label>
+          <Input value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="06 00 00 00 00" className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Email</label>
+          <Input value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} placeholder="jean@fournisseur.fr" className="h-8 text-sm" />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">Région</label>
+        <select
+          value={form.region}
+          onChange={(e) => setForm(f => ({ ...f, region: e.target.value }))}
+          className="w-full h-8 text-sm rounded-md border border-input bg-background px-3"
+        >
+          <option value="">— Sélectionner —</option>
+          {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button size="sm" variant="outline" onClick={onCancel}>Annuler</Button>
+        <Button size="sm" onClick={onSubmit} disabled={isPending || !form.firstName.trim() || !form.lastName.trim()}>
+          {isPending ? 'Enregistrement…' : 'Enregistrer'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function CommercialContactsSection({ supplierId }: { supplierId: string }) {
+  const { token } = useAuthStore()
+  const queryClient = useQueryClient()
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<ContactForm>(emptyForm)
+
+  const { data } = useQuery({
+    queryKey: ['supplier-commercial-contacts', supplierId, token],
+    queryFn: () => supplierApi.listCommercialContacts(supplierId, token!),
+    enabled: !!token,
+  })
+  const contacts: SupplierCommercialContact[] = data?.data.contacts ?? []
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['supplier-commercial-contacts', supplierId, token] })
+
+  const createMutation = useMutation({
+    mutationFn: () => supplierApi.createCommercialContact(supplierId, {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      phone: form.phone.trim() || undefined,
+      email: form.email.trim() || undefined,
+      region: form.region || undefined,
+    }, token!),
+    onSuccess: () => { invalidate(); setShowForm(false); setForm(emptyForm) },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (contactId: string) => supplierApi.updateCommercialContact(supplierId, contactId, {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
+      region: form.region || null,
+    }, token!),
+    onSuccess: () => { invalidate(); setEditingId(null); setForm(emptyForm) },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (contactId: string) => supplierApi.deleteCommercialContact(supplierId, contactId, token!),
+    onSuccess: invalidate,
+  })
+
+  const startEdit = (c: SupplierCommercialContact) => {
+    setEditingId(c.id)
+    setForm({ firstName: c.firstName, lastName: c.lastName, phone: c.phone ?? '', email: c.email ?? '', region: c.region ?? '' })
+    setShowForm(false)
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium flex items-center gap-2">
+          <UserRound className="h-4 w-4" />
+          Contacts commerciaux
+        </h3>
+        {!showForm && (
+          <Button size="sm" variant="outline" onClick={() => { setShowForm(true); setEditingId(null); setForm(emptyForm) }}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Ajouter
+          </Button>
+        )}
+      </div>
+
+      {showForm && (
+        <ContactFormFields
+          form={form}
+          setForm={setForm}
+          onSubmit={() => createMutation.mutate()}
+          onCancel={() => setShowForm(false)}
+          isPending={createMutation.isPending}
+        />
+      )}
+
+      {contacts.length === 0 && !showForm ? (
+        <p className="text-xs text-muted-foreground italic">Aucun contact commercial enregistré.</p>
+      ) : (
+        <div className="space-y-2">
+          {contacts.map((c) => (
+            <div key={c.id}>
+              {editingId === c.id ? (
+                <ContactFormFields
+                  form={form}
+                  setForm={setForm}
+                  onSubmit={() => updateMutation.mutate(c.id)}
+                  onCancel={() => setEditingId(null)}
+                  isPending={updateMutation.isPending}
+                />
+              ) : (
+                <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-muted/20 group">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium">{c.firstName} {c.lastName}</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                      {c.phone && <a href={`tel:${c.phone}`} className="flex items-center gap-1 hover:text-foreground"><Phone className="h-3 w-3" />{c.phone}</a>}
+                      {c.email && <a href={`mailto:${c.email}`} className="flex items-center gap-1 hover:text-foreground"><Mail className="h-3 w-3" />{c.email}</a>}
+                      {c.region && <span>{c.region}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button onClick={() => startEdit(c)} className="p-1 text-muted-foreground hover:text-foreground rounded">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => deleteMutation.mutate(c.id)} className="p-1 text-muted-foreground hover:text-destructive rounded">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -312,9 +496,13 @@ export default function FournisseurDetailPage({ params }: { params: { id: string
           {activeTab === 'infos' && (
             <>
               <CabinetSection supplierId={id} />
+              <CommercialContactsSection supplierId={id} />
+              <div className="bg-card border border-border rounded-lg p-5">
+                <EntityDocuments entityType="supplier" entityId={id} title="Documents privés (convention, contrats…)" />
+              </div>
               <ReviewSection entityType="supplier" entityId={id} token={token!} cabinetId={cabinet?.id ?? ''} onAvgChange={setAvgRating} />
               <div className="bg-card border border-border rounded-lg p-5">
-                <EntityDocuments entityType="supplier" entityId={id} readonlySupplierId={id} />
+                <EntityDocuments entityType="supplier" entityId={id} readonlySupplierId={id} title="Documents fournisseur (publics)" />
               </div>
             </>
           )}

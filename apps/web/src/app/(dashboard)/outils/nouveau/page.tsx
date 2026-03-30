@@ -4,11 +4,11 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { toolApi } from '@/lib/api'
+import { toolApi, toolCategoryApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +26,13 @@ export default function NouvelOutilPage() {
   const { token } = useAuthStore()
   const router = useRouter()
   const queryClient = useQueryClient()
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['tool-categories', token],
+    queryFn: () => toolCategoryApi.list(token!),
+    enabled: !!token,
+  })
+  const categories = categoriesData?.data.categories ?? []
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -59,7 +66,19 @@ export default function NouvelOutilPage() {
         </div>
         <div className="space-y-1.5">
           <Label>Catégorie</Label>
-          <Input {...register('category')} placeholder="ex: CRM, Reporting, Agrégation…" />
+          {categories.length > 0 ? (
+            <select
+              {...register('category')}
+              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">— Choisir une catégorie —</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.label}>{cat.label}</option>
+              ))}
+            </select>
+          ) : (
+            <Input {...register('category')} placeholder="ex: CRM, Reporting, Agrégation…" />
+          )}
         </div>
         <div className="space-y-1.5">
           <Label>Description</Label>

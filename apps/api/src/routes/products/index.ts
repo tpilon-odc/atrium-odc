@@ -16,6 +16,33 @@ import {
 export const productRoutes: FastifyPluginAsync = async (app) => {
   // Governance sub-routes (registered first to avoid :id matching /governance/...)
   await app.register(governanceRoutes)
+
+  // ── GET /api/v1/products/governance-axes ────────────────────────────────
+  app.get('/governance-axes', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { mainCategory } = request.query as { mainCategory?: string }
+    const axes = await prisma.governanceAxisConfig.findMany({
+      where: {
+        isEnabled: true,
+        ...(mainCategory ? { mainCategory } : {}),
+      },
+      orderBy: [{ mainCategory: 'asc' }, { order: 'asc' }],
+    })
+    return reply.send({ data: { axes } })
+  })
+
+  // ── GET /api/v1/products/subcategories ───────────────────────────────────
+  app.get('/subcategories', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { mainCategory } = request.query as { mainCategory?: string }
+    const subcategories = await prisma.productSubcategory.findMany({
+      where: {
+        isActive: true,
+        ...(mainCategory ? { mainCategory } : {}),
+      },
+      orderBy: [{ mainCategory: 'asc' }, { order: 'asc' }],
+    })
+    return reply.send({ data: { subcategories } })
+  })
+
   // ── GET /api/v1/products ──────────────────────────────────────────────────
   app.get('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const query = listProductsQuery.safeParse(request.query)
@@ -23,7 +50,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: query.error.errors[0].message, code: 'VALIDATION_ERROR' })
     }
 
-    const { cursor, limit, search, category, supplierId, commercialized } = query.data
+    const { cursor, limit, search, mainCategory, category, supplierId, isActive } = query.data
 
     const products = await prisma.product.findMany({
       take: limit + 1,
@@ -31,11 +58,10 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       cursor: cursor ? { id: cursor } : undefined,
       where: {
         deletedAt: null,
+        ...(mainCategory ? { mainCategory } : {}),
         ...(category ? { category } : {}),
         ...(supplierId ? { supplierLinks: { some: { supplierId } } } : {}),
-        ...(commercialized
-          ? { cabinetProducts: { some: { cabinetId: request.cabinetId, deletedAt: null, isCommercialized: commercialized === 'yes' } } }
-          : {}),
+        ...(isActive !== undefined ? { isActive: isActive === 'true' } : {}),
         ...(search
           ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] }
           : {}),

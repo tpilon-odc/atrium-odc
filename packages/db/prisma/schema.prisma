@@ -259,6 +259,7 @@ model Cabinet {
   gdprRequests          GdprRequest[]
   pca                   CabinetPca?
   pcaHistory            CabinetPcaHistory[]
+  supplierCommercialContacts SupplierCommercialContact[]
 
   @@map("cabinets")
 }
@@ -435,11 +436,31 @@ model Supplier {
   reviews          SupplierReview[]
   supplierUsers    SupplierUser[]
   documents        Document[]
-  evaluations      CabinetSupplierEvaluation[]
-  verifications    CabinetSupplierVerification[]
+  evaluations          CabinetSupplierEvaluation[]
+  verifications        CabinetSupplierVerification[]
+  commercialContacts   SupplierCommercialContact[]
 
   @@index([createdAt])
   @@map("suppliers")
+}
+
+model SupplierCommercialContact {
+  id         String   @id @default(uuid()) @db.Uuid
+  cabinetId  String   @map("cabinet_id") @db.Uuid
+  supplierId String   @map("supplier_id") @db.Uuid
+  firstName  String   @map("first_name")
+  lastName   String   @map("last_name")
+  phone      String?
+  email      String?
+  region     String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet  Cabinet  @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([cabinetId, supplierId])
+  @@map("supplier_commercial_contacts")
 }
 
 model SupplierUser {
@@ -574,6 +595,8 @@ model Product {
   createdBy       String    @map("created_by") @db.Uuid
   avgPublicRating Float?    @map("avg_public_rating")
   isVerified      Boolean   @default(false) @map("is_verified")
+  isActive        Boolean   @default(true) @map("is_active")
+  mainCategory    String?   @map("main_category")
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
 
@@ -587,6 +610,36 @@ model Product {
 
   @@index([createdAt])
   @@map("products")
+}
+
+model ProductSubcategory {
+  id           String   @id @default(uuid()) @db.Uuid
+  mainCategory String   @map("main_category")
+  label        String
+  order        Int      @default(0)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([mainCategory, label])
+  @@index([mainCategory, order])
+  @@map("product_subcategories")
+}
+
+model GovernanceAxisConfig {
+  id           String   @id @default(uuid()) @db.Uuid
+  mainCategory String   @map("main_category")
+  axisId       String   @map("axis_id")
+  label        String
+  description  String   @default("")
+  criteria     Json     @default("[]") @db.JsonB
+  isEnabled    Boolean  @default(true) @map("is_enabled")
+  order        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([mainCategory, axisId])
+  @@index([mainCategory, order])
+  @@map("governance_axis_configs")
 }
 
 model ProductEdit {
@@ -774,6 +827,16 @@ model SupplierReview {
 // ──────────────────────────────────────────────────────────────────────────────
 // BASE COMMUNAUTAIRE — OUTILS
 // ──────────────────────────────────────────────────────────────────────────────
+
+model ToolCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  label     String
+  order     Int      @default(0)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("tool_categories")
+}
 
 model Tool {
   id              String    @id @default(uuid()) @db.Uuid

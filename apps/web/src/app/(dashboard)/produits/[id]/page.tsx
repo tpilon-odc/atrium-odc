@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ChevronLeft, BadgeCheck, Globe, Star, Pencil, ExternalLink, Link2, X } from 'lucide-react'
+import { ChevronLeft, BadgeCheck, Globe, Star, Pencil, ExternalLink, Link2, X, PackageCheck, PackageX } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { productApi, supplierApi } from '@/lib/api'
 import { EntityDocuments } from '@/components/entity-documents'
@@ -164,6 +164,11 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
 
   const product = data?.data.product
 
+  const isActiveMutation = useMutation({
+    mutationFn: (isActive: boolean) => productApi.update(id, { isActive }, token!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['product', id, token] }),
+  })
+
   const linkMutation = useMutation({
     mutationFn: (supplierId: string) => productApi.linkSupplier(id, supplierId, token!),
     onSuccess: () => {
@@ -211,17 +216,43 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
                       </div>
                     )}
                   </div>
+                  {product.mainCategory && (
+                    <span className={cn(
+                      'text-xs px-2 py-0.5 rounded-full font-medium',
+                      product.mainCategory === 'assurance'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-violet-100 text-violet-700'
+                    )}>
+                      {product.mainCategory === 'assurance' ? 'Assurance' : 'CIF'}
+                    </span>
+                  )}
                   {product.category && (
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{product.category}</span>
                   )}
                 </div>
               </div>
-              <Link href={`/produits/${id}/modifier`}>
-                <Button variant="outline" size="sm">
-                  <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                  Modifier
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => isActiveMutation.mutate(!product.isActive)}
+                  disabled={isActiveMutation.isPending}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium transition-colors border',
+                    product.isActive
+                      ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
+                      : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                  )}
+                >
+                  {product.isActive
+                    ? <><PackageCheck className="h-3.5 w-3.5" /> Toujours commercialisé</>
+                    : <><PackageX className="h-3.5 w-3.5" /> Retiré du marché</>}
+                </button>
+                <Link href={`/produits/${id}/modifier`}>
+                  <Button variant="outline" size="sm">
+                    <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                    Modifier
+                  </Button>
+                </Link>
+              </div>
             </div>
 
             {product.description && <p className="text-sm text-muted-foreground">{product.description}</p>}
@@ -300,7 +331,7 @@ export default function ProduitDetailPage({ params }: { params: { id: string } }
           )}
 
           {activeTab === 'gouvernance' && (
-            <GovernanceTab productId={id} token={token!} />
+            <GovernanceTab productId={id} token={token!} mainCategory={product.mainCategory} />
           )}
         </>
       )}

@@ -340,4 +340,76 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     const url = getPresignedUrl(document.storagePath)
     return reply.send({ data: { url, expiresIn: 3600 } })
   })
+
+  // ── GET /api/v1/suppliers/:id/commercial-contacts ─────────────────────────
+  app.get('/:id/commercial-contacts', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const contacts = await prisma.supplierCommercialContact.findMany({
+      where: { supplierId: id, cabinetId: request.cabinetId },
+      orderBy: { createdAt: 'asc' },
+    })
+    return reply.send({ data: { contacts } })
+  })
+
+  // ── POST /api/v1/suppliers/:id/commercial-contacts ────────────────────────
+  app.post('/:id/commercial-contacts', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { firstName: string; lastName: string; phone?: string; email?: string; region?: string }
+
+    if (!body?.firstName?.trim() || !body?.lastName?.trim()) {
+      return reply.status(400).send({ error: 'Prénom et nom requis', code: 'VALIDATION_ERROR' })
+    }
+
+    const supplierExists = await prisma.supplier.findUnique({ where: { id, deletedAt: null } })
+    if (!supplierExists) return reply.status(404).send({ error: 'Fournisseur introuvable', code: 'NOT_FOUND' })
+
+    const contact = await prisma.supplierCommercialContact.create({
+      data: {
+        supplierId: id,
+        cabinetId: request.cabinetId,
+        firstName: body.firstName.trim(),
+        lastName: body.lastName.trim(),
+        phone: body.phone?.trim() || null,
+        email: body.email?.trim() || null,
+        region: body.region?.trim() || null,
+      },
+    })
+    return reply.status(201).send({ data: { contact } })
+  })
+
+  // ── PATCH /api/v1/suppliers/:id/commercial-contacts/:contactId ────────────
+  app.patch('/:id/commercial-contacts/:contactId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, contactId } = request.params as { id: string; contactId: string }
+    const body = request.body as { firstName?: string; lastName?: string; phone?: string | null; email?: string | null; region?: string | null }
+
+    const existing = await prisma.supplierCommercialContact.findFirst({
+      where: { id: contactId, supplierId: id, cabinetId: request.cabinetId },
+    })
+    if (!existing) return reply.status(404).send({ error: 'Contact introuvable', code: 'NOT_FOUND' })
+
+    const contact = await prisma.supplierCommercialContact.update({
+      where: { id: contactId },
+      data: {
+        ...(body.firstName ? { firstName: body.firstName.trim() } : {}),
+        ...(body.lastName ? { lastName: body.lastName.trim() } : {}),
+        ...(body.phone !== undefined ? { phone: body.phone?.trim() || null } : {}),
+        ...(body.email !== undefined ? { email: body.email?.trim() || null } : {}),
+        ...(body.region !== undefined ? { region: body.region?.trim() || null } : {}),
+      },
+    })
+    return reply.send({ data: { contact } })
+  })
+
+  // ── DELETE /api/v1/suppliers/:id/commercial-contacts/:contactId ───────────
+  app.delete('/:id/commercial-contacts/:contactId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, contactId } = request.params as { id: string; contactId: string }
+
+    const existing = await prisma.supplierCommercialContact.findFirst({
+      where: { id: contactId, supplierId: id, cabinetId: request.cabinetId },
+    })
+    if (!existing) return reply.status(404).send({ error: 'Contact introuvable', code: 'NOT_FOUND' })
+
+    await prisma.supplierCommercialContact.delete({ where: { id: contactId } })
+    return reply.status(204).send()
+  })
 }

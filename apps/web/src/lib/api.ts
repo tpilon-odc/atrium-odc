@@ -308,6 +308,19 @@ export type SupplierDetail = Supplier & {
   editsCount: number
 }
 
+export type SupplierCommercialContact = {
+  id: string
+  supplierId: string
+  cabinetId: string
+  firstName: string
+  lastName: string
+  phone: string | null
+  email: string | null
+  region: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export const supplierApi = {
   list: (token: string, params?: { limit?: number; cursor?: string; search?: string; category?: string }) => {
     const q = new URLSearchParams()
@@ -357,6 +370,29 @@ export const supplierApi = {
 
   listProducts: (id: string, token: string) =>
     call<{ products: Product[] }>(`/api/v1/suppliers/${id}/products`, { token }),
+
+  listCommercialContacts: (id: string, token: string) =>
+    call<{ contacts: SupplierCommercialContact[] }>(`/api/v1/suppliers/${id}/commercial-contacts`, { token }),
+
+  createCommercialContact: (id: string, data: { firstName: string; lastName: string; phone?: string; email?: string; region?: string }, token: string) =>
+    call<{ contact: SupplierCommercialContact }>(`/api/v1/suppliers/${id}/commercial-contacts`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updateCommercialContact: (supplierId: string, contactId: string, data: Partial<{ firstName: string; lastName: string; phone: string | null; email: string | null; region: string | null }>, token: string) =>
+    call<{ contact: SupplierCommercialContact }>(`/api/v1/suppliers/${supplierId}/commercial-contacts/${contactId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  deleteCommercialContact: (supplierId: string, contactId: string, token: string) =>
+    call<void>(`/api/v1/suppliers/${supplierId}/commercial-contacts/${contactId}`, {
+      method: 'DELETE',
+      token,
+    }),
 }
 
 // ── Produits ──────────────────────────────────────────────────────────────────
@@ -367,6 +403,8 @@ export type Product = {
   description: string | null
   category: string | null
   website: string | null
+  isActive: boolean
+  mainCategory: 'assurance' | 'cif' | null
   avgPublicRating: number | null
   isVerified: boolean
   createdAt: string
@@ -388,14 +426,15 @@ export type ProductDetail = Product & {
 }
 
 export const productApi = {
-  list: (token: string, params?: { limit?: number; cursor?: string; search?: string; category?: string; supplierId?: string; commercialized?: 'yes' | 'no' }) => {
+  list: (token: string, params?: { limit?: number; cursor?: string; search?: string; mainCategory?: 'assurance' | 'cif'; category?: string; supplierId?: string; isActive?: 'true' | 'false' }) => {
     const q = new URLSearchParams()
     if (params?.limit) q.set('limit', String(params.limit))
     if (params?.cursor) q.set('cursor', params.cursor)
     if (params?.search) q.set('search', params.search)
     if (params?.category) q.set('category', params.category)
+    if (params?.mainCategory) q.set('mainCategory', params.mainCategory)
     if (params?.supplierId) q.set('supplierId', params.supplierId)
-    if (params?.commercialized) q.set('commercialized', params.commercialized)
+    if (params?.isActive !== undefined) q.set('isActive', params.isActive)
     return call<{ products: Product[]; nextCursor: string | null; hasMore: boolean }>(
       `/api/v1/products?${q}`,
       { token }
@@ -408,14 +447,14 @@ export const productApi = {
       { token }
     ),
 
-  create: (data: { name: string; description?: string; category?: string; website?: string }, token: string) =>
+  create: (data: { name: string; description?: string; category?: string; website?: string; mainCategory?: 'assurance' | 'cif' | null }, token: string) =>
     call<{ product: Product }>('/api/v1/products', {
       method: 'POST',
       body: JSON.stringify(data),
       token,
     }),
 
-  update: (id: string, data: Partial<{ name: string; description: string; category: string; website: string }>, token: string) =>
+  update: (id: string, data: Partial<{ name: string; description: string; category: string; website: string; isActive: boolean; mainCategory: 'assurance' | 'cif' | null }>, token: string) =>
     call<{ product: Product }>(`/api/v1/products/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -620,6 +659,41 @@ export const toolApi = {
       body: JSON.stringify({ rating }),
       token,
     }),
+}
+
+export type ToolCategory = {
+  id: string
+  label: string
+  order: number
+  isActive: boolean
+  createdAt: string
+}
+
+export const toolCategoryApi = {
+  list: (token: string) =>
+    call<{ categories: ToolCategory[] }>('/api/v1/tools/categories', { token }),
+}
+
+export const adminToolCategoryApi = {
+  list: (token: string) =>
+    call<{ categories: ToolCategory[] }>('/api/v1/admin/tool-categories', { token }),
+
+  create: (label: string, token: string) =>
+    call<{ category: ToolCategory }>('/api/v1/admin/tool-categories', {
+      method: 'POST',
+      body: JSON.stringify({ label }),
+      token,
+    }),
+
+  update: (id: string, data: { label?: string; order?: number; isActive?: boolean }, token: string) =>
+    call<{ category: ToolCategory }>(`/api/v1/admin/tool-categories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  delete: (id: string, token: string) =>
+    call<unknown>(`/api/v1/admin/tool-categories/${id}`, { method: 'DELETE', token }),
 }
 
 // ── Contacts / CRM ────────────────────────────────────────────────────────────
@@ -1069,6 +1143,84 @@ export const platformUserApi = {
     const q = new URLSearchParams({ q: query, roles: 'chamber,regulator,platform_admin' })
     return call<{ users: PlatformUser[] }>(`/api/v1/users/search?${q}`, { token })
   },
+}
+
+export type ProductSubcategory = {
+  id: string
+  mainCategory: 'assurance' | 'cif'
+  label: string
+  order: number
+  isActive: boolean
+  createdAt: string
+}
+
+export const productSubcategoryApi = {
+  list: (token: string, mainCategory?: 'assurance' | 'cif') => {
+    const q = new URLSearchParams()
+    if (mainCategory) q.set('mainCategory', mainCategory)
+    return call<{ subcategories: ProductSubcategory[] }>(`/api/v1/products/subcategories?${q}`, { token })
+  },
+}
+
+export const adminProductSubcategoryApi = {
+  list: (token: string) =>
+    call<{ subcategories: ProductSubcategory[] }>('/api/v1/admin/product-subcategories', { token }),
+
+  create: (data: { mainCategory: 'assurance' | 'cif'; label: string }, token: string) =>
+    call<{ subcategory: ProductSubcategory }>('/api/v1/admin/product-subcategories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  update: (id: string, data: { label?: string; order?: number; isActive?: boolean }, token: string) =>
+    call<{ subcategory: ProductSubcategory }>(`/api/v1/admin/product-subcategories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  delete: (id: string, token: string) =>
+    call<void>(`/api/v1/admin/product-subcategories/${id}`, { method: 'DELETE', token }),
+}
+
+export type GovernanceAxisConfig = {
+  id: string
+  mainCategory: 'assurance' | 'cif'
+  axisId: string
+  label: string
+  description: string
+  criteria: Array<{ field: string; label: string; sublabel?: string }>
+  isEnabled: boolean
+  order: number
+  createdAt: string
+  updatedAt: string
+}
+
+export const governanceAxesApi = {
+  list: (token: string, mainCategory?: 'assurance' | 'cif') => {
+    const q = new URLSearchParams()
+    if (mainCategory) q.set('mainCategory', mainCategory)
+    return call<{ axes: GovernanceAxisConfig[] }>(`/api/v1/products/governance-axes?${q}`, { token })
+  },
+}
+
+export const adminGovernanceAxesApi = {
+  list: (token: string) =>
+    call<{ axes: GovernanceAxisConfig[] }>('/api/v1/admin/governance-axes', { token }),
+
+  update: (id: string, data: {
+    label?: string
+    description?: string
+    criteria?: Array<{ field: string; label: string; sublabel?: string }>
+    isEnabled?: boolean
+    order?: number
+  }, token: string) =>
+    call<{ axis: GovernanceAxisConfig }>(`/api/v1/admin/governance-axes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
 }
 
 export const adminApi = {

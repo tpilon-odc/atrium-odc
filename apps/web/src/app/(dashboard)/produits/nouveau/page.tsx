@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,16 +9,22 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { ChevronLeft, X } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { productApi, supplierApi, type Supplier } from '@/lib/api'
+import { productApi, supplierApi, productSubcategoryApi, type Supplier } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+
+const MAIN_CATEGORIES = [
+  { value: 'assurance', label: 'Assurance' },
+  { value: 'cif', label: 'Conseil en investissement financier (CIF)' },
+] as const
 
 const schema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
   description: z.string().optional(),
   category: z.string().optional(),
   website: z.string().optional(),
+  mainCategory: z.enum(['assurance', 'cif']).nullable().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -32,9 +38,17 @@ export default function NouveauProduitPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
+  const selectedMainCategory = useWatch({ control, name: 'mainCategory' })
+
+  const { data: subcatData } = useQuery({
+    queryKey: ['product-subcategories', selectedMainCategory],
+    queryFn: () => productSubcategoryApi.list(token!, selectedMainCategory ?? undefined),
+    enabled: !!token && !!selectedMainCategory,
+  })
+  const subcategories = subcatData?.data.subcategories ?? []
 
   const { data: suppliersData } = useQuery({
     queryKey: ['suppliers-search', supplierSearch],
@@ -77,8 +91,29 @@ export default function NouveauProduitPage() {
         </div>
 
         <div className="space-y-1.5">
-          <Label>Catégorie</Label>
-          <Input {...register('category')} placeholder="ex: Assurance-vie, SCPI, PER…" />
+          <Label>Catégorie principale <span className="text-destructive">*</span></Label>
+          <div className="flex gap-3">
+            {MAIN_CATEGORIES.map((mc) => (
+              <label key={mc.value} className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" value={mc.value} {...register('mainCategory')} className="accent-primary" />
+                <span className="text-sm">{mc.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Sous-catégorie</Label>
+          {subcategories.length > 0 ? (
+            <select {...register('category')} className="w-full h-9 text-sm rounded-md border border-input bg-background px-3">
+              <option value="">— Sélectionner —</option>
+              {subcategories.map((s) => (
+                <option key={s.id} value={s.label}>{s.label}</option>
+              ))}
+            </select>
+          ) : (
+            <Input {...register('category')} placeholder={selectedMainCategory ? 'Saisir manuellement…' : 'Choisir d\'abord une catégorie principale'} disabled={!selectedMainCategory} />
+          )}
         </div>
 
         <div className="space-y-1.5">

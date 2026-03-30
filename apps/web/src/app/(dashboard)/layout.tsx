@@ -31,6 +31,7 @@ import {
   MessagesSquare,
   ClipboardList,
   BookUser,
+  Layers,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
@@ -577,6 +578,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     label="Utilisateurs plateforme"
                     icon={Users}
                     isActive={pathname.startsWith('/admin/utilisateurs')}
+                  />
+                </li>
+                <li>
+                  <SidebarLink
+                    href="/admin/produits"
+                    label="Gestion des catégories produits"
+                    icon={Layers}
+                    isActive={pathname.startsWith('/admin/produits')}
+                  />
+                </li>
+                <li>
+                  <SidebarLink
+                    href="/admin/gouvernance"
+                    label="Axes de gouvernance"
+                    icon={ShieldCheck}
+                    isActive={pathname.startsWith('/admin/gouvernance')}
+                  />
+                </li>
+                <li>
+                  <SidebarLink
+                    href="/admin/outils"
+                    label="Catégories d'outils"
+                    icon={Wrench}
+                    isActive={pathname.startsWith('/admin/outils')}
                   />
                 </li>
               </ul>

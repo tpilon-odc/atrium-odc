@@ -4,9 +4,10 @@ export const listProductsQuery = z.object({
   cursor: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
+  mainCategory: z.enum(['assurance', 'cif']).optional(),
   category: z.string().optional(),
   supplierId: z.string().uuid().optional(),
-  commercialized: z.enum(['yes', 'no']).optional(),
+  isActive: z.enum(['true', 'false']).optional(),
 })
 
 export const createProductBody = z.object({
@@ -14,6 +15,8 @@ export const createProductBody = z.object({
   description: z.string().optional(),
   category: z.string().optional(),
   website: z.string().optional(),
+  isActive: z.boolean().optional(),
+  mainCategory: z.enum(['assurance', 'cif']).nullable().optional(),
 })
 
 export const updateProductBody = createProductBody.partial()

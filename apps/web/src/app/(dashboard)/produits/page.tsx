@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, Search, Star, BadgeCheck, ChevronRight, X, Table2, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Plus, Search, Star, BadgeCheck, ChevronRight, X, Table2, AlertTriangle, ShieldCheck, PackageX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { productApi, supplierApi, type Product } from '@/lib/api'
+import { productApi, supplierApi, productSubcategoryApi, type Product } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -43,6 +43,20 @@ function ProductCard({ product }: { product: Product }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm truncate">{product.name}</span>
+          {!product.isActive && (
+              <span className="inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium shrink-0">
+                <PackageX className="h-3 w-3" />
+                Retiré du marché
+              </span>
+            )}
+          {product.mainCategory && (
+              <span className={cn(
+                'text-xs px-2 py-0.5 rounded-full font-medium shrink-0',
+                product.mainCategory === 'assurance' ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'
+              )}>
+                {product.mainCategory === 'assurance' ? 'Assurance' : 'CIF'}
+              </span>
+            )}
           {product.isVerified && (
             <span className="inline-flex items-center gap-1 text-xs bg-info-subtle text-info-subtle-foreground px-2 py-0.5 rounded-full font-medium shrink-0">
               <BadgeCheck className="h-3 w-3" />
@@ -155,26 +169,28 @@ function SupplierPicker({
   )
 }
 
-const CATEGORIES = [
-  'Assurance-vie',
-  'SCPI',
-  'PER',
-  'Immobilier',
-  'Actions',
-  'Obligations',
-  'OPCVM',
-  'Défiscalisation',
+const MAIN_CATEGORIES = [
+  { value: 'assurance' as const, label: 'Assurance', color: 'bg-blue-100 text-blue-700', activeColor: 'bg-blue-600 text-white' },
+  { value: 'cif' as const, label: 'CIF', color: 'bg-violet-100 text-violet-700', activeColor: 'bg-violet-600 text-white' },
 ]
 
 export default function ProduitsPage() {
   const { token } = useAuthStore()
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [mainCategory, setMainCategory] = useState<'assurance' | 'cif' | null>(null)
   const [category, setCategory] = useState<string | null>(null)
   const [supplier, setSupplier] = useState<{ id: string; name: string } | null>(null)
-  const [commercialized, setCommercialized] = useState<'yes' | 'no' | null>(null)
+  const [isActive, setIsActive] = useState<'true' | 'false' | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [allItems, setAllItems] = useState<Product[]>([])
+
+  const { data: subcatData } = useQuery({
+    queryKey: ['product-subcategories', mainCategory],
+    queryFn: () => productSubcategoryApi.list(token!, mainCategory ?? undefined),
+    enabled: !!token && !!mainCategory,
+  })
+  const subcategories = subcatData?.data.subcategories ?? []
 
   const resetPagination = () => {
     setCursor(null)
@@ -182,15 +198,16 @@ export default function ProduitsPage() {
   }
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['products', token, search, category, supplier?.id, commercialized, cursor],
+    queryKey: ['products', token, search, mainCategory, category, supplier?.id, isActive, cursor],
     queryFn: () =>
       productApi.list(token!, {
         search: search || undefined,
         cursor: cursor ?? undefined,
         limit: 20,
+        mainCategory: mainCategory ?? undefined,
         category: category ?? undefined,
         supplierId: supplier?.id ?? undefined,
-        commercialized: commercialized ?? undefined,
+        isActive: isActive ?? undefined,
       }),
     enabled: !!token,
   })
@@ -213,7 +230,16 @@ export default function ProduitsPage() {
     setSearch(searchInput)
   }
 
-  const handleCategoryToggle = (cat: string) => {
+  const handleMainCategoryToggle = (val: 'assurance' | 'cif') => {
+    setMainCategory((prev) => {
+      if (prev === val) { setCategory(null); return null }
+      setCategory(null)
+      return val
+    })
+    resetPagination()
+  }
+
+  const handleSubcategoryToggle = (cat: string) => {
     setCategory((prev) => (prev === cat ? null : cat))
     resetPagination()
   }
@@ -223,12 +249,12 @@ export default function ProduitsPage() {
     resetPagination()
   }
 
-  const handleCommercializedToggle = (val: 'yes' | 'no') => {
-    setCommercialized((prev) => (prev === val ? null : val))
+  const handleIsActiveToggle = (val: 'true' | 'false') => {
+    setIsActive((prev) => (prev === val ? null : val))
     resetPagination()
   }
 
-  const hasFilters = !!search || !!category || !!supplier || !!commercialized
+  const hasFilters = !!search || !!mainCategory || !!category || !!supplier || !!isActive
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -269,42 +295,61 @@ export default function ProduitsPage() {
           <Button variant="outline" onClick={handleSearch}>Rechercher</Button>
         </div>
 
-        {/* Catégories */}
+        {/* Catégorie principale */}
         <div className="flex flex-wrap gap-1.5">
-          {CATEGORIES.map((cat) => (
+          {MAIN_CATEGORIES.map((mc) => (
             <button
-              key={cat}
+              key={mc.value}
               type="button"
-              onClick={() => handleCategoryToggle(cat)}
+              onClick={() => handleMainCategoryToggle(mc.value)}
               className={cn(
                 'text-xs px-3 py-1 rounded-full font-medium transition-colors',
-                category === cat
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                mainCategory === mc.value ? mc.activeColor : mc.color
               )}
             >
-              {cat}
+              {mc.label}
             </button>
           ))}
         </div>
 
-        {/* Commercialisation */}
+        {/* Sous-catégories dynamiques */}
+        {mainCategory && subcategories.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pl-1">
+            {subcategories.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleSubcategoryToggle(s.label)}
+                className={cn(
+                  'text-xs px-3 py-1 rounded-full font-medium transition-colors',
+                  category === s.label
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Statut fournisseur */}
         <div className="flex items-center gap-2">
-          {(['yes', 'no'] as const).map((val) => (
+          {(['true', 'false'] as const).map((val) => (
             <button
               key={val}
               type="button"
-              onClick={() => handleCommercializedToggle(val)}
+              onClick={() => handleIsActiveToggle(val)}
               className={cn(
                 'text-xs px-3 py-1 rounded-full font-medium transition-colors border',
-                commercialized === val
-                  ? val === 'yes'
+                isActive === val
+                  ? val === 'true'
                     ? 'bg-green-100 text-green-700 border-green-300'
-                    : 'bg-muted text-muted-foreground border-border'
+                    : 'bg-red-100 text-red-700 border-red-300'
                   : 'bg-background text-muted-foreground border-border hover:bg-muted'
               )}
             >
-              {val === 'yes' ? 'Commercialisé' : 'Non commercialisé'}
+              {val === 'true' ? 'Toujours commercialisé' : 'Retiré du marché'}
             </button>
           ))}
         </div>
@@ -321,9 +366,10 @@ export default function ProduitsPage() {
             onClick={() => {
               setSearch('')
               setSearchInput('')
+              setMainCategory(null)
               setCategory(null)
               setSupplier(null)
-              setCommercialized(null)
+              setIsActive(null)
               resetPagination()
             }}
             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"

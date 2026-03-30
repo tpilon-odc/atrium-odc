@@ -376,4 +376,131 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.send({ data: updated })
   })
+
+  // ── GET /api/v1/admin/product-subcategories ───────────────────────────────
+  app.get('/product-subcategories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const subcategories = await prisma.productSubcategory.findMany({
+      orderBy: [{ mainCategory: 'asc' }, { order: 'asc' }],
+    })
+    return reply.send({ data: { subcategories } })
+  })
+
+  // ── POST /api/v1/admin/product-subcategories ──────────────────────────────
+  app.post('/product-subcategories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const body = request.body as { mainCategory: 'assurance' | 'cif'; label: string }
+    if (!body?.label?.trim() || !['assurance', 'cif'].includes(body.mainCategory)) {
+      return reply.status(400).send({ error: 'Données invalides', code: 'VALIDATION_ERROR' })
+    }
+    const maxOrder = await prisma.productSubcategory.aggregate({
+      where: { mainCategory: body.mainCategory },
+      _max: { order: true },
+    })
+    const sub = await prisma.productSubcategory.create({
+      data: {
+        mainCategory: body.mainCategory,
+        label: body.label.trim(),
+        order: (maxOrder._max.order ?? 0) + 1,
+      },
+    })
+    return reply.status(201).send({ data: { subcategory: sub } })
+  })
+
+  // ── PATCH /api/v1/admin/product-subcategories/:id ─────────────────────────
+  app.patch('/product-subcategories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { label?: string; order?: number; isActive?: boolean }
+    const sub = await prisma.productSubcategory.update({
+      where: { id },
+      data: {
+        ...(body.label ? { label: body.label.trim() } : {}),
+        ...(body.order !== undefined ? { order: body.order } : {}),
+        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      },
+    })
+    return reply.send({ data: { subcategory: sub } })
+  })
+
+  // ── DELETE /api/v1/admin/product-subcategories/:id ────────────────────────
+  app.delete('/product-subcategories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    await prisma.productSubcategory.delete({ where: { id } })
+    return reply.status(204).send()
+  })
+
+  // ── GET /api/v1/admin/governance-axes ────────────────────────────────────
+  app.get('/governance-axes', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const axes = await prisma.governanceAxisConfig.findMany({
+      orderBy: [{ mainCategory: 'asc' }, { order: 'asc' }],
+    })
+    return reply.send({ data: { axes } })
+  })
+
+  // ── PATCH /api/v1/admin/governance-axes/:id ───────────────────────────────
+  app.patch('/governance-axes/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as {
+      label?: string
+      description?: string
+      criteria?: Array<{ field: string; label: string; sublabel?: string }>
+      isEnabled?: boolean
+      order?: number
+    }
+    const axis = await prisma.governanceAxisConfig.update({
+      where: { id },
+      data: {
+        ...(body.label !== undefined ? { label: body.label } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.criteria !== undefined ? { criteria: body.criteria as object } : {}),
+        ...(body.isEnabled !== undefined ? { isEnabled: body.isEnabled } : {}),
+        ...(body.order !== undefined ? { order: body.order } : {}),
+      },
+    })
+    return reply.send({ data: { axis } })
+  })
+
+  // ── GET /api/v1/admin/tool-categories ─────────────────────────────────────
+  app.get('/tool-categories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (_request, reply) => {
+    const categories = await prisma.toolCategory.findMany({
+      orderBy: { order: 'asc' },
+    })
+    return reply.send({ data: { categories } })
+  })
+
+  // ── POST /api/v1/admin/tool-categories ────────────────────────────────────
+  app.post('/tool-categories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const body = request.body as { label: string }
+    if (!body?.label?.trim()) {
+      return reply.status(400).send({ error: 'Le label est requis', code: 'VALIDATION_ERROR' })
+    }
+    const maxOrder = await prisma.toolCategory.aggregate({ _max: { order: true } })
+    const category = await prisma.toolCategory.create({
+      data: {
+        label: body.label.trim(),
+        order: (maxOrder._max.order ?? 0) + 1,
+      },
+    })
+    return reply.status(201).send({ data: { category } })
+  })
+
+  // ── PATCH /api/v1/admin/tool-categories/:id ───────────────────────────────
+  app.patch('/tool-categories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { label?: string; order?: number; isActive?: boolean }
+    const category = await prisma.toolCategory.update({
+      where: { id },
+      data: {
+        ...(body.label ? { label: body.label.trim() } : {}),
+        ...(body.order !== undefined ? { order: body.order } : {}),
+        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      },
+    })
+    return reply.send({ data: { category } })
+  })
+
+  // ── DELETE /api/v1/admin/tool-categories/:id ──────────────────────────────
+  app.delete('/tool-categories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    await prisma.toolCategory.delete({ where: { id } })
+    return reply.status(204).send()
+  })
 }

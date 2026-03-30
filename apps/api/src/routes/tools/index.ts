@@ -61,6 +61,15 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { tools: data, nextCursor, hasMore } })
   })
 
+  // ── GET /api/v1/tools/categories ─────────────────────────────────────────
+  app.get('/categories', { preHandler: [authMiddleware, cabinetMiddleware] }, async (_request, reply) => {
+    const categories = await prisma.toolCategory.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' },
+    })
+    return reply.send({ data: { categories } })
+  })
+
   // ── GET /api/v1/tools/:id ─────────────────────────────────────────────────
   app.get('/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }

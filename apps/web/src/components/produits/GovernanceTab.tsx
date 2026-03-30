@@ -1,12 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { type Governance, type GovernanceInput } from '@/lib/api'
-import { GOVERNANCE_AXES, type MarcheCibleValue } from '@/lib/governance-axes'
+import { type Governance, type GovernanceInput, type GovernanceAxisConfig, governanceAxesApi } from '@/lib/api'
+import { GOVERNANCE_AXES, type MarcheCibleValue, type GovernanceAxis } from '@/lib/governance-axes'
 import { useProductGovernance } from '@/hooks/useProductGovernance'
+
+function configToAxis(c: GovernanceAxisConfig): GovernanceAxis {
+  return {
+    id: c.axisId,
+    label: c.label,
+    description: c.description,
+    criteria: c.criteria,
+  }
+}
 
 // ── MarcheCible badge & picker ────────────────────────────────────────────────
 
@@ -352,7 +362,7 @@ function ContexteBlock({
 
 // ── Modal historique ──────────────────────────────────────────────────────────
 
-function HistoryModal({ gov, onClose }: { gov: Governance; onClose: () => void }) {
+function HistoryModal({ gov, axes, onClose }: { gov: Governance; axes: GovernanceAxis[]; onClose: () => void }) {
   const form = gov as unknown as Record<string, MarcheCibleValue | null>
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-y-auto py-8 px-4">
@@ -374,7 +384,7 @@ function HistoryModal({ gov, onClose }: { gov: Governance; onClose: () => void }
           <Button variant="ghost" size="sm" onClick={onClose}>✕</Button>
         </div>
         <div className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
-          {GOVERNANCE_AXES.map((axis) => (
+          {axes.map((axis) => (
             <AxisBlock key={axis.id} axis={axis} form={form} onChange={() => {}} readOnly />
           ))}
           <DurabiliteBlock form={gov} onChange={() => {}} readOnly />
@@ -406,7 +416,7 @@ function ActivationModal({ onConfirm, onCancel }: { onConfirm: () => void; onCan
 
 // ── Main GovernanceTab ────────────────────────────────────────────────────────
 
-export function GovernanceTab({ productId, token }: { productId: string; token: string }) {
+export function GovernanceTab({ productId, token, mainCategory }: { productId: string; token: string; mainCategory?: 'assurance' | 'cif' | null }) {
   const {
     isLoading,
     active,
@@ -422,6 +432,13 @@ export function GovernanceTab({ productId, token }: { productId: string; token: 
     isPending,
     error,
   } = useProductGovernance(productId, token)
+
+  const { data: axesData } = useQuery({
+    queryKey: ['governance-axes', mainCategory],
+    queryFn: () => governanceAxesApi.list(token, mainCategory ?? undefined),
+    enabled: !!mainCategory,
+  })
+  const axes: GovernanceAxis[] = axesData?.data.axes.map(configToAxis) ?? GOVERNANCE_AXES
 
   const [formData, setFormData] = useState<Record<string, MarcheCibleValue | null | number | boolean | string>>({})
   const [editing, setEditing] = useState(false)
@@ -577,7 +594,7 @@ export function GovernanceTab({ productId, token }: { productId: string; token: 
       {(editing || (!editing && (active || draft))) && (
         <div className="space-y-3">
           {/* Axes */}
-          {GOVERNANCE_AXES.map((axis) => (
+          {axes.map((axis) => (
             <AxisBlock
               key={axis.id}
               axis={axis}
@@ -694,7 +711,7 @@ export function GovernanceTab({ productId, token }: { productId: string; token: 
         <ActivationModal onConfirm={handleActivate} onCancel={() => setShowActivationModal(false)} />
       )}
       {historyGov && (
-        <HistoryModal gov={historyGov} onClose={() => setHistoryGov(null)} />
+        <HistoryModal gov={historyGov} axes={axes} onClose={() => setHistoryGov(null)} />
       )}
     </div>
   )

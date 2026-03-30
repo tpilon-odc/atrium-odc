@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Plus, Search, Star, BadgeCheck, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { toolApi, type Tool } from '@/lib/api'
+import { toolApi, toolCategoryApi, type Tool } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -79,12 +79,20 @@ export default function OutilsPage() {
   const { token } = useAuthStore()
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [category, setCategory] = useState<string | null>(null)
   const [cursor, setCursor] = useState<string | null>(null)
   const [allItems, setAllItems] = useState<Tool[]>([])
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ['tool-categories', token],
+    queryFn: () => toolCategoryApi.list(token!),
+    enabled: !!token,
+  })
+  const categories = categoriesData?.data.categories ?? []
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['tools', token, search, cursor],
-    queryFn: () => toolApi.list(token!, { search: search || undefined, cursor: cursor ?? undefined, limit: 20 }),
+    queryKey: ['tools', token, search, category, cursor],
+    queryFn: () => toolApi.list(token!, { search: search || undefined, category: category ?? undefined, cursor: cursor ?? undefined, limit: 20 }),
     enabled: !!token,
   })
 
@@ -105,6 +113,12 @@ export default function OutilsPage() {
     setCursor(null)
     setAllItems([])
     setSearch(searchInput)
+  }
+
+  const handleCategoryFilter = (cat: string | null) => {
+    setCursor(null)
+    setAllItems([])
+    setCategory(cat)
   }
 
   return (
@@ -135,6 +149,36 @@ export default function OutilsPage() {
         </div>
         <Button variant="outline" onClick={handleSearch}>Rechercher</Button>
       </div>
+
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => handleCategoryFilter(null)}
+            className={cn(
+              'text-xs px-3 py-1.5 rounded-full font-medium transition-colors border',
+              category === null
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+            )}
+          >
+            Tous
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => handleCategoryFilter(cat.label)}
+              className={cn(
+                'text-xs px-3 py-1.5 rounded-full font-medium transition-colors border',
+                category === cat.label
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
+              )}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">
