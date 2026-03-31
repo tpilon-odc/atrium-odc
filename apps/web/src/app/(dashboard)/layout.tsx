@@ -65,9 +65,20 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
       label: 'Mon Cabinet',
       items: ([
         { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+        hasCabinet && { href: '/cabinet', label: 'Mon Cabinet', icon: Building2 },
         hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck, showProgress: true },
         hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
-        hasCabinet && { href: '/parametres', label: 'Paramètres', icon: Settings },
+        { href: '/formations', label: 'Formations', icon: GraduationCap },
+      ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
+    },
+    {
+      label: 'Mon Activité',
+      items: ([
+        allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
+        { href: '/agenda', label: 'Agenda', icon: CalendarDays },
+        { href: '/ged', label: 'Documents', icon: FolderOpen },
+        { href: '/partage', label: 'Partage', icon: Share2 },
+        { href: '/conformite-partagee', label: 'Conformité partagée', icon: ShieldCheck },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
     {
@@ -79,22 +90,6 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
         { href: '/cabinets', label: 'Annuaire', icon: BookUser },
         { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
-    },
-    {
-      label: 'Mon Activité',
-      items: ([
-        allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
-        { href: '/agenda', label: 'Agenda', icon: CalendarDays },
-        { href: '/ged', label: 'Documents', icon: FolderOpen },
-        { href: '/formations', label: 'Formations', icon: GraduationCap },
-      ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
-    },
-    {
-      label: 'Partage',
-      items: [
-        { href: '/partage', label: 'Données partagées', icon: Share2 },
-        { href: '/conformite-partagee', label: 'Conformité partagée', icon: ShieldCheck },
-      ] as NavItem[],
     },
   ]
 }
@@ -124,16 +119,20 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, glo
   const canAll = !member || member.role === 'owner' || member.role === 'admin'
   const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
   return ([
+    hasCabinet && { href: '/cabinet', label: 'Mon Cabinet', icon: Building2 },
+    hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
+    hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
+    { href: '/formations', label: 'Formations', icon: GraduationCap },
+    { href: '/agenda', label: 'Agenda', icon: CalendarDays },
+    { href: '/ged', label: 'Documents', icon: FolderOpen },
+    { href: '/partage', label: 'Partage', icon: Share2 },
+    { href: '/conformite-partagee', label: 'Conformité partagée', icon: ShieldCheck },
+    allow('canManageSuppliers') && { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
     allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
     { href: '/outils', label: 'Outils', icon: Wrench },
     { href: '/cabinets', label: 'Annuaire', icon: BookUser },
     { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
-    { href: '/agenda', label: 'Agenda', icon: CalendarDays },
-    { href: '/ged', label: 'Documents', icon: FolderOpen },
-    { href: '/formations', label: 'Formations', icon: GraduationCap },
-    { href: '/partage', label: 'Partage', icon: Share2 },
-    hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
-    hasCabinet && { href: '/parametres', label: 'Paramètres', icon: Settings },
+    { href: '/parametres', label: 'Paramètres', icon: Settings },
   ] as (NavItem | false)[]).filter(Boolean) as NavItem[]
 }
 
@@ -141,6 +140,7 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, glo
 
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: 'Tableau de bord',
+  cabinet: 'Mon Cabinet',
   conformite: 'Conformité',
   fournisseurs: 'Fournisseurs',
   produits: 'Produits',
@@ -558,58 +558,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <ul className="space-y-0.5">
                 <li>
                   <SidebarLink
-                    href="/admin/conformite"
-                    label="Référentiel conformité"
-                    icon={ShieldAlert}
-                    isActive={pathname.startsWith('/admin/conformite')}
-                  />
-                </li>
-                <li>
-                  <SidebarLink
-                    href="/admin/clusters"
-                    label="Modération clusters"
-                    icon={MessagesSquare}
-                    isActive={pathname.startsWith('/admin/clusters')}
-                  />
-                </li>
-                <li>
-                  <SidebarLink
-                    href="/admin/utilisateurs"
-                    label="Utilisateurs plateforme"
-                    icon={Users}
-                    isActive={pathname.startsWith('/admin/utilisateurs')}
-                  />
-                </li>
-                <li>
-                  <SidebarLink
-                    href="/admin/produits"
-                    label="Gestion des catégories produits"
-                    icon={Layers}
-                    isActive={pathname.startsWith('/admin/produits')}
-                  />
-                </li>
-                <li>
-                  <SidebarLink
-                    href="/admin/gouvernance"
-                    label="Axes de gouvernance"
-                    icon={ShieldCheck}
-                    isActive={pathname.startsWith('/admin/gouvernance')}
-                  />
-                </li>
-                <li>
-                  <SidebarLink
-                    href="/admin/outils"
-                    label="Catégories d'outils"
-                    icon={Wrench}
-                    isActive={pathname.startsWith('/admin/outils')}
-                  />
-                </li>
-                <li>
-                  <SidebarLink
-                    href="/admin/formations"
-                    label="Catégories de formations"
-                    icon={GraduationCap}
-                    isActive={pathname.startsWith('/admin/formations')}
+                    href="/admin"
+                    label="Administration"
+                    icon={Settings}
+                    isActive={pathname.startsWith('/admin')}
                   />
                 </li>
               </ul>
@@ -759,7 +711,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
               {user?.globalRole === 'platform_admin' && (
                 <Link
-                  href="/admin/conformite"
+                  href="/admin"
                   className={cn(
                     'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
                     pathname.startsWith('/admin')
@@ -767,8 +719,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       : 'text-foreground hover:bg-accent'
                   )}
                 >
-                  <ShieldAlert className="h-5 w-5 shrink-0" />
-                  Référentiel conformité
+                  <Settings className="h-5 w-5 shrink-0" />
+                  Administration
                 </Link>
               )}
 

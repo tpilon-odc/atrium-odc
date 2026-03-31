@@ -148,8 +148,8 @@ export default function Step03Procedures({ data, onChange }: Props) {
           {members.length > 0 && (
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-xs text-muted-foreground">Ajouter un membre :</span>
-              {members.map((m) => {
-                const alreadyAdded = absences.some((a) => a.nomFonction.startsWith(displayName(m.user)))
+              {members.filter((m) => m.user !== null).map((m) => {
+                const alreadyAdded = absences.some((a) => a.nomFonction.startsWith(displayName(m.user!)))
                 return (
                   <button
                     key={m.id}
@@ -162,13 +162,13 @@ export default function Step03Procedures({ data, onChange }: Props) {
                         ...data,
                         absences: [
                           ...absences,
-                          { id: crypto.randomUUID(), nomFonction: `${displayName(m.user)} — ${fonction}`, remplacant: '' },
+                          { id: crypto.randomUUID(), nomFonction: `${displayName(m.user!)} — ${fonction}`, remplacant: '' },
                         ],
                       })
                     }}
                     className="text-xs px-2.5 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-muted hover:bg-muted/70"
                   >
-                    {alreadyAdded ? '✓ ' : '+'} {displayName(m.user)}
+                    {alreadyAdded ? '✓ ' : '+'} {displayName(m.user!)}
                   </button>
                 )
               })}

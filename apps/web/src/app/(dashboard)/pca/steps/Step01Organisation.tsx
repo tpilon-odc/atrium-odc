@@ -61,12 +61,12 @@ export default function Step01Organisation({ data, onChange }: Props) {
   // Pré-remplit depuis un membre sélectionné
   const fillFromMember = (memberId: string) => {
     const m = members.find((m) => m.userId === memberId)
-    if (!m) return
+    if (!m || !m.user) return
     onChange({
       ...data,
-      responsableCivilite: m.user.civility ?? '',
-      responsablePrenom: m.user.firstName ?? '',
-      responsableNom: m.user.lastName ?? '',
+      responsableCivilite: m.user!.civility ?? '',
+      responsablePrenom: m.user!.firstName ?? '',
+      responsableNom: m.user!.lastName ?? '',
       responsableFonction: m.role === 'owner' ? 'Dirigeant' : m.role === 'admin' ? 'Responsable' : 'Collaborateur',
     })
   }
@@ -106,7 +106,7 @@ export default function Step01Organisation({ data, onChange }: Props) {
             Moi-même
           </button>
           {members
-            .filter((m) => m.userId !== userRef.current?.id)
+            .filter((m) => m.user !== null && m.userId !== userRef.current?.id)
             .map((m) => (
               <button
                 key={m.id}
@@ -114,7 +114,7 @@ export default function Step01Organisation({ data, onChange }: Props) {
                 onClick={() => fillFromMember(m.userId)}
                 className="text-xs bg-muted hover:bg-muted/80 px-2.5 py-1 rounded-full transition-colors"
               >
-                {displayName(m.user)}
+                {displayName(m.user!)}
               </button>
             ))}
         </div>
@@ -198,9 +198,9 @@ export default function Step01Organisation({ data, onChange }: Props) {
           {members.length > 0 && (
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-xs text-muted-foreground">Ajouter un membre :</span>
-              {members.map((m) => {
+              {members.filter((m) => m.user !== null).map((m) => {
                 const alreadyAdded = list.some(
-                  (p) => p.nom === m.user.lastName && p.prenom === m.user.firstName
+                  (p) => p.nom === m.user!.lastName && p.prenom === m.user!.firstName
                 )
                 return (
                   <button
@@ -215,8 +215,8 @@ export default function Step01Organisation({ data, onChange }: Props) {
                           ...list,
                           {
                             id: crypto.randomUUID(),
-                            nom: m.user.lastName ?? '',
-                            prenom: m.user.firstName ?? '',
+                            nom: m.user!.lastName ?? '',
+                            prenom: m.user!.firstName ?? '',
                             fonction: m.role === 'owner' ? 'Dirigeant' : m.role === 'admin' ? 'Responsable' : 'Collaborateur',
                             typeAcces: '',
                           },
@@ -225,7 +225,7 @@ export default function Step01Organisation({ data, onChange }: Props) {
                     }}
                     className="text-xs px-2.5 py-1 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-muted hover:bg-muted/70"
                   >
-                    {alreadyAdded ? '✓ ' : '+'} {displayName(m.user)}
+                    {alreadyAdded ? '✓ ' : '+'} {displayName(m.user!)}
                   </button>
                 )
               })}

@@ -112,15 +112,15 @@ export default function Step02Donnees({ data, onChange }: Props) {
             Moi-même
           </button>
           {members
-            .filter((m) => m.userId !== userRef.current?.id)
+            .filter((m) => m.user !== null && m.userId !== userRef.current?.id)
             .map((m) => (
               <button
                 key={m.id}
                 type="button"
-                onClick={() => onChange({ ...data, responsableSupervisionCivilite: m.user.civility ?? '', responsableSupervisionPrenom: m.user.firstName ?? '', responsableSupervisionNom: m.user.lastName ?? '' })}
+                onClick={() => onChange({ ...data, responsableSupervisionCivilite: m.user!.civility ?? '', responsableSupervisionPrenom: m.user!.firstName ?? '', responsableSupervisionNom: m.user!.lastName ?? '' })}
                 className="text-xs bg-muted hover:bg-muted/80 px-2.5 py-1 rounded-full transition-colors"
               >
-                {displayName(m.user)}
+                {displayName(m.user!)}
               </button>
             ))}
         </div>
