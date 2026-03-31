@@ -214,7 +214,7 @@ export default function AdminProduitsPage() {
   const subcategories = data?.data.subcategories ?? []
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div>
         <h2 className="text-2xl font-semibold">Sous-catégories produits</h2>
         <p className="text-muted-foreground mt-1">Configurez les sous-catégories disponibles par catégorie principale.</p>

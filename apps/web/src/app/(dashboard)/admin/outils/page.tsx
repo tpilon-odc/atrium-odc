@@ -148,7 +148,7 @@ export default function AdminOutilsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div>
         <h2 className="text-2xl font-semibold">Catégories d&apos;outils</h2>
         <p className="text-muted-foreground mt-1">

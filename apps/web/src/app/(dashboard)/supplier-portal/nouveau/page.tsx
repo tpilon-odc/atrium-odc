@@ -35,7 +35,7 @@ export default function NouvellesFichePage() {
   })
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-6 max-w-7xl">
       <Link href="/supplier-portal" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ChevronLeft className="h-4 w-4" />
         Mes fiches

@@ -161,7 +161,7 @@ export default function PhaseDetailPage({ params }: { params: { phaseId: string 
     : 'bg-muted-foreground/20'
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <Link
         href="/conformite"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"

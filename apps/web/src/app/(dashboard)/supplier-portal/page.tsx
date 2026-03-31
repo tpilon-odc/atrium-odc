@@ -19,7 +19,7 @@ export default function SupplierPortalPage() {
   const suppliers = data?.data.suppliers ?? []
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Mes fiches fournisseur</h2>

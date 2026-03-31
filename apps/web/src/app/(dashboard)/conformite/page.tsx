@@ -162,7 +162,7 @@ export default function ConformitePage() {
     : 'bg-muted-foreground/20'
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       {/* En-tête avec progression globale */}
       <div>
         <div className="flex items-start justify-between gap-4">

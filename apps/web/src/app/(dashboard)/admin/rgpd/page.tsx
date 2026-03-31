@@ -187,7 +187,7 @@ export default function AdminRgpdPage() {
   const done = requests.filter((r) => r.status !== 'PENDING' && r.status !== 'PROCESSING')
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold flex items-center gap-2">

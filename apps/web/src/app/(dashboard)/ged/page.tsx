@@ -666,7 +666,7 @@ export default function GEDPage() {
   })
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4 max-w-7xl">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">Gestion documentaire</h2>

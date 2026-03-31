@@ -5,7 +5,7 @@ import PcaStepper from './PcaStepper'
 
 export default function PcaPage() {
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-6xl">
       <div>
         <div className="flex items-center gap-2.5">
           <ShieldCheck className="h-6 w-6 text-primary" />

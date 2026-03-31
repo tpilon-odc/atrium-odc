@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart, ShieldCheck, BarChart3 } from 'lucide-react'
+import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart, ShieldCheck, BarChart3, Landmark } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { contactApi, eventApi, type ContactType, type MaritalStatus, type InteractionType, type Interaction, type CalendarEvent, type EventType } from '@/lib/api'
@@ -12,6 +12,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ContactProfileTab } from '@/components/crm/ContactProfileTab'
 import { ContactAdequacyTab } from '@/components/crm/ContactAdequacyTab'
+import { ContactPatrimoineTab } from '@/components/crm/ContactPatrimoineTab'
 
 const EVENT_TYPE_COLORS: Record<EventType, string> = {
   RDV:        'text-blue-500',
@@ -177,7 +178,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   const queryClient = useQueryClient()
   const router = useRouter()
   const { id } = params
-  const [activeTab, setActiveTab] = useState<'interactions' | 'agenda' | 'profil_mifid' | 'adequation'>('interactions')
+  const [activeTab, setActiveTab] = useState<'interactions' | 'agenda' | 'profil_mifid' | 'adequation' | 'patrimoine'>('interactions')
   const [showNewEvent, setShowNewEvent] = useState(false)
 
   const { data, isLoading } = useQuery({
@@ -211,7 +212,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   })
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div className="flex items-center justify-between">
         <Link href="/crm" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ChevronLeft className="h-4 w-4" />
@@ -356,6 +357,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 { key: 'agenda', label: 'Agenda', icon: CalendarDays },
                 { key: 'profil_mifid', label: 'Profil MiFID', icon: ShieldCheck },
                 { key: 'adequation', label: 'Adéquation produits', icon: BarChart3 },
+                { key: 'patrimoine', label: 'Situation patrimoniale', icon: Landmark },
               ] as const).map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
@@ -451,6 +453,10 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
 
             {activeTab === 'adequation' && token && (
               <ContactAdequacyTab contactId={id} token={token} />
+            )}
+
+            {activeTab === 'patrimoine' && token && (
+              <ContactPatrimoineTab contactId={id} token={token} />
             )}
           </div>
         </>

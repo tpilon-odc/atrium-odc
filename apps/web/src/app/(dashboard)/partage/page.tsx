@@ -221,7 +221,7 @@ export default function PartagePage() {
   const isLoading = tab === 'granted' ? loadingGranted : tab === 'received' ? loadingReceived : loadingActivity
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Partage</h2>

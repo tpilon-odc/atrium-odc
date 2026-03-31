@@ -65,7 +65,7 @@ export default function NotificationsPage() {
   const nextCursor = data?.data.nextCursor ?? null
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Notifications</h2>

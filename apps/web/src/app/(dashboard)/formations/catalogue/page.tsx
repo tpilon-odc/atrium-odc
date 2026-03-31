@@ -128,7 +128,7 @@ export default function CataloguePage() {
   )
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <div className="flex items-center gap-3">
         <Link href="/formations" className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />

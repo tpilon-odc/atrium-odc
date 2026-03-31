@@ -216,7 +216,7 @@ export default function PhaseDetailPage({ params }: { params: { phaseId: string 
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       {/* Breadcrumb */}
       <Link
         href="/admin/conformite"

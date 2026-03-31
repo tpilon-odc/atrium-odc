@@ -345,4 +345,183 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(204).send()
     }
   )
+
+  // ── PATRIMOINE — ACTIFS ───────────────────────────────────────────────────
+
+  const assetBody = z.object({
+    type: z.enum(['immobilier', 'financier', 'professionnel', 'autre']),
+    label: z.string().min(1),
+    estimatedValue: z.number().nonnegative(),
+    notes: z.string().nullable().optional(),
+  })
+
+  app.get('/:id/assets', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const items = await prisma.contactAsset.findMany({
+      where: { cabinetId: request.cabinetId, contactId: id },
+      orderBy: { createdAt: 'asc' },
+    })
+    return reply.send({ data: { items } })
+  })
+
+  app.post('/:id/assets', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = assetBody.safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    const item = await prisma.contactAsset.create({
+      data: { cabinetId: request.cabinetId, contactId: id, ...body.data, notes: body.data.notes ?? null },
+    })
+    return reply.status(201).send({ data: { item } })
+  })
+
+  app.patch('/:id/assets/:assetId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, assetId } = request.params as { id: string; assetId: string }
+    const body = assetBody.partial().safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    const entry = await prisma.contactAsset.findFirst({ where: { id: assetId, cabinetId: request.cabinetId, contactId: id } })
+    if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
+    const item = await prisma.contactAsset.update({ where: { id: assetId }, data: body.data })
+    return reply.send({ data: { item } })
+  })
+
+  app.delete('/:id/assets/:assetId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, assetId } = request.params as { id: string; assetId: string }
+    const entry = await prisma.contactAsset.findFirst({ where: { id: assetId, cabinetId: request.cabinetId, contactId: id } })
+    if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
+    await prisma.contactAsset.delete({ where: { id: assetId } })
+    return reply.status(204).send()
+  })
+
+  // ── PATRIMOINE — PASSIFS ──────────────────────────────────────────────────
+
+  const liabilityBody = z.object({
+    type: z.enum(['immobilier', 'consommation', 'professionnel', 'autre']),
+    label: z.string().min(1),
+    outstandingAmount: z.number().nonnegative(),
+    monthlyPayment: z.number().nonnegative().nullable().optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    notes: z.string().nullable().optional(),
+  })
+
+  app.get('/:id/liabilities', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const items = await prisma.contactLiability.findMany({
+      where: { cabinetId: request.cabinetId, contactId: id },
+      orderBy: { createdAt: 'asc' },
+    })
+    return reply.send({ data: { items } })
+  })
+
+  app.post('/:id/liabilities', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = liabilityBody.safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    const item = await prisma.contactLiability.create({
+      data: {
+        cabinetId: request.cabinetId,
+        contactId: id,
+        ...body.data,
+        monthlyPayment: body.data.monthlyPayment ?? null,
+        endDate: body.data.endDate ? new Date(body.data.endDate) : null,
+        notes: body.data.notes ?? null,
+      },
+    })
+    return reply.status(201).send({ data: { item } })
+  })
+
+  app.patch('/:id/liabilities/:liabilityId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, liabilityId } = request.params as { id: string; liabilityId: string }
+    const body = liabilityBody.partial().safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    const entry = await prisma.contactLiability.findFirst({ where: { id: liabilityId, cabinetId: request.cabinetId, contactId: id } })
+    if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
+    const item = await prisma.contactLiability.update({
+      where: { id: liabilityId },
+      data: { ...body.data, endDate: body.data.endDate !== undefined ? (body.data.endDate ? new Date(body.data.endDate) : null) : undefined },
+    })
+    return reply.send({ data: { item } })
+  })
+
+  app.delete('/:id/liabilities/:liabilityId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, liabilityId } = request.params as { id: string; liabilityId: string }
+    const entry = await prisma.contactLiability.findFirst({ where: { id: liabilityId, cabinetId: request.cabinetId, contactId: id } })
+    if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
+    await prisma.contactLiability.delete({ where: { id: liabilityId } })
+    return reply.status(204).send()
+  })
+
+  // ── PATRIMOINE — REVENUS ──────────────────────────────────────────────────
+
+  const incomeBody = z.object({
+    type: z.enum(['salaire', 'foncier', 'dividendes', 'pension', 'autre']),
+    label: z.string().min(1),
+    annualAmount: z.number().nonnegative(),
+    notes: z.string().nullable().optional(),
+  })
+
+  app.get('/:id/incomes', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const items = await prisma.contactIncome.findMany({
+      where: { cabinetId: request.cabinetId, contactId: id },
+      orderBy: { createdAt: 'asc' },
+    })
+    return reply.send({ data: { items } })
+  })
+
+  app.post('/:id/incomes', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = incomeBody.safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    const item = await prisma.contactIncome.create({
+      data: { cabinetId: request.cabinetId, contactId: id, ...body.data, notes: body.data.notes ?? null },
+    })
+    return reply.status(201).send({ data: { item } })
+  })
+
+  app.patch('/:id/incomes/:incomeId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, incomeId } = request.params as { id: string; incomeId: string }
+    const body = incomeBody.partial().safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    const entry = await prisma.contactIncome.findFirst({ where: { id: incomeId, cabinetId: request.cabinetId, contactId: id } })
+    if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
+    const item = await prisma.contactIncome.update({ where: { id: incomeId }, data: body.data })
+    return reply.send({ data: { item } })
+  })
+
+  app.delete('/:id/incomes/:incomeId', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id, incomeId } = request.params as { id: string; incomeId: string }
+    const entry = await prisma.contactIncome.findFirst({ where: { id: incomeId, cabinetId: request.cabinetId, contactId: id } })
+    if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
+    await prisma.contactIncome.delete({ where: { id: incomeId } })
+    return reply.status(204).send()
+  })
+
+  // ── PATRIMOINE — FISCALITÉ ────────────────────────────────────────────────
+
+  const taxBody = z.object({
+    tmi: z.number().min(0).max(1).nullable().optional(),
+    regime: z.enum(['ir', 'is']).nullable().optional(),
+    pfuOption: z.boolean().optional(),
+    ifi: z.boolean().optional(),
+    ifiValue: z.number().nonnegative().nullable().optional(),
+    notes: z.string().nullable().optional(),
+  })
+
+  app.get('/:id/tax', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const tax = await prisma.contactTax.findFirst({ where: { cabinetId: request.cabinetId, contactId: id } })
+    return reply.send({ data: { tax } })
+  })
+
+  app.put('/:id/tax', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = taxBody.safeParse(request.body)
+    if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    const tax = await prisma.contactTax.upsert({
+      where: { cabinetId_contactId: { cabinetId: request.cabinetId, contactId: id } },
+      create: { cabinetId: request.cabinetId, contactId: id, ...body.data, tmi: body.data.tmi ?? null, regime: body.data.regime ?? null, ifiValue: body.data.ifiValue ?? null, notes: body.data.notes ?? null },
+      update: body.data,
+    })
+    return reply.send({ data: { tax } })
+  })
 }

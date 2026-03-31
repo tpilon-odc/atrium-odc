@@ -107,7 +107,7 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
         oriasNumber: true,
         logoUrl: true,
         createdAt: true,
-        _count: { select: { members: { where: { deletedAt: null } } } },
+        _count: { select: { members: { where: { deletedAt: null, isPublic: true } } } },
       },
     })
 

@@ -1215,7 +1215,7 @@ function MesDonneesSection() {
 
 export default function ParametresPage() {
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <div>
         <h2 className="text-2xl font-semibold">Paramètres</h2>
         <p className="text-muted-foreground mt-1">Gérez votre cabinet, vos membres et vos configurations.</p>

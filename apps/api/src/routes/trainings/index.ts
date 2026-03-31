@@ -9,17 +9,25 @@ const createCatalogBody = z.object({
   name: z.string().min(1, 'Le nom est requis'),
   organizer: z.string().optional(),
   category: z.string().optional(),
+  categoryId: z.string().uuid().nullable().optional(),
   defaultHours: z.number().positive().optional(),
 })
 
 const updateCatalogBody = createCatalogBody.partial()
 
+const categoryHoursSchema = z.array(z.object({
+  categoryId: z.string().uuid(),
+  hours: z.number().positive(),
+})).optional()
+
 const createTrainingBody = z.object({
-  userId: z.string().uuid('userId invalide'),
+  userId: z.string().uuid('userId invalide').optional(),
+  memberId: z.string().uuid('memberId invalide').optional(),
   trainingId: z.string().uuid('trainingId invalide'),
   trainingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format date invalide (YYYY-MM-DD)'),
   trainingDateEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format date invalide (YYYY-MM-DD)').optional(),
   hoursCompleted: z.number().positive().optional(),
+  categoryHours: categoryHoursSchema,
   certificateDocumentId: z.string().uuid().optional(),
   notes: z.string().optional(),
 })
@@ -34,6 +42,19 @@ const listTrainingsQuery = z.object({
 
 export const trainingRoutes: FastifyPluginAsync = async (app) => {
   // ══════════════════════════════════════════════════════════════════════════
+  // CATÉGORIES (paramétrables admin)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── GET /api/v1/trainings/categories ─────────────────────────────────────
+  app.get('/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const categories = await prisma.trainingCategory.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' },
+    })
+    return reply.send({ data: { categories } })
+  })
+
+  // ══════════════════════════════════════════════════════════════════════════
   // CATALOGUE (données communautaires)
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -46,6 +67,7 @@ export const trainingRoutes: FastifyPluginAsync = async (app) => {
         deletedAt: null,
         ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
       },
+      include: { trainingCategory: { select: { id: true, name: true, code: true } } },
       orderBy: { name: 'asc' },
     })
 
@@ -124,9 +146,11 @@ export const trainingRoutes: FastifyPluginAsync = async (app) => {
       },
       orderBy: { trainingDate: 'desc' },
       include: {
-        training: true,
+        training: { include: { trainingCategory: { select: { id: true, name: true, code: true } } } },
         user: { select: { id: true, email: true, firstName: true, lastName: true } },
+        member: { select: { id: true, externalFirstName: true, externalLastName: true, externalEmail: true } },
         certificate: { select: { id: true, name: true, mimeType: true } },
+        categoryHours: { include: { category: { select: { id: true, name: true, code: true } } } },
       },
     })
 
@@ -152,22 +176,42 @@ export const trainingRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Formation catalogue introuvable', code: 'NOT_FOUND' })
     }
 
-    const training = await prisma.collaboratorTraining.create({
-      data: {
-        cabinetId: request.cabinetId,
-        userId: result.data.userId,
-        trainingId: result.data.trainingId,
-        trainingDate: new Date(result.data.trainingDate),
-        trainingDateEnd: result.data.trainingDateEnd ? new Date(result.data.trainingDateEnd) : undefined,
-        hoursCompleted: result.data.hoursCompleted,
-        certificateDocumentId: result.data.certificateDocumentId,
-        notes: result.data.notes,
-      },
-      include: {
-        training: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true } },
-        certificate: { select: { id: true, name: true, mimeType: true } },
-      },
+    if (!result.data.userId && !result.data.memberId) {
+      return reply.status(400).send({ error: 'userId ou memberId requis', code: 'VALIDATION_ERROR' })
+    }
+
+    const includeShape = {
+      training: { include: { trainingCategory: { select: { id: true, name: true, code: true } } } },
+      user: { select: { id: true, email: true, firstName: true, lastName: true } },
+      member: { select: { id: true, externalFirstName: true, externalLastName: true, externalEmail: true } },
+      certificate: { select: { id: true, name: true, mimeType: true } },
+      categoryHours: { include: { category: { select: { id: true, name: true, code: true } } } },
+    } as const
+
+    const training = await prisma.$transaction(async (tx) => {
+      const record = await tx.collaboratorTraining.create({
+        data: {
+          cabinetId: request.cabinetId,
+          userId: result.data.userId,
+          memberId: result.data.memberId,
+          trainingId: result.data.trainingId,
+          trainingDate: new Date(result.data.trainingDate),
+          trainingDateEnd: result.data.trainingDateEnd ? new Date(result.data.trainingDateEnd) : undefined,
+          hoursCompleted: result.data.hoursCompleted,
+          certificateDocumentId: result.data.certificateDocumentId,
+          notes: result.data.notes,
+        },
+      })
+      if (result.data.categoryHours?.length) {
+        await tx.collaboratorTrainingHours.createMany({
+          data: result.data.categoryHours.map((ch) => ({
+            trainingRecordId: record.id,
+            categoryId: ch.categoryId,
+            hours: ch.hours,
+          })),
+        })
+      }
+      return tx.collaboratorTraining.findUniqueOrThrow({ where: { id: record.id }, include: includeShape })
     })
 
     // Si une attestation est jointe, ajouter le tag système "Attestation de formation"
@@ -204,20 +248,38 @@ export const trainingRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Formation introuvable', code: 'NOT_FOUND' })
     }
 
-    const training = await prisma.collaboratorTraining.update({
-      where: { id },
-      data: {
-        ...(result.data.trainingDate ? { trainingDate: new Date(result.data.trainingDate) } : {}),
-        ...(result.data.trainingDateEnd !== undefined ? { trainingDateEnd: result.data.trainingDateEnd ? new Date(result.data.trainingDateEnd) : null } : {}),
-        ...(result.data.hoursCompleted !== undefined ? { hoursCompleted: result.data.hoursCompleted } : {}),
-        ...(result.data.certificateDocumentId !== undefined ? { certificateDocumentId: result.data.certificateDocumentId } : {}),
-        ...(result.data.notes !== undefined ? { notes: result.data.notes } : {}),
-      },
-      include: {
-        training: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true } },
-        certificate: { select: { id: true, name: true, mimeType: true } },
-      },
+    const includeShape = {
+      training: { include: { trainingCategory: { select: { id: true, name: true, code: true } } } },
+      user: { select: { id: true, email: true, firstName: true, lastName: true } },
+      member: { select: { id: true, externalFirstName: true, externalLastName: true, externalEmail: true } },
+      certificate: { select: { id: true, name: true, mimeType: true } },
+      categoryHours: { include: { category: { select: { id: true, name: true, code: true } } } },
+    } as const
+
+    const training = await prisma.$transaction(async (tx) => {
+      await tx.collaboratorTraining.update({
+        where: { id },
+        data: {
+          ...(result.data.trainingDate ? { trainingDate: new Date(result.data.trainingDate) } : {}),
+          ...(result.data.trainingDateEnd !== undefined ? { trainingDateEnd: result.data.trainingDateEnd ? new Date(result.data.trainingDateEnd) : null } : {}),
+          ...(result.data.hoursCompleted !== undefined ? { hoursCompleted: result.data.hoursCompleted } : {}),
+          ...(result.data.certificateDocumentId !== undefined ? { certificateDocumentId: result.data.certificateDocumentId } : {}),
+          ...(result.data.notes !== undefined ? { notes: result.data.notes } : {}),
+        },
+      })
+      if (result.data.categoryHours !== undefined) {
+        await tx.collaboratorTrainingHours.deleteMany({ where: { trainingRecordId: id } })
+        if (result.data.categoryHours?.length) {
+          await tx.collaboratorTrainingHours.createMany({
+            data: result.data.categoryHours.map((ch) => ({
+              trainingRecordId: id,
+              categoryId: ch.categoryId,
+              hours: ch.hours,
+            })),
+          })
+        }
+      }
+      return tx.collaboratorTraining.findUniqueOrThrow({ where: { id }, include: includeShape })
     })
 
     return reply.send({ data: { training } })

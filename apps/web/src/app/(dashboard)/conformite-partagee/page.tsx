@@ -134,7 +134,7 @@ export default function ConformitePartageeePage() {
   }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <div>
         <h2 className="text-2xl font-semibold">Conformité partagée</h2>
         <p className="text-muted-foreground mt-1">

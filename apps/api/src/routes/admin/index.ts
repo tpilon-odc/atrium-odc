@@ -503,4 +503,59 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     await prisma.toolCategory.delete({ where: { id } })
     return reply.status(204).send()
   })
+
+  // ── GET /api/v1/admin/training-categories ─────────────────────────────────
+  app.get('/training-categories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (_request, reply) => {
+    const categories = await prisma.trainingCategory.findMany({ orderBy: { order: 'asc' } })
+    return reply.send({ data: { categories } })
+  })
+
+  // ── POST /api/v1/admin/training-categories ────────────────────────────────
+  app.post('/training-categories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const body = request.body as { name: string; code: string; requiredHours?: number; requiredHoursPeriod?: number }
+    if (!body?.name?.trim() || !body?.code?.trim()) {
+      return reply.status(400).send({ error: 'Le nom et le code sont requis', code: 'VALIDATION_ERROR' })
+    }
+    const maxOrder = await prisma.trainingCategory.aggregate({ _max: { order: true } })
+    const category = await prisma.trainingCategory.create({
+      data: {
+        name: body.name.trim(),
+        code: body.code.trim().toLowerCase(),
+        order: (maxOrder._max.order ?? 0) + 1,
+        ...(body.requiredHours != null ? { requiredHours: body.requiredHours } : {}),
+        ...(body.requiredHoursPeriod != null ? { requiredHoursPeriod: body.requiredHoursPeriod } : {}),
+      },
+    })
+    return reply.status(201).send({ data: { category } })
+  })
+
+  // ── PATCH /api/v1/admin/training-categories/:id ───────────────────────────
+  app.patch('/training-categories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { name?: string; code?: string; order?: number; isActive?: boolean; requiredHours?: number | null; requiredHoursPeriod?: number | null }
+    const category = await prisma.trainingCategory.update({
+      where: { id },
+      data: {
+        ...(body.name ? { name: body.name.trim() } : {}),
+        ...(body.code ? { code: body.code.trim().toLowerCase() } : {}),
+        ...(body.order !== undefined ? { order: body.order } : {}),
+        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+        ...(body.requiredHours !== undefined ? { requiredHours: body.requiredHours } : {}),
+        ...(body.requiredHoursPeriod !== undefined ? { requiredHoursPeriod: body.requiredHoursPeriod } : {}),
+      },
+    })
+    return reply.send({ data: { category } })
+  })
+
+  // ── DELETE /api/v1/admin/training-categories/:id ─────────────────────────
+  app.delete('/training-categories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    // Empêcher la suppression si des formations du catalogue l'utilisent
+    const count = await prisma.trainingCatalog.count({ where: { categoryId: id, deletedAt: null } })
+    if (count > 0) {
+      return reply.status(409).send({ error: `Cette catégorie est utilisée par ${count} formation(s) du catalogue`, code: 'IN_USE' })
+    }
+    await prisma.trainingCategory.delete({ where: { id } })
+    return reply.status(204).send()
+  })
 }

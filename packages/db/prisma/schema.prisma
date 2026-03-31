@@ -261,6 +261,10 @@ model Cabinet {
   pcaHistory            CabinetPcaHistory[]
   supplierCommercialContacts SupplierCommercialContact[]
   contactProducts            ContactProduct[]
+  contactAssets              ContactAsset[]
+  contactLiabilities         ContactLiability[]
+  contactIncomes             ContactIncome[]
+  contactTaxes               ContactTax[]
 
   @@map("cabinets")
 }
@@ -281,11 +285,92 @@ model CabinetMember {
   externalTitle      String?  @map("external_title")
   deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
 
-  cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
-  user    User?    @relation(fields: [userId], references: [id])
+  cabinet   Cabinet  @relation(fields: [cabinetId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
+  trainings CollaboratorTraining[]
 
   @@index([cabinetId])
   @@map("cabinet_members")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CRM — SITUATION PATRIMONIALE
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Actifs du contact (immobilier, financier, professionnel, autre)
+model ContactAsset {
+  id             String   @id @default(uuid()) @db.Uuid
+  cabinetId      String   @map("cabinet_id") @db.Uuid
+  contactId      String   @map("contact_id") @db.Uuid
+  type           String   // immobilier | financier | professionnel | autre
+  label          String
+  estimatedValue Float    @map("estimated_value")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@index([cabinetId, contactId])
+  @@map("contact_assets")
+}
+
+/// Passifs du contact (crédits en cours)
+model ContactLiability {
+  id               String    @id @default(uuid()) @db.Uuid
+  cabinetId        String    @map("cabinet_id") @db.Uuid
+  contactId        String    @map("contact_id") @db.Uuid
+  type             String    // immobilier | consommation | professionnel | autre
+  label            String
+  outstandingAmount Float    @map("outstanding_amount")
+  monthlyPayment   Float?   @map("monthly_payment")
+  endDate          DateTime? @map("end_date") @db.Date
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@index([cabinetId, contactId])
+  @@map("contact_liabilities")
+}
+
+/// Revenus du contact (par source)
+model ContactIncome {
+  id           String   @id @default(uuid()) @db.Uuid
+  cabinetId    String   @map("cabinet_id") @db.Uuid
+  contactId    String   @map("contact_id") @db.Uuid
+  type         String   // salaire | foncier | dividendes | pension | autre
+  label        String
+  annualAmount Float    @map("annual_amount")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@index([cabinetId, contactId])
+  @@map("contact_incomes")
+}
+
+/// Fiscalité du contact (ligne unique par contact par cabinet)
+model ContactTax {
+  id          String   @id @default(uuid()) @db.Uuid
+  cabinetId   String   @map("cabinet_id") @db.Uuid
+  contactId   String   @map("contact_id") @db.Uuid
+  tmi         Float?                          // tranche marginale d'imposition (0.11, 0.30, 0.41, 0.45)
+  regime      String?                         // ir | is
+  pfuOption   Boolean  @default(false) @map("pfu_option")
+  ifi         Boolean  @default(false)        // assujetti IFI
+  ifiValue    Float?   @map("ifi_value")      // valeur du patrimoine taxable IFI
+  notes       String?
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@unique([cabinetId, contactId])
+  @@map("contact_taxes")
 }
 
 /// Produits effectivement vendus à un contact par un cabinet
@@ -980,11 +1065,15 @@ model Contact {
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
   deletedAt     DateTime?      @map("deleted_at") @db.Timestamptz
 
-  cabinet         Cabinet       @relation(fields: [cabinetId], references: [id])
-  interactions    Interaction[]
-  events          Event[]
-  profiles        CabinetContactProfile[]
-  contactProducts ContactProduct[]
+  cabinet           Cabinet       @relation(fields: [cabinetId], references: [id])
+  interactions      Interaction[]
+  events            Event[]
+  profiles          CabinetContactProfile[]
+  contactProducts   ContactProduct[]
+  contactAssets     ContactAsset[]
+  contactLiabilities ContactLiability[]
+  contactIncomes    ContactIncome[]
+  contactTax        ContactTax[]
 
   @@index([cabinetId])
   @@map("contacts")
@@ -1191,17 +1280,35 @@ model ExportJob {
 // FORMATIONS
 // ──────────────────────────────────────────────────────────────────────────────
 
+/// Catégories de formations paramétrables par l'administrateur plateforme
+model TrainingCategory {
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String
+  code                 String   @unique
+  order                Int      @default(0)
+  isActive             Boolean  @default(true) @map("is_active")
+  requiredHours        Float?   @map("required_hours")
+  requiredHoursPeriod  Int?     @default(1) @map("required_hours_period")
+
+  trainingCatalogs      TrainingCatalog[]
+  collaboratorHours     CollaboratorTrainingHours[]
+
+  @@map("training_categories")
+}
+
 model TrainingCatalog {
   id           String   @id @default(uuid()) @db.Uuid
   name         String
   organizer    String?
   category     String?
+  categoryId   String?  @map("category_id") @db.Uuid
   defaultHours Float?   @map("default_hours")
   createdBy    String   @map("created_by") @db.Uuid
   isVerified   Boolean  @default(false) @map("is_verified")
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
 
   creator               User                   @relation(fields: [createdBy], references: [id])
+  trainingCategory      TrainingCategory?      @relation(fields: [categoryId], references: [id])
   collaboratorTrainings CollaboratorTraining[]
 
   @@map("training_catalog")
@@ -1210,7 +1317,8 @@ model TrainingCatalog {
 model CollaboratorTraining {
   id                    String    @id @default(uuid()) @db.Uuid
   cabinetId             String    @map("cabinet_id") @db.Uuid
-  userId                String    @map("user_id") @db.Uuid
+  userId                String?   @map("user_id") @db.Uuid
+  memberId              String?   @map("member_id") @db.Uuid
   trainingId            String    @map("training_id") @db.Uuid
   trainingDate          DateTime  @map("training_date") @db.Date
   trainingDateEnd       DateTime? @map("training_date_end") @db.Date
@@ -1221,13 +1329,29 @@ model CollaboratorTraining {
   deletedAt             DateTime? @map("deleted_at") @db.Timestamptz
 
   cabinet     Cabinet         @relation(fields: [cabinetId], references: [id])
-  user        User            @relation(fields: [userId], references: [id])
+  user        User?           @relation(fields: [userId], references: [id])
+  member      CabinetMember?  @relation(fields: [memberId], references: [id])
   training    TrainingCatalog @relation(fields: [trainingId], references: [id])
   certificate Document?       @relation(fields: [certificateDocumentId], references: [id])
+  categoryHours CollaboratorTrainingHours[]
 
   @@index([cabinetId])
   @@index([userId])
   @@map("collaborator_trainings")
+}
+
+/// Heures par catégorie réglementaire pour une formation suivie
+model CollaboratorTrainingHours {
+  id           String  @id @default(uuid()) @db.Uuid
+  trainingRecordId String @map("training_record_id") @db.Uuid
+  categoryId   String  @map("category_id") @db.Uuid
+  hours        Float
+
+  trainingRecord CollaboratorTraining @relation(fields: [trainingRecordId], references: [id], onDelete: Cascade)
+  category       TrainingCategory     @relation(fields: [categoryId], references: [id])
+
+  @@unique([trainingRecordId, categoryId])
+  @@map("collaborator_training_hours")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

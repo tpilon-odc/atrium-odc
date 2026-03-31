@@ -171,7 +171,7 @@ export default function DashboardPage() {
   const actionCount = urgentItems.length + notStartedItems.length
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-7xl">
       {/* En-tête */}
       <div>
         <h2 className="text-2xl font-semibold">Tableau de bord</h2>

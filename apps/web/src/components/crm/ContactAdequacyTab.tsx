@@ -2,10 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Info, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
+import { AlertTriangle, Info, Plus, X, Check } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { format } from 'date-fns'
-import { fr } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { type AdequacyVerdict, contactApi, productApi, type ContactProduct } from '@/lib/api'
 import { useContactAdequacy, type AdequacyRow } from '@/hooks/useContactAdequacy'
@@ -160,129 +158,6 @@ function SoldProductForm({
   )
 }
 
-// ── Section produits vendus ───────────────────────────────────────────────────
-
-function SoldProductsSection({
-  contactId,
-  token,
-  adequacyResults,
-}: {
-  contactId: string
-  token: string
-  adequacyResults: AdequacyRow[]
-}) {
-  const queryClient = useQueryClient()
-  const [adding, setAdding] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['contact-sold-products', contactId],
-    queryFn: () => contactApi.listProducts(contactId, token),
-    enabled: !!token,
-  })
-  const items = data?.data.items ?? []
-
-  const removeMutation = useMutation({
-    mutationFn: (id: string) => contactApi.removeProduct(contactId, id, token),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['contact-sold-products', contactId] }),
-  })
-
-  // Trouver l'adéquation courante d'un produit vendu
-  const getAdequacy = (productId: string) =>
-    adequacyResults.find((r) => r.product.id === productId)?.adequacy
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Produits vendus ({items.length})</h3>
-        {!adding && (
-          <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Enregistrer une vente
-          </Button>
-        )}
-      </div>
-
-      {adding && (
-        <SoldProductForm
-          contactId={contactId}
-          token={token}
-          onClose={() => setAdding(false)}
-        />
-      )}
-
-      {isLoading ? (
-        <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}</div>
-      ) : items.length === 0 && !adding ? (
-        <p className="text-sm text-muted-foreground italic">Aucun produit vendu enregistré.</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item) => {
-            const adequacy = getAdequacy(item.productId)
-            return (
-              <div key={item.id}>
-                {editingId === item.id ? (
-                  <SoldProductForm
-                    contactId={contactId}
-                    token={token}
-                    entry={item}
-                    onClose={() => setEditingId(null)}
-                  />
-                ) : (
-                  <div className="flex items-center gap-3 border border-border rounded-lg px-4 py-3 bg-card">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Link href={`/produits/${item.productId}`} className="text-sm font-medium hover:underline truncate">
-                          {item.product.name}
-                        </Link>
-                        {item.product.category && (
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
-                            {item.product.category}
-                          </span>
-                        )}
-                        {adequacy && adequacy.global !== 'non_evalue' && (
-                          <span className={cn(
-                            'text-xs px-2 py-0.5 rounded-full font-medium shrink-0',
-                            adequacy.global === 'positif' ? 'bg-green-100 text-green-700' :
-                            adequacy.global === 'neutre' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-red-100 text-red-700'
-                          )}>
-                            {VERDICT_GLOBAL_LABEL[adequacy.global]}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                        <span>Vendu le {format(new Date(item.soldAt), 'd MMM yyyy', { locale: fr })}</span>
-                        {item.amount != null && (
-                          <span className="font-medium text-foreground">
-                            {item.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                          </span>
-                        )}
-                        {item.notes && <span className="truncate max-w-xs">{item.notes}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={() => setEditingId(item.id)} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => confirm(`Retirer ${item.product.name} des produits vendus ?`) && removeMutation.mutate(item.id)}
-                        className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Composant principal ───────────────────────────────────────────────────────
 
 export function ContactAdequacyTab({
@@ -318,18 +193,8 @@ export function ContactAdequacyTab({
   return (
     <div className="space-y-6">
 
-      {/* ── Section produits vendus ── */}
-      <SoldProductsSection
-        contactId={contactId}
-        token={token}
-        adequacyResults={results}
-      />
-
-      <div className="border-t border-border" />
-
       {/* ── Section adéquation ── */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium">Adéquation produits</h3>
 
         {!hasProfile ? (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-5 flex flex-col items-start gap-3">

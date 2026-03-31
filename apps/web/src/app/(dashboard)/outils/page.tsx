@@ -122,7 +122,7 @@ export default function OutilsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Outils</h2>

@@ -511,7 +511,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!ready) return null
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-x-hidden">
 
       {/* ── Sidebar (desktop) ────────────────────────────────────────────── */}
       <aside className="hidden md:flex w-60 flex-col bg-card border-r border-border shrink-0">
@@ -602,6 +602,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     label="Catégories d'outils"
                     icon={Wrench}
                     isActive={pathname.startsWith('/admin/outils')}
+                  />
+                </li>
+                <li>
+                  <SidebarLink
+                    href="/admin/formations"
+                    label="Catégories de formations"
+                    icon={GraduationCap}
+                    isActive={pathname.startsWith('/admin/formations')}
                   />
                 </li>
               </ul>

@@ -883,6 +883,42 @@ export const contactApi = {
 
   removeProduct: (contactId: string, productEntryId: string, token: string) =>
     call<unknown>(`/api/v1/contacts/${contactId}/products/${productEntryId}`, { method: 'DELETE', token }),
+
+  // Assets
+  listAssets: (contactId: string, token: string) =>
+    call<{ items: ContactAsset[] }>(`/api/v1/contacts/${contactId}/assets`, { token }),
+  addAsset: (contactId: string, data: Omit<ContactAsset, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>, token: string) =>
+    call<{ item: ContactAsset }>(`/api/v1/contacts/${contactId}/assets`, { method: 'POST', body: JSON.stringify(data), token }),
+  updateAsset: (contactId: string, assetId: string, data: Partial<Omit<ContactAsset, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>>, token: string) =>
+    call<{ item: ContactAsset }>(`/api/v1/contacts/${contactId}/assets/${assetId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+  removeAsset: (contactId: string, assetId: string, token: string) =>
+    call<unknown>(`/api/v1/contacts/${contactId}/assets/${assetId}`, { method: 'DELETE', token }),
+
+  // Liabilities
+  listLiabilities: (contactId: string, token: string) =>
+    call<{ items: ContactLiability[] }>(`/api/v1/contacts/${contactId}/liabilities`, { token }),
+  addLiability: (contactId: string, data: Omit<ContactLiability, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>, token: string) =>
+    call<{ item: ContactLiability }>(`/api/v1/contacts/${contactId}/liabilities`, { method: 'POST', body: JSON.stringify(data), token }),
+  updateLiability: (contactId: string, liabilityId: string, data: Partial<Omit<ContactLiability, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>>, token: string) =>
+    call<{ item: ContactLiability }>(`/api/v1/contacts/${contactId}/liabilities/${liabilityId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+  removeLiability: (contactId: string, liabilityId: string, token: string) =>
+    call<unknown>(`/api/v1/contacts/${contactId}/liabilities/${liabilityId}`, { method: 'DELETE', token }),
+
+  // Incomes
+  listIncomes: (contactId: string, token: string) =>
+    call<{ items: ContactIncome[] }>(`/api/v1/contacts/${contactId}/incomes`, { token }),
+  addIncome: (contactId: string, data: Omit<ContactIncome, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>, token: string) =>
+    call<{ item: ContactIncome }>(`/api/v1/contacts/${contactId}/incomes`, { method: 'POST', body: JSON.stringify(data), token }),
+  updateIncome: (contactId: string, incomeId: string, data: Partial<Omit<ContactIncome, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>>, token: string) =>
+    call<{ item: ContactIncome }>(`/api/v1/contacts/${contactId}/incomes/${incomeId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+  removeIncome: (contactId: string, incomeId: string, token: string) =>
+    call<unknown>(`/api/v1/contacts/${contactId}/incomes/${incomeId}`, { method: 'DELETE', token }),
+
+  // Tax
+  getTax: (contactId: string, token: string) =>
+    call<{ tax: ContactTax | null }>(`/api/v1/contacts/${contactId}/tax`, { token }),
+  upsertTax: (contactId: string, data: Partial<Omit<ContactTax, 'id' | 'cabinetId' | 'contactId' | 'updatedAt'>>, token: string) =>
+    call<{ tax: ContactTax }>(`/api/v1/contacts/${contactId}/tax`, { method: 'PUT', body: JSON.stringify(data), token }),
 }
 
 export type ContactProduct = {
@@ -895,6 +931,54 @@ export type ContactProduct = {
   notes: string | null
   createdAt: string
   product: { id: string; name: string; category: string | null; mainCategory: string | null }
+}
+
+export type ContactAsset = {
+  id: string
+  cabinetId: string
+  contactId: string
+  type: 'immobilier' | 'financier' | 'professionnel' | 'autre'
+  label: string
+  estimatedValue: number
+  notes: string | null
+  createdAt: string
+}
+
+export type ContactLiability = {
+  id: string
+  cabinetId: string
+  contactId: string
+  type: 'immobilier' | 'consommation' | 'professionnel' | 'autre'
+  label: string
+  outstandingAmount: number
+  monthlyPayment: number | null
+  endDate: string | null
+  notes: string | null
+  createdAt: string
+}
+
+export type ContactIncome = {
+  id: string
+  cabinetId: string
+  contactId: string
+  type: 'salaire' | 'foncier' | 'dividendes' | 'pension' | 'autre'
+  label: string
+  annualAmount: number
+  notes: string | null
+  createdAt: string
+}
+
+export type ContactTax = {
+  id: string
+  cabinetId: string
+  contactId: string
+  tmi: number | null
+  regime: 'ir' | 'is' | null
+  pfuOption: boolean
+  ifi: boolean
+  ifiValue: number | null
+  notes: string | null
+  updatedAt: string
 }
 
 // ── Admin compliance ──────────────────────────────────────────────────────────
@@ -991,20 +1075,41 @@ export const adminComplianceApi = {
 
 // ── Formations ────────────────────────────────────────────────────────────────
 
+export type TrainingCategory = {
+  id: string
+  name: string
+  code: string
+  order: number
+  isActive: boolean
+  requiredHours: number | null
+  requiredHoursPeriod: number | null
+}
+
 export type TrainingCatalogEntry = {
   id: string
   name: string
   organizer: string | null
   category: string | null
+  categoryId: string | null
+  trainingCategory: { id: string; name: string; code: string } | null
   defaultHours: number | null
   isVerified: boolean
   createdBy: string
 }
 
+export type TrainingCategoryHours = {
+  id: string
+  trainingRecordId: string
+  categoryId: string
+  hours: number
+  category: { id: string; name: string; code: string }
+}
+
 export type CollaboratorTraining = {
   id: string
   cabinetId: string
-  userId: string
+  userId: string | null
+  memberId: string | null
   trainingId: string
   trainingDate: string
   trainingDateEnd: string | null
@@ -1013,7 +1118,9 @@ export type CollaboratorTraining = {
   certificate?: { id: string; name: string; mimeType: string | null } | null
   notes: string | null
   training: TrainingCatalogEntry
-  user: { id: string; email: string; firstName?: string | null; lastName?: string | null }
+  user: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
+  member: { id: string; externalFirstName: string | null; externalLastName: string | null; externalEmail: string | null } | null
+  categoryHours: TrainingCategoryHours[]
 }
 
 export const trainingApi = {
@@ -1040,14 +1147,14 @@ export const trainingApi = {
     )
   },
 
-  create: (data: { userId: string; trainingId: string; trainingDate: string; trainingDateEnd?: string; hoursCompleted?: number; certificateDocumentId?: string; notes?: string }, token: string) =>
+  create: (data: { userId?: string; memberId?: string; trainingId: string; trainingDate: string; trainingDateEnd?: string; hoursCompleted?: number; categoryHours?: { categoryId: string; hours: number }[]; certificateDocumentId?: string; notes?: string }, token: string) =>
     call<{ training: CollaboratorTraining }>('/api/v1/trainings', {
       method: 'POST',
       body: JSON.stringify(data),
       token,
     }),
 
-  update: (id: string, data: { trainingDate?: string; trainingDateEnd?: string | null; hoursCompleted?: number | null; certificateDocumentId?: string | null; notes?: string | null }, token: string) =>
+  update: (id: string, data: { trainingDate?: string; trainingDateEnd?: string | null; hoursCompleted?: number | null; categoryHours?: { categoryId: string; hours: number }[]; certificateDocumentId?: string | null; notes?: string | null }, token: string) =>
     call<{ training: CollaboratorTraining }>(`/api/v1/trainings/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -1056,6 +1163,20 @@ export const trainingApi = {
 
   delete: (id: string, token: string) =>
     call<unknown>(`/api/v1/trainings/${id}`, { method: 'DELETE', token }),
+
+  listCategories: (token: string) =>
+    call<{ categories: TrainingCategory[] }>('/api/v1/trainings/categories', { token }),
+}
+
+export const adminTrainingCategoryApi = {
+  list: (token: string) =>
+    call<{ categories: TrainingCategory[] }>('/api/v1/admin/training-categories', { token }),
+  create: (data: { name: string; code: string; requiredHours?: number; requiredHoursPeriod?: number }, token: string) =>
+    call<{ category: TrainingCategory }>('/api/v1/admin/training-categories', { method: 'POST', body: JSON.stringify(data), token }),
+  update: (id: string, data: { name?: string; code?: string; order?: number; isActive?: boolean; requiredHours?: number | null; requiredHoursPeriod?: number | null }, token: string) =>
+    call<{ category: TrainingCategory }>(`/api/v1/admin/training-categories/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+  remove: (id: string, token: string) =>
+    call<unknown>(`/api/v1/admin/training-categories/${id}`, { method: 'DELETE', token }),
 }
 
 // ── Partage ────────────────────────────────────────────────────────────────────
@@ -1538,7 +1659,7 @@ export const memberApi = {
       token,
     }),
 
-  update: (memberId: string, data: { role?: 'admin' | 'member'; canManageSuppliers?: boolean; canManageProducts?: boolean; canManageContacts?: boolean; isPublic?: boolean }, token: string) =>
+  update: (memberId: string, data: { role?: 'admin' | 'member'; canManageSuppliers?: boolean; canManageProducts?: boolean; canManageContacts?: boolean; isPublic?: boolean; externalFirstName?: string; externalLastName?: string; externalEmail?: string; externalTitle?: string }, token: string) =>
     call<{ member: CabinetMember }>(`/api/v1/cabinets/me/members/${memberId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

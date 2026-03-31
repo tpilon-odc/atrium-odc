@@ -286,7 +286,7 @@ export default function AdminGouvernancePage() {
   const axes = data?.data.axes ?? []
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <div>
         <h2 className="text-2xl font-semibold">Axes de gouvernance produits</h2>
         <p className="text-muted-foreground mt-1">

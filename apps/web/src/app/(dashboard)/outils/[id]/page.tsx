@@ -112,7 +112,7 @@ export default function OutilDetailPage({ params }: { params: { id: string } }) 
   const tool = data?.data.tool
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-6xl">
       <Link href="/outils" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ChevronLeft className="h-4 w-4" />
         Retour aux outils

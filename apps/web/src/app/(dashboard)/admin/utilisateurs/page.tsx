@@ -376,7 +376,7 @@ export default function PlatformUsersPage() {
   const users = showInactive ? allUsers : allUsers.filter((u) => u.isActive !== false)
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-7xl">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Utilisateurs</h2>

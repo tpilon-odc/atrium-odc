@@ -110,7 +110,7 @@ export default function ProfilPage() {
   }
 
   return (
-    <div className="max-w-lg space-y-8">
+    <div className="max-w-3xl space-y-8">
       <div>
         <h2 className="text-2xl font-semibold">Mon profil</h2>
         <p className="text-muted-foreground mt-1 text-sm">Personnalisez votre identité sur la plateforme.</p>
