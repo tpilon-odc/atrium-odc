@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-import { type AdequacyVerdict, contactApi, type ContactProduct } from '@/lib/api'
+import { type AdequacyVerdict, contactApi, productApi, type ContactProduct } from '@/lib/api'
 import { useContactAdequacy, type AdequacyRow } from '@/hooks/useContactAdequacy'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,14 +51,12 @@ type FilterMode = 'all' | 'positif' | 'exclude_negative'
 function SoldProductForm({
   contactId,
   token,
-  adequacyResults,
   initialProductId,
   entry,
   onClose,
 }: {
   contactId: string
   token: string
-  adequacyResults: AdequacyRow[]
   initialProductId?: string
   entry?: ContactProduct
   onClose: () => void
@@ -70,6 +68,13 @@ function SoldProductForm({
   const [notes, setNotes] = useState(entry?.notes ?? '')
 
   const isEdit = !!entry
+
+  const { data: productsData } = useQuery({
+    queryKey: ['products', token, 'all'],
+    queryFn: () => productApi.list(token, { limit: 100 }),
+    enabled: !!token && !isEdit,
+  })
+  const catalogProducts = productsData?.data.products ?? []
 
   const mutation = useMutation({
     mutationFn: () => isEdit
@@ -108,9 +113,9 @@ function SoldProductForm({
             className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="">— Sélectionner un produit —</option>
-            {adequacyResults.map((r) => (
-              <option key={r.product.id} value={r.product.id}>
-                {r.product.name}{r.product.category ? ` — ${r.product.category}` : ''}
+            {catalogProducts.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}{p.category ? ` — ${p.category}` : ''}
               </option>
             ))}
           </select>
@@ -161,12 +166,10 @@ function SoldProductsSection({
   contactId,
   token,
   adequacyResults,
-  soldProductIds,
 }: {
   contactId: string
   token: string
   adequacyResults: AdequacyRow[]
-  soldProductIds: Set<string>
 }) {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
@@ -204,7 +207,6 @@ function SoldProductsSection({
         <SoldProductForm
           contactId={contactId}
           token={token}
-          adequacyResults={adequacyResults}
           onClose={() => setAdding(false)}
         />
       )}
@@ -223,7 +225,6 @@ function SoldProductsSection({
                   <SoldProductForm
                     contactId={contactId}
                     token={token}
-                    adequacyResults={adequacyResults}
                     entry={item}
                     onClose={() => setEditingId(null)}
                   />
@@ -303,6 +304,7 @@ export function ContactAdequacyTab({
   const soldProductIds = new Set((soldData?.data.items ?? []).map((i) => i.productId))
 
   if (isLoading) {
+
     return <div className="h-40 bg-muted animate-pulse rounded-lg" />
   }
 
@@ -321,7 +323,6 @@ export function ContactAdequacyTab({
         contactId={contactId}
         token={token}
         adequacyResults={results}
-        soldProductIds={soldProductIds}
       />
 
       <div className="border-t border-border" />
@@ -488,7 +489,6 @@ export function ContactAdequacyTab({
                                 <SoldProductForm
                                   contactId={contactId}
                                   token={token}
-                                  adequacyResults={results}
                                   initialProductId={row.product.id}
                                   onClose={() => setAddingFromRow(null)}
                                 />
