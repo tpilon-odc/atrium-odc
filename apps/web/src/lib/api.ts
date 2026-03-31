@@ -857,7 +857,7 @@ export const contactApi = {
   getAdequacy: (contactId: string, token: string) =>
     call<{
       results: Array<{
-        product: { id: string; name: string; category: string | null }
+        product: { id: string; name: string; category: string | null; isActive: boolean }
         governance: Record<string, unknown>
         adequacy: AdequacyResult
       }>

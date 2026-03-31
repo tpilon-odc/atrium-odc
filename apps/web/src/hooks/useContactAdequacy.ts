@@ -3,7 +3,7 @@ import { contactApi, type AdequacyResult } from '@/lib/api'
 import { useMemo } from 'react'
 
 export type AdequacyRow = {
-  product: { id: string; name: string; category: string | null }
+  product: { id: string; name: string; category: string | null; isActive: boolean }
   governance: Record<string, unknown>
   adequacy: AdequacyResult
 }

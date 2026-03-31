@@ -213,9 +213,24 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
         return reply.send({ data: { results: [], hasProfile: false } })
       }
 
+      // Produits vendus à ce contact (pour inclure même les retirés du marché)
+      const soldProductIds = await prisma.contactProduct.findMany({
+        where: { cabinetId, contactId: id },
+        select: { productId: true },
+      }).then((rows) => rows.map((r) => r.productId))
+
       const governances = await prisma.cabinetProductGovernance.findMany({
-        where: { cabinetId, status: 'active' },
-        include: { product: { select: { id: true, name: true, category: true } } },
+        where: {
+          cabinetId,
+          status: 'active',
+          product: {
+            OR: [
+              { isActive: true },
+              { id: { in: soldProductIds } },
+            ],
+          },
+        },
+        include: { product: { select: { id: true, name: true, category: true, isActive: true } } },
         orderBy: { product: { name: 'asc' } },
       })
 

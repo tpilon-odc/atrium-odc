@@ -423,9 +423,16 @@ export function ContactAdequacyTab({
                             )}
                           >
                             <td className="px-3 py-2.5">
-                              <Link href={`/produits/${row.product.id}`} className="font-medium text-foreground hover:underline">
-                                {row.product.name}
-                              </Link>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Link href={`/produits/${row.product.id}`} className="font-medium text-foreground hover:underline">
+                                  {row.product.name}
+                                </Link>
+                                {!row.product.isActive && (
+                                  <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium shrink-0">
+                                    Retiré
+                                  </span>
+                                )}
+                              </div>
                               {row.product.category && (
                                 <p className="text-muted-foreground">{row.product.category}</p>
                               )}
