@@ -863,6 +863,38 @@ export const contactApi = {
       }>
       hasProfile: boolean
     }>(`/api/v1/contacts/${contactId}/adequacy`, { token }),
+
+  listProducts: (contactId: string, token: string) =>
+    call<{ items: ContactProduct[] }>(`/api/v1/contacts/${contactId}/products`, { token }),
+
+  addProduct: (contactId: string, data: { productId: string; soldAt: string; amount?: number | null; notes?: string | null }, token: string) =>
+    call<{ item: ContactProduct }>(`/api/v1/contacts/${contactId}/products`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updateProduct: (contactId: string, productEntryId: string, data: { soldAt?: string; amount?: number | null; notes?: string | null }, token: string) =>
+    call<{ item: ContactProduct }>(`/api/v1/contacts/${contactId}/products/${productEntryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  removeProduct: (contactId: string, productEntryId: string, token: string) =>
+    call<unknown>(`/api/v1/contacts/${contactId}/products/${productEntryId}`, { method: 'DELETE', token }),
+}
+
+export type ContactProduct = {
+  id: string
+  cabinetId: string
+  contactId: string
+  productId: string
+  soldAt: string
+  amount: number | null
+  notes: string | null
+  createdAt: string
+  product: { id: string; name: string; category: string | null; mainCategory: string | null }
 }
 
 // ── Admin compliance ──────────────────────────────────────────────────────────

@@ -228,4 +228,106 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
       return reply.send({ data: { results, hasProfile: true } })
     }
   )
+
+  // ── GET /api/v1/contacts/:id/products ────────────────────────────────────
+  app.get(
+    '/:id/products',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const items = await prisma.contactProduct.findMany({
+        where: { cabinetId: request.cabinetId, contactId: id },
+        include: {
+          product: { select: { id: true, name: true, category: true, mainCategory: true } },
+        },
+        orderBy: { soldAt: 'desc' },
+      })
+      return reply.send({ data: { items } })
+    }
+  )
+
+  // ── POST /api/v1/contacts/:id/products ───────────────────────────────────
+  app.post(
+    '/:id/products',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const body = z.object({
+        productId: z.string().uuid(),
+        soldAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format YYYY-MM-DD attendu'),
+        amount: z.number().positive().nullable().optional(),
+        notes: z.string().nullable().optional(),
+      }).safeParse(request.body)
+
+      if (!body.success) {
+        return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+      }
+
+      const item = await prisma.contactProduct.create({
+        data: {
+          cabinetId: request.cabinetId,
+          contactId: id,
+          productId: body.data.productId,
+          soldAt: new Date(body.data.soldAt),
+          amount: body.data.amount ?? null,
+          notes: body.data.notes ?? null,
+        },
+        include: {
+          product: { select: { id: true, name: true, category: true, mainCategory: true } },
+        },
+      })
+      return reply.status(201).send({ data: { item } })
+    }
+  )
+
+  // ── PATCH /api/v1/contacts/:id/products/:productEntryId ──────────────────
+  app.patch(
+    '/:id/products/:productEntryId',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const { id, productEntryId } = request.params as { id: string; productEntryId: string }
+      const body = z.object({
+        soldAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        amount: z.number().positive().nullable().optional(),
+        notes: z.string().nullable().optional(),
+      }).safeParse(request.body)
+
+      if (!body.success) {
+        return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
+      }
+
+      const entry = await prisma.contactProduct.findFirst({
+        where: { id: productEntryId, cabinetId: request.cabinetId, contactId: id },
+      })
+      if (!entry) return reply.status(404).send({ error: 'Entrée introuvable', code: 'NOT_FOUND' })
+
+      const updated = await prisma.contactProduct.update({
+        where: { id: productEntryId },
+        data: {
+          ...(body.data.soldAt ? { soldAt: new Date(body.data.soldAt) } : {}),
+          ...(body.data.amount !== undefined ? { amount: body.data.amount } : {}),
+          ...(body.data.notes !== undefined ? { notes: body.data.notes } : {}),
+        },
+        include: {
+          product: { select: { id: true, name: true, category: true, mainCategory: true } },
+        },
+      })
+      return reply.send({ data: { item: updated } })
+    }
+  )
+
+  // ── DELETE /api/v1/contacts/:id/products/:productEntryId ─────────────────
+  app.delete(
+    '/:id/products/:productEntryId',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const { id, productEntryId } = request.params as { id: string; productEntryId: string }
+      const entry = await prisma.contactProduct.findFirst({
+        where: { id: productEntryId, cabinetId: request.cabinetId, contactId: id },
+      })
+      if (!entry) return reply.status(404).send({ error: 'Entrée introuvable', code: 'NOT_FOUND' })
+      await prisma.contactProduct.delete({ where: { id: productEntryId } })
+      return reply.status(204).send()
+    }
+  )
 }

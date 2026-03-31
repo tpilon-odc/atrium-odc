@@ -260,6 +260,7 @@ model Cabinet {
   pca                   CabinetPca?
   pcaHistory            CabinetPcaHistory[]
   supplierCommercialContacts SupplierCommercialContact[]
+  contactProducts            ContactProduct[]
 
   @@map("cabinets")
 }
@@ -285,6 +286,25 @@ model CabinetMember {
 
   @@index([cabinetId])
   @@map("cabinet_members")
+}
+
+/// Produits effectivement vendus à un contact par un cabinet
+model ContactProduct {
+  id        String   @id @default(uuid()) @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  soldAt    DateTime @map("sold_at") @db.Date
+  amount    Float?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  contact Contact @relation(fields: [contactId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([cabinetId, contactId])
+  @@map("contact_products")
 }
 
 model ConsentRecord {
@@ -612,6 +632,7 @@ model Product {
   supplierLinks   ProductSupplier[]
   reviews         ProductReview[]
   governances     CabinetProductGovernance[]
+  contactProducts ContactProduct[]
 
   @@index([createdAt])
   @@map("products")
@@ -959,10 +980,11 @@ model Contact {
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
   deletedAt     DateTime?      @map("deleted_at") @db.Timestamptz
 
-  cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
-  interactions Interaction[]
-  events       Event[]
-  profiles     CabinetContactProfile[]
+  cabinet         Cabinet       @relation(fields: [cabinetId], references: [id])
+  interactions    Interaction[]
+  events          Event[]
+  profiles        CabinetContactProfile[]
+  contactProducts ContactProduct[]
 
   @@index([cabinetId])
   @@map("contacts")
