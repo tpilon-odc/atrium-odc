@@ -120,6 +120,49 @@ export const authApi = {
     call<{ user: UserInfo }>('/api/v1/auth/me', { token }),
 }
 
+// ── Cabinets (public — sans auth) ────────────────────────────────────────────
+
+export type CabinetMemberAnonymous = {
+  id: string
+  role: string
+  externalFirstName: string | null
+  externalLastName: string | null
+  externalTitle: string | null
+  user: {
+    civility: string | null
+    firstName: string | null
+    lastName: string | null
+    avatarUrl: string | null
+  } | null
+}
+
+export type CabinetPublicAnonymous = {
+  id: string
+  name: string
+  description: string | null
+  city: string | null
+  website: string | null
+  oriasNumber: string | null
+  logoUrl: string | null
+  createdAt: string
+  members: CabinetMemberAnonymous[]
+}
+
+export const publicCabinetApi = {
+  list: ({ search, cursor, limit }: { search?: string; cursor?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams()
+    if (search) q.set('search', search)
+    if (cursor) q.set('cursor', cursor)
+    if (limit) q.set('limit', String(limit))
+    return call<{ cabinets: CabinetDirectoryItem[]; nextCursor: string | null; hasMore: boolean }>(
+      `/api/v1/public/cabinets?${q}`
+    )
+  },
+
+  getById: (id: string) =>
+    call<{ cabinet: CabinetPublicAnonymous }>(`/api/v1/public/cabinets/${id}`),
+}
+
 // ── Cabinets ──────────────────────────────────────────────────────────────────
 
 export type CabinetMemberPublic = {
