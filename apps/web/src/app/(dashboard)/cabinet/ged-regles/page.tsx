@@ -222,9 +222,16 @@ function RuleRow({
   const [folderDirty, setFolderDirty] = useState(false)
   const [addingTag, setAddingTag] = useState(false)
 
+  // État local des sous-dossiers — initialisé depuis la règle existante
+  const [subEntity, setSubEntity] = useState(rule?.subfolderEntity ?? false)
+  const [subYear, setSubYear] = useState(rule?.subfolderYear ?? false)
+  const [subOrder, setSubOrder] = useState<'entity_year' | 'year_entity'>(rule?.subfolderOrder ?? 'entity_year')
+
+  const hasEntityName = entityType !== 'compliance_answer'
+
   const upsert = useMutation({
-    mutationFn: (folderId: string) =>
-      folderRulesApi.upsert({ entityType, folderId }, token!),
+    mutationFn: (data: { folderId: string; subfolderEntity: boolean; subfolderYear: boolean; subfolderOrder: 'entity_year' | 'year_entity' }) =>
+      folderRulesApi.upsert({ entityType, ...data }, token!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folder-rules'] })
       setFolderDirty(false)
@@ -265,7 +272,42 @@ function RuleRow({
     else { setPendingFolderId(null); setFolderDirty(false) }
   }
 
+  const handleSubfolderToggle = (field: 'entity' | 'year', value: boolean) => {
+    const next = field === 'entity' ? { subEntity: value, subYear } : { subEntity, subYear: value }
+    if (rule) {
+      upsert.mutate({
+        folderId: rule.folderId,
+        subfolderEntity: next.subEntity,
+        subfolderYear: next.subYear,
+        subfolderOrder: subOrder,
+      })
+    }
+    if (field === 'entity') setSubEntity(value)
+    else setSubYear(value)
+  }
+
+  const handleOrderChange = (value: 'entity_year' | 'year_entity') => {
+    setSubOrder(value)
+    if (rule) {
+      upsert.mutate({
+        folderId: rule.folderId,
+        subfolderEntity: subEntity,
+        subfolderYear: subYear,
+        subfolderOrder: value,
+      })
+    }
+  }
+
   const saving = upsert.isPending || removeRule.isPending
+
+  // Exemple de structure générée
+  const exampleParts: string[] = [rule?.folder.name ?? '…']
+  const ordered =
+    subOrder === 'entity_year'
+      ? [subEntity && hasEntityName ? 'Dupont Jean' : null, subYear ? '2025' : null]
+      : [subYear ? '2025' : null, subEntity && hasEntityName ? 'Dupont Jean' : null]
+  ordered.filter(Boolean).forEach((p) => exampleParts.push(p!))
+  exampleParts.push('document.pdf')
 
   return (
     <div className="py-4 border-b border-border last:border-0 space-y-3">
@@ -288,51 +330,108 @@ function RuleRow({
         <Button
           size="sm"
           disabled={!folderDirty || !pendingFolderId || saving}
-          onClick={() => pendingFolderId && upsert.mutate(pendingFolderId)}
+          onClick={() => pendingFolderId && upsert.mutate({
+            folderId: pendingFolderId,
+            subfolderEntity: subEntity,
+            subfolderYear: subYear,
+            subfolderOrder: subOrder,
+          })}
           className="shrink-0"
         >
           {saving ? 'Enregistrement…' : 'Enregistrer'}
         </Button>
       </div>
 
-      {/* Tags automatiques — uniquement si une règle de dossier existe */}
+      {/* Options sous-dossiers + tags — uniquement si une règle de dossier existe */}
       {rule && (
-        <div className="ml-0 pl-4 border-l-2 border-border space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground font-medium">Tags auto :</span>
+        <div className="pl-4 border-l-2 border-border space-y-3">
 
-            {rule.tagRules.length === 0 && !addingTag && (
-              <span className="text-xs text-muted-foreground italic">aucun</span>
-            )}
+          {/* Sous-dossiers automatiques */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Sous-dossiers automatiques :</p>
+            <div className="flex flex-wrap items-center gap-4">
+              {hasEntityName && (
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={subEntity}
+                    onChange={(e) => handleSubfolderToggle('entity', e.target.checked)}
+                  />
+                  Par entité (nom du {entityType === 'contact' ? 'contact' : entityType === 'supplier' ? 'fournisseur' : entityType === 'product' ? 'produit' : 'collaborateur'})
+                </label>
+              )}
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded"
+                  checked={subYear}
+                  onChange={(e) => handleSubfolderToggle('year', e.target.checked)}
+                />
+                Par année
+              </label>
 
-            {rule.tagRules.map((tr) => (
-              <TagRuleBadge
-                key={tr.id}
-                tagRule={tr}
-                entityType={entityType}
-                onDelete={() => deleteTagRule.mutate(tr.id)}
-              />
-            ))}
+              {subEntity && subYear && hasEntityName && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Ordre :</span>
+                  <select
+                    className="text-xs border border-border rounded px-2 py-1 bg-white dark:bg-zinc-900"
+                    value={subOrder}
+                    onChange={(e) => handleOrderChange(e.target.value as 'entity_year' | 'year_entity')}
+                  >
+                    <option value="entity_year">Entité / Année</option>
+                    <option value="year_entity">Année / Entité</option>
+                  </select>
+                </div>
+              )}
+            </div>
 
-            {!addingTag && (
-              <button
-                type="button"
-                onClick={() => setAddingTag(true)}
-                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-              >
-                <Plus className="h-3 w-3" />
-                Ajouter un tag
-              </button>
+            {/* Aperçu de la structure */}
+            {(subEntity || subYear) && (
+              <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-3 py-1.5 rounded">
+                📁 {exampleParts.slice(0, -1).join(' / ')} / 📄 {exampleParts[exampleParts.length - 1]}
+              </p>
             )}
           </div>
 
-          {addingTag && (
-            <AddTagRuleInline
-              entityType={entityType}
-              onAdd={(type, fixedValue) => addTagRule.mutate({ type, fixedValue })}
-              onClose={() => setAddingTag(false)}
-            />
-          )}
+          {/* Tags automatiques */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground font-medium">Tags auto :</span>
+
+              {rule.tagRules.length === 0 && !addingTag && (
+                <span className="text-xs text-muted-foreground italic">aucun</span>
+              )}
+
+              {rule.tagRules.map((tr) => (
+                <TagRuleBadge
+                  key={tr.id}
+                  tagRule={tr}
+                  entityType={entityType}
+                  onDelete={() => deleteTagRule.mutate(tr.id)}
+                />
+              ))}
+
+              {!addingTag && (
+                <button
+                  type="button"
+                  onClick={() => setAddingTag(true)}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Ajouter un tag
+                </button>
+              )}
+            </div>
+
+            {addingTag && (
+              <AddTagRuleInline
+                entityType={entityType}
+                onAdd={(type, fixedValue) => addTagRule.mutate({ type, fixedValue })}
+                onClose={() => setAddingTag(false)}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -401,9 +500,10 @@ export default function GedReglesPage() {
         )}
       </div>
 
-      <div className="bg-muted/40 border border-border rounded-lg p-4 text-xs text-muted-foreground space-y-1">
-        <p className="font-medium text-foreground">Comment fonctionnent les tags automatiques ?</p>
-        <p><strong>Tag fixe</strong> — une valeur que vous saisissez, posée sur tous les docs de ce contexte. Ex : &quot;Client&quot;, &quot;Contrat&quot;.</p>
+      <div className="bg-muted/40 border border-border rounded-lg p-4 text-xs text-muted-foreground space-y-2">
+        <p className="font-medium text-foreground">Comment fonctionne le classement automatique ?</p>
+        <p><strong>Sous-dossiers automatiques</strong> — créent la structure à la volée si elle n&apos;existe pas encore. Ex : <span className="font-mono">Contacts / Dupont Jean / 2025 /</span></p>
+        <p><strong>Tag fixe</strong> — une valeur saisie, posée sur tous les docs de ce contexte. Ex : &quot;Client&quot;, &quot;Contrat&quot;.</p>
         <p><strong>Année d&apos;upload</strong> — l&apos;année en cours au moment de l&apos;upload. Ex : &quot;2025&quot;.</p>
         <p><strong>Nom de l&apos;entité</strong> — le nom du contact, fournisseur ou produit lié au document.</p>
       </div>

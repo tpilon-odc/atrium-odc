@@ -58,6 +58,54 @@ async function resolveEntityName(entityType: string, entityId: string): Promise<
   }
 }
 
+// Crée ou retrouve un sous-dossier par son nom dans un parent donné (upsert par cabinetId+parentId+name)
+async function upsertSubfolder(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  cabinetId: string,
+  parentId: string,
+  name: string
+): Promise<string> {
+  const existing = await tx.folder.findFirst({
+    where: { cabinetId, parentId, name },
+    select: { id: true },
+  })
+  if (existing) return existing.id
+  const created = await tx.folder.create({
+    data: { cabinetId, parentId, name, isSystem: false },
+    select: { id: true },
+  })
+  return created.id
+}
+
+// Résout le folderId final en créant les sous-dossiers dynamiques si nécessaire
+async function resolveTargetFolder(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  cabinetId: string,
+  rule: { folderId: string; subfolderEntity: boolean; subfolderYear: boolean; subfolderOrder: string },
+  entityName: string | null
+): Promise<string> {
+  const year = new Date().getFullYear().toString()
+
+  const steps: Array<{ active: boolean; name: string | null }> =
+    rule.subfolderOrder === 'year_entity'
+      ? [
+          { active: rule.subfolderYear, name: year },
+          { active: rule.subfolderEntity, name: entityName },
+        ]
+      : [
+          { active: rule.subfolderEntity, name: entityName },
+          { active: rule.subfolderYear, name: year },
+        ]
+
+  let currentParentId = rule.folderId
+  for (const step of steps) {
+    if (step.active && step.name) {
+      currentParentId = await upsertSubfolder(tx, cabinetId, currentParentId, step.name)
+    }
+  }
+  return currentParentId
+}
+
 export const documentRoutes: FastifyPluginAsync = async (app) => {
   await app.register(multipart, { limits: { fileSize: MAX_FILE_SIZE } })
 
@@ -89,35 +137,42 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(400).send({ error: 'Fichier trop volumineux (max 10 Mo)', code: 'FILE_TOO_LARGE' })
       }
 
-      // Résolution de la règle (dossier + tags auto)
-      let folderId: string | undefined
+      // Résolution de la règle (dossier + sous-dossiers dynamiques + tags auto)
+      let resolvedRule: {
+        folderId: string
+        subfolderEntity: boolean
+        subfolderYear: boolean
+        subfolderOrder: string
+        tagRules: { type: string; fixedValue: string | null }[]
+      } | null = null
+      let entityName: string | null = null
       let tagNamesToApply: string[] = []
 
       if (entityType) {
-        const rule = await prisma.folderRule.findUnique({
+        resolvedRule = await prisma.folderRule.findUnique({
           where: { cabinetId_entityType: { cabinetId: request.cabinetId, entityType } },
-          include: { tagRules: { orderBy: { order: 'asc' } } },
+          select: {
+            folderId: true,
+            subfolderEntity: true,
+            subfolderYear: true,
+            subfolderOrder: true,
+            tagRules: { select: { type: true, fixedValue: true }, orderBy: { order: 'asc' } },
+          },
         })
 
-        if (rule) {
-          folderId = rule.folderId
+        if (resolvedRule && entityId) {
+          const needsName =
+            resolvedRule.subfolderEntity ||
+            resolvedRule.tagRules.some((t) => t.type === 'entity_name')
+          if (needsName) entityName = await resolveEntityName(entityType, entityId)
+        }
 
-          // Résolution du nom de l'entité pour les tags entity_name
-          let entityName: string | null = null
-          if (entityId && rule.tagRules.some((t) => t.type === 'entity_name')) {
-            entityName = await resolveEntityName(entityType, entityId)
-          }
-
+        if (resolvedRule) {
           const year = new Date().getFullYear().toString()
-
-          for (const tagRule of rule.tagRules) {
-            if (tagRule.type === 'fixed' && tagRule.fixedValue) {
-              tagNamesToApply.push(tagRule.fixedValue)
-            } else if (tagRule.type === 'year') {
-              tagNamesToApply.push(year)
-            } else if (tagRule.type === 'entity_name' && entityName) {
-              tagNamesToApply.push(entityName)
-            }
+          for (const tagRule of resolvedRule.tagRules) {
+            if (tagRule.type === 'fixed' && tagRule.fixedValue) tagNamesToApply.push(tagRule.fixedValue)
+            else if (tagRule.type === 'year') tagNamesToApply.push(year)
+            else if (tagRule.type === 'entity_name' && entityName) tagNamesToApply.push(entityName)
           }
         }
       }
@@ -126,6 +181,12 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
       await uploadToMinio(storagePath, buffer, file.mimetype)
 
       const document = await prisma.$transaction(async (tx) => {
+        // Résolution du dossier final (sous-dossiers dynamiques créés si nécessaire)
+        let folderId: string | undefined
+        if (resolvedRule) {
+          folderId = await resolveTargetFolder(tx, request.cabinetId, resolvedRule, entityName)
+        }
+
         const doc = await tx.document.create({
           data: {
             cabinetId: request.cabinetId,

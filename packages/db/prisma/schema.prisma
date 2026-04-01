@@ -1216,12 +1216,15 @@ model DocumentLink {
 /// Règle de classement automatique : quand un doc est uploadé depuis entityType, le mettre dans folderId.
 /// Une seule règle par (cabinet, entityType).
 model FolderRule {
-  id         String   @id @default(uuid()) @db.Uuid
-  cabinetId  String   @map("cabinet_id") @db.Uuid
-  entityType String   @map("entity_type")
-  folderId   String   @map("folder_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id              String   @id @default(uuid()) @db.Uuid
+  cabinetId       String   @map("cabinet_id") @db.Uuid
+  entityType      String   @map("entity_type")
+  folderId        String   @map("folder_id") @db.Uuid
+  subfolderEntity Boolean  @default(false) @map("subfolder_entity")
+  subfolderYear   Boolean  @default(false) @map("subfolder_year")
+  subfolderOrder  String   @default("entity_year") @map("subfolder_order")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   cabinet  Cabinet          @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
   folder   Folder           @relation(fields: [folderId], references: [id], onDelete: Cascade)

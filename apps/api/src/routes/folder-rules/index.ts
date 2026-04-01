@@ -11,11 +11,14 @@ type EntityType = typeof ALLOWED_ENTITY_TYPES[number]
 const RULE_INCLUDE = {
   folder: { select: { id: true, name: true, parentId: true, isSystem: true } },
   tagRules: { orderBy: { order: 'asc' as const } },
-}
+} as const
 
 const upsertRuleBody = z.object({
   entityType: z.enum(ALLOWED_ENTITY_TYPES),
   folderId: z.string().uuid(),
+  subfolderEntity: z.boolean().optional(),
+  subfolderYear: z.boolean().optional(),
+  subfolderOrder: z.enum(['entity_year', 'year_entity']).optional(),
 })
 
 const tagRuleBody = z.discriminatedUnion('type', [
@@ -64,10 +67,16 @@ export const folderRulesRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Dossier introuvable', code: 'NOT_FOUND' })
     }
 
+    const subfields = {
+      ...(result.data.subfolderEntity !== undefined ? { subfolderEntity: result.data.subfolderEntity } : {}),
+      ...(result.data.subfolderYear !== undefined ? { subfolderYear: result.data.subfolderYear } : {}),
+      ...(result.data.subfolderOrder !== undefined ? { subfolderOrder: result.data.subfolderOrder } : {}),
+    }
+
     const rule = await prisma.folderRule.upsert({
       where: { cabinetId_entityType: { cabinetId: request.cabinetId, entityType } },
-      create: { cabinetId: request.cabinetId, entityType, folderId },
-      update: { folderId },
+      create: { cabinetId: request.cabinetId, entityType, folderId, ...subfields },
+      update: { folderId, ...subfields },
       include: RULE_INCLUDE,
     })
 

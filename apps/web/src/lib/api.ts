@@ -1911,6 +1911,9 @@ export type FolderRule = {
   cabinetId: string
   entityType: FolderRuleEntityType
   folderId: string
+  subfolderEntity: boolean
+  subfolderYear: boolean
+  subfolderOrder: 'entity_year' | 'year_entity'
   folder: { id: string; name: string; parentId: string | null; isSystem: boolean }
   tagRules: FolderRuleTag[]
 }
@@ -1919,7 +1922,16 @@ export const folderRulesApi = {
   list: (token: string) =>
     call<{ rules: FolderRule[] }>('/api/v1/folder-rules', { token }),
 
-  upsert: (data: { entityType: FolderRuleEntityType; folderId: string }, token: string) =>
+  upsert: (
+    data: {
+      entityType: FolderRuleEntityType
+      folderId: string
+      subfolderEntity?: boolean
+      subfolderYear?: boolean
+      subfolderOrder?: 'entity_year' | 'year_entity'
+    },
+    token: string
+  ) =>
     call<{ rule: FolderRule }>('/api/v1/folder-rules', {
       method: 'PUT',
       body: JSON.stringify(data),
