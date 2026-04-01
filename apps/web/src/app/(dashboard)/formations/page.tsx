@@ -380,7 +380,7 @@ function EditTrainingForm({ t, onClose }: { t: CollaboratorTraining; onClose: ()
       trainingDate: date,
       trainingDateEnd: dateEnd || null,
       categoryHours,
-      certificateDocumentId: certDoc?.id ?? null,
+      certificateDocumentId: certDoc?.id ?? undefined,
       notes: notes || null,
     }, token!),
     onSuccess: () => {
