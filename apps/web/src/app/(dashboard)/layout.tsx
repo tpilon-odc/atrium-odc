@@ -22,6 +22,7 @@ import {
   Bell,
   ChevronRight,
   MoreHorizontal,
+  User,
   X,
   AlertTriangle,
   AlertCircle,
@@ -80,7 +81,6 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
         { href: '/agenda', label: 'Agenda', icon: CalendarDays },
         { href: '/ged', label: 'Documents', icon: FolderOpen },
         { href: '/partage', label: 'Partage', icon: Share2 },
-        { href: '/conformite-partagee', label: 'Conformité partagée', icon: ShieldCheck },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
     {
@@ -94,50 +94,6 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
   ]
-}
-
-function buildBottomNav(member: CabinetMember | null, hasCabinet: boolean, globalRole?: string): NavItem[] {
-  if (globalRole === 'supplier') {
-    return [
-      { href: '/supplier-portal', label: 'Mes fiches', icon: Building2 },
-    ]
-  }
-  const canAll = !member || member.role === 'owner' || member.role === 'admin'
-  const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
-  return ([
-    { href: '/dashboard', label: 'Accueil', icon: LayoutDashboard },
-    hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
-    allow('canManageSuppliers') && { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
-    allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
-  ] as (NavItem | false)[]).filter(Boolean) as NavItem[]
-}
-
-function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, globalRole?: string): NavItem[] {
-  if (globalRole === 'supplier') {
-    return [
-      { href: '/supplier-portal/nouveau', label: 'Nouvelle fiche', icon: Package },
-    ]
-  }
-  const canAll = !member || member.role === 'owner' || member.role === 'admin'
-  const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
-  return ([
-    { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    hasCabinet && { href: '/cabinet', label: 'Mon Cabinet', icon: Building2 },
-    hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
-    hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
-    { href: '/formations', label: 'Formations', icon: GraduationCap },
-    allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
-    { href: '/agenda', label: 'Agenda', icon: CalendarDays },
-    { href: '/ged', label: 'Documents', icon: FolderOpen },
-    { href: '/partage', label: 'Partage', icon: Share2 },
-    { href: '/conformite-partagee', label: 'Conformité partagée', icon: ShieldCheck },
-    allow('canManageSuppliers') && { href: '/fournisseurs', label: 'Fournisseurs', icon: Building2 },
-    allow('canManageProducts') && { href: '/produits', label: 'Produits', icon: Package },
-    { href: '/outils', label: 'Outils', icon: Wrench },
-    { href: '/cabinets', label: 'Annuaire', icon: BookUser },
-    { href: '/clusters', label: 'Clusters', icon: MessagesSquare },
-    { href: '/parametres', label: 'Paramètres', icon: Settings },
-  ] as (NavItem | false)[]).filter(Boolean) as NavItem[]
 }
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
@@ -453,8 +409,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const hasCabinet = currentMember !== null
   const globalRole = user?.globalRole
   const navGroups = buildNavGroups(currentMember, hasCabinet, globalRole)
-  const bottomNavItems = buildBottomNav(currentMember, hasCabinet, globalRole)
-  const drawerItems = buildDrawerItems(currentMember, hasCabinet, globalRole)
+  const [drawerSection, setDrawerSection] = useState<string | null>(null)
 
   useEffect(() => {
     hydrate()
@@ -669,47 +624,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Bottom nav (mobile) ──────────────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-card border-t border-border z-40">
         <div className="flex">
-          {bottomNavItems.map((item) => {
-            const Icon = item.icon
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          {navGroups.map((group) => {
+            const isActive = group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + '/'))
+            const Icon = group.items[0]?.icon ?? MoreHorizontal
             return (
-              <Link
-                key={item.href}
-                href={item.href}
+              <button
+                key={group.label}
+                onClick={() => { setDrawerSection(group.label); setDrawerOpen(true) }}
                 className={cn(
                   'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
                   isActive ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
                 <Icon className={cn('h-5 w-5', isActive ? 'text-primary' : 'text-muted-foreground')} />
-                <span className="truncate">{item.label}</span>
-              </Link>
+                <span className="truncate">{group.label}</span>
+              </button>
             )
           })}
-          {/* Bouton Plus */}
           <button
-            onClick={() => setDrawerOpen(true)}
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium text-muted-foreground"
+            onClick={() => { setDrawerSection(null); setDrawerOpen(true) }}
+            className={cn(
+              'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
+              drawerOpen && drawerSection === null ? 'text-primary' : 'text-muted-foreground'
+            )}
           >
-            <MoreHorizontal className="h-5 w-5" />
-            <span>Plus</span>
+            <User className="h-5 w-5" />
+            <span>Compte</span>
           </button>
         </div>
       </nav>
 
-      {/* ── Drawer "Plus" (mobile) ───────────────────────────────────────── */}
+      {/* ── Drawer (mobile) ─────────────────────────────────────────────── */}
       {drawerOpen && (
         <>
-          {/* Backdrop */}
-          <div
-            className="md:hidden fixed inset-0 bg-foreground/20 z-40"
-            onClick={() => setDrawerOpen(false)}
-          />
-          {/* Panel */}
+          <div className="md:hidden fixed inset-0 bg-foreground/20 z-40" onClick={() => setDrawerOpen(false)} />
           <div className="md:hidden fixed bottom-0 inset-x-0 bg-card rounded-t-2xl border-t border-border z-50 pb-safe">
-            {/* Handle */}
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
-              <span className="text-sm font-semibold">Navigation</span>
+              <span className="text-sm font-semibold">{drawerSection ?? 'Compte'}</span>
               <button
                 onClick={() => setDrawerOpen(false)}
                 className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
@@ -718,51 +669,73 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </button>
             </div>
 
-            <div className="px-3 pb-4 space-y-0.5">
-              {drawerItems.map((item) => {
-                const Icon = item.icon
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                return (
+            <div className="px-3 pb-4 overflow-y-auto max-h-[70vh]">
+              {drawerSection !== null ? (
+                /* Section filtrée */
+                <div className="space-y-0.5">
+                  {navGroups.find((g) => g.label === drawerSection)?.items.map((item) => {
+                    const Icon = item.icon
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setDrawerOpen(false)}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                          isActive ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'
+                        )}
+                      >
+                        <Icon className="h-5 w-5 shrink-0" />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : (
+                /* Section Compte */
+                <div className="space-y-0.5">
+                  {user && (
+                    <div className="px-3 py-2 mb-2">
+                      <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
+                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                    </div>
+                  )}
                   <Link
-                    key={item.href}
-                    href={item.href}
+                    href="/parametres"
+                    onClick={() => setDrawerOpen(false)}
                     className={cn(
                       'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
-                      isActive
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-foreground hover:bg-accent'
+                      pathname === '/parametres' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'
                     )}
                   >
-                    <Icon className="h-5 w-5 shrink-0" />
-                    {item.label}
+                    <Settings className="h-5 w-5 shrink-0" />
+                    Paramètres
                   </Link>
-                )
-              })}
-
-              {user?.globalRole === 'platform_admin' && (
-                <Link
-                  href="/admin"
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
-                    pathname.startsWith('/admin')
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-foreground hover:bg-accent'
+                  {user?.globalRole === 'platform_admin' && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setDrawerOpen(false)}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                        pathname.startsWith('/admin') ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'
+                      )}
+                    >
+                      <Settings className="h-5 w-5 shrink-0" />
+                      Administration
+                    </Link>
                   )}
-                >
-                  <Settings className="h-5 w-5 shrink-0" />
-                  Administration
-                </Link>
+                  <div className="pt-2 border-t border-border mt-2">
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-destructive/10 w-full transition-colors"
+                    >
+                      <LogOut className="h-5 w-5 shrink-0" />
+                      Déconnexion
+                    </button>
+                  </div>
+                </div>
               )}
-
-              <div className="pt-2 border-t border-border mt-2">
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-destructive/10 w-full transition-colors"
-                >
-                  <LogOut className="h-5 w-5 shrink-0" />
-                  Déconnexion
-                </button>
-              </div>
             </div>
           </div>
         </>

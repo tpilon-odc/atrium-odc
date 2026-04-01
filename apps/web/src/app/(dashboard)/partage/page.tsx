@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Share2, Trash2, Plus, X, ArrowUpRight, ArrowDownLeft, Eye, EyeOff, Activity, GraduationCap, FileText } from 'lucide-react'
+import { Share2, Trash2, Plus, X, ArrowUpRight, ArrowDownLeft, Eye, EyeOff, Activity, GraduationCap, FileText, CheckCircle2, AlertTriangle, XCircle, Circle, Building2, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { shareApi, type Share, type ShareWithViewLog, type Document } from '@/lib/api'
+import { shareApi, complianceShareApi, type Share, type ShareWithViewLog, type Document, type ComplianceShareCabinet } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { DocumentViewer } from '@/components/ui/DocumentViewer'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 const ENTITY_LABELS: Record<string, string> = {
   contact: 'Contact',
@@ -19,6 +20,99 @@ const ENTITY_LABELS: Record<string, string> = {
   cabinet: 'Cabinet complet',
   compliance_item: 'Item de conformité',
 }
+
+// ── Conformité partagée ───────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; className: string }> = {
+  submitted:     { label: 'Conforme',       icon: CheckCircle2,  className: 'text-green-600' },
+  expiring_soon: { label: 'Expire bientôt', icon: AlertTriangle, className: 'text-amber-500' },
+  expired:       { label: 'Expiré',         icon: XCircle,       className: 'text-red-500' },
+  not_started:   { label: 'Non renseigné',  icon: Circle,        className: 'text-muted-foreground/40' },
+  draft:         { label: 'Brouillon',      icon: Circle,        className: 'text-muted-foreground/40' },
+}
+
+function ComplianceItemRow({ item: shared }: { item: ComplianceShareCabinet['items'][0] }) {
+  const cfg = STATUS_CONFIG[shared.status] ?? STATUS_CONFIG.not_started
+  const Icon = cfg.icon
+  const [viewing, setViewing] = useState(false)
+
+  const doc = shared.answer?.document ?? null
+  const docAsDocument: Document | null = doc
+    ? { id: doc.id, name: doc.name, mimeType: (doc as { mimeType?: string | null }).mimeType ?? null, description: null, storageMode: 'hosted', sizeBytes: null, folderId: null, createdAt: '', links: [], tags: [] }
+    : null
+
+  const answerText = shared.item.type === 'text'
+    ? (shared.answer?.value as { text?: string })?.text
+    : shared.item.type !== 'doc'
+      ? ((shared.answer?.value as { selected?: string[] })?.selected ?? []).join(', ')
+      : null
+
+  return (
+    <>
+      {viewing && docAsDocument && <DocumentViewer document={docAsDocument} onClose={() => setViewing(false)} shared />}
+      <div className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
+        <Icon className={cn('h-4 w-4 shrink-0 mt-0.5', cfg.className)} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{shared.item.label}</p>
+          <p className="text-xs text-muted-foreground">{shared.item.phase.label}</p>
+          {docAsDocument && (
+            <button onClick={() => setViewing(true)} className="mt-1.5 flex items-center gap-1.5 text-xs text-primary hover:underline">
+              <FileText className="h-3.5 w-3.5" />
+              {docAsDocument.name}
+              <Eye className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
+          {answerText && <p className="mt-1 text-xs text-foreground/70 line-clamp-2">{answerText}</p>}
+        </div>
+        <div className="text-right shrink-0">
+          <span className={cn('text-xs font-medium', cfg.className)}>{cfg.label}</span>
+          {shared.answer?.expiresAt && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">Expire le {new Date(shared.answer.expiresAt).toLocaleDateString('fr-FR')}</p>
+          )}
+          {shared.answer?.submittedAt && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">Soumis le {new Date(shared.answer.submittedAt).toLocaleDateString('fr-FR')}</p>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function CabinetComplianceCard({ entry }: { entry: ComplianceShareCabinet }) {
+  const { cabinet, items } = entry
+  const submitted = items.filter((i) => i.status === 'submitted' || i.status === 'expiring_soon').length
+  const total = items.length
+  const pct = total > 0 ? Math.round((submitted / total) * 100) : 0
+
+  return (
+    <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div>
+            <p className="font-medium text-sm">{cabinet.name}</p>
+            {cabinet.oriasNumber && <p className="text-xs text-muted-foreground">ORIAS : {cabinet.oriasNumber}</p>}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-lg font-semibold tabular-nums">{pct}%</p>
+          <p className="text-[10px] text-muted-foreground">{submitted}/{total} conforme{submitted > 1 ? 's' : ''}</p>
+        </div>
+      </div>
+      <div className="h-1 bg-muted">
+        <div
+          className={cn('h-full transition-all', pct === 100 ? 'bg-green-500' : pct > 50 ? 'bg-primary' : 'bg-amber-500')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="px-5 py-1">
+        {items.map((item) => <ComplianceItemRow key={item.shareId} item={item} />)}
+      </div>
+    </div>
+  )
+}
+
+// ── Partages ──────────────────────────────────────────────────────────────────
 
 function ShareRow({ share, onRevoke }: { share: Share; onRevoke?: () => void }) {
   const [viewingCert, setViewingCert] = useState(false)
@@ -63,7 +157,7 @@ function ShareRow({ share, onRevoke }: { share: Share; onRevoke?: () => void }) 
         </div>
         {onRevoke && (
           <button
-            onClick={() => confirm('Révoquer ce partage ?') && onRevoke()}
+            onClick={onRevoke}
             className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -92,11 +186,8 @@ function CreateShareForm({ onClose }: { onClose: () => void }) {
     <div className="bg-card border border-border rounded-lg p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-medium">Nouveau partage</h3>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <X className="h-4 w-4" />
-        </button>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
       </div>
-
       <div className="space-y-1.5">
         <Label className="text-xs">Ce que vous partagez</Label>
         <select
@@ -104,25 +195,15 @@ function CreateShareForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setEntityType(e.target.value)}
           className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
         >
-          {Object.entries(ENTITY_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
+          {Object.entries(ENTITY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>
-
       <div className="space-y-1.5">
         <Label className="text-xs">ID de l'utilisateur destinataire</Label>
-        <Input
-          value={grantedTo}
-          onChange={(e) => setGrantedTo(e.target.value)}
-          placeholder="UUID de l'utilisateur…"
-          className="text-sm font-mono"
-        />
+        <Input value={grantedTo} onChange={(e) => setGrantedTo(e.target.value)} placeholder="UUID de l'utilisateur…" className="text-sm font-mono" />
         <p className="text-xs text-muted-foreground">L'utilisateur doit déjà avoir un compte sur la plateforme.</p>
       </div>
-
       {mutation.isError && <p className="text-xs text-destructive">{(mutation.error as Error).message}</p>}
-
       <div className="flex gap-2">
         <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending || !grantedTo.trim()}>
           {mutation.isPending ? 'Création…' : 'Créer le partage'}
@@ -133,21 +214,15 @@ function CreateShareForm({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ── Ligne activité ─────────────────────────────────────────────────────────
-
 function ActivityRow({ share, onRevoke }: { share: ShareWithViewLog; onRevoke: () => void }) {
   const lastView = share.viewLogs[0]
   const viewed = !!lastView
 
   return (
     <div className="flex items-center gap-4 bg-card border border-border rounded-lg px-4 py-3 group">
-      <div className={cn(
-        'h-9 w-9 rounded-full flex items-center justify-center shrink-0',
-        viewed ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
-      )}>
+      <div className={cn('h-9 w-9 rounded-full flex items-center justify-center shrink-0', viewed ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground')}>
         {viewed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
       </div>
-
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">
           {ENTITY_LABELS[share.entityType] ?? share.entityType}
@@ -158,7 +233,6 @@ function ActivityRow({ share, onRevoke }: { share: ShareWithViewLog; onRevoke: (
           {' · '}{new Date(share.createdAt).toLocaleDateString('fr-FR')}
         </p>
       </div>
-
       <div className="text-right shrink-0">
         {viewed ? (
           <p className="text-xs text-success font-medium">
@@ -168,22 +242,24 @@ function ActivityRow({ share, onRevoke }: { share: ShareWithViewLog; onRevoke: (
           <p className="text-xs text-muted-foreground">Jamais consulté</p>
         )}
       </div>
-
-      <button
-        onClick={() => confirm('Révoquer ce partage ?') && onRevoke()}
-        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
-      >
+      <button onClick={onRevoke} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
   )
 }
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+type Tab = 'granted' | 'received' | 'compliance' | 'activity'
+
 export default function PartagePage() {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<'granted' | 'received' | 'activity'>('granted')
+  const [tab, setTab] = useState<Tab>('granted')
   const [adding, setAdding] = useState(false)
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null)
+  const complianceLoggedRef = useRef(false)
 
   const { data: grantedData, isLoading: loadingGranted } = useQuery({
     queryKey: ['shares-granted', token],
@@ -203,6 +279,22 @@ export default function PartagePage() {
     enabled: !!token && tab === 'activity',
   })
 
+  const { data: complianceData, isLoading: loadingCompliance } = useQuery({
+    queryKey: ['compliance-shared-with-me', token],
+    queryFn: () => complianceShareApi.sharedWithMe(token!),
+    enabled: !!token && tab === 'compliance',
+  })
+
+  const cabinets = complianceData?.data.cabinets ?? []
+
+  // Log la consultation de chaque share de conformité (une seule fois par chargement)
+  useEffect(() => {
+    if (!token || !complianceData || complianceLoggedRef.current) return
+    complianceLoggedRef.current = true
+    const shareIds = [...new Set(cabinets.flatMap((c) => c.items.map((i) => i.shareId)))]
+    shareIds.forEach((id) => shareApi.recordView(id, token).catch(() => {}))
+  }, [complianceData]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const revokeMutation = useMutation({
     mutationFn: (id: string) => shareApi.revoke(id, token!),
     onSuccess: () => {
@@ -218,14 +310,25 @@ export default function PartagePage() {
   const viewedCount = activity.filter((s) => s.viewLogs.length > 0).length
   const neverViewedCount = activity.filter((s) => s.viewLogs.length === 0).length
 
-  const isLoading = tab === 'granted' ? loadingGranted : tab === 'received' ? loadingReceived : loadingActivity
+  const isLoading =
+    tab === 'granted' ? loadingGranted :
+    tab === 'received' ? loadingReceived :
+    tab === 'compliance' ? loadingCompliance :
+    loadingActivity
+
+  const TABS: { key: Tab; label: string; icon: React.ElementType; count: number | null }[] = [
+    { key: 'granted',    label: 'Accordés',           icon: ArrowUpRight,  count: granted.length },
+    { key: 'received',   label: 'Reçus',              icon: ArrowDownLeft, count: received.length },
+    { key: 'compliance', label: 'Conformité reçue',   icon: ShieldCheck,   count: cabinets.length || null },
+    { key: 'activity',   label: 'Activité',           icon: Activity,      count: null },
+  ]
 
   return (
     <div className="space-y-6 max-w-7xl">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold">Partage</h2>
-          <p className="text-muted-foreground mt-1">Partagez vos données avec d'autres cabinets.</p>
+          <p className="text-muted-foreground mt-1">Partagez vos données et consultez ce que les autres cabinets partagent avec vous.</p>
         </div>
         {tab === 'granted' && !adding && (
           <Button size="sm" onClick={() => setAdding(true)}>
@@ -238,20 +341,14 @@ export default function PartagePage() {
       {adding && <CreateShareForm onClose={() => setAdding(false)} />}
 
       {/* Onglets */}
-      <div className="flex gap-1 border-b border-border">
-        {[
-          { key: 'granted', label: 'Accordés', icon: ArrowUpRight, count: granted.length },
-          { key: 'received', label: 'Reçus', icon: ArrowDownLeft, count: received.length },
-          { key: 'activity', label: 'Activité', icon: Activity, count: null },
-        ].map(({ key, label, icon: Icon, count }) => (
+      <div className="flex gap-1 border-b border-border overflow-x-auto">
+        {TABS.map(({ key, label, icon: Icon, count }) => (
           <button
             key={key}
-            onClick={() => setTab(key as typeof tab)}
+            onClick={() => setTab(key)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px',
-              tab === key
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+              'flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px shrink-0',
+              tab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -283,6 +380,18 @@ export default function PartagePage() {
         <div className="space-y-2">
           {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
         </div>
+      ) : tab === 'compliance' ? (
+        cabinets.length === 0 ? (
+          <div className="bg-card border border-border rounded-lg p-10 text-center">
+            <ShieldCheck className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="font-medium">Aucune conformité partagée</p>
+            <p className="text-sm text-muted-foreground mt-1">Les cabinets qui partagent leur conformité avec vous apparaîtront ici.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {cabinets.map((entry) => <CabinetComplianceCard key={entry.cabinet.id} entry={entry} />)}
+          </div>
+        )
       ) : tab === 'activity' ? (
         activity.length === 0 ? (
           <div className="bg-card border border-border rounded-lg p-8 text-center">
@@ -293,16 +402,12 @@ export default function PartagePage() {
         ) : (
           <div className="space-y-2">
             {activity
-              .sort((a, b) => {
-                const aViewed = a.viewLogs[0]?.viewedAt ?? ''
-                const bViewed = b.viewLogs[0]?.viewedAt ?? ''
-                return bViewed.localeCompare(aViewed)
-              })
+              .sort((a, b) => (b.viewLogs[0]?.viewedAt ?? '').localeCompare(a.viewLogs[0]?.viewedAt ?? ''))
               .map((share) => (
                 <ActivityRow
                   key={share.id}
                   share={share}
-                  onRevoke={() => revokeMutation.mutate(share.id)}
+                  onRevoke={() => setConfirmState({ message: 'Révoquer ce partage ?', onConfirm: () => revokeMutation.mutate(share.id) })}
                 />
               ))}
           </div>
@@ -324,10 +429,21 @@ export default function PartagePage() {
             <ShareRow
               key={share.id}
               share={share}
-              onRevoke={tab === 'granted' ? () => revokeMutation.mutate(share.id) : undefined}
+              onRevoke={tab === 'granted'
+                ? () => setConfirmState({ message: 'Révoquer ce partage ?', onConfirm: () => revokeMutation.mutate(share.id) })
+                : undefined}
             />
           ))}
         </div>
+      )}
+
+      {confirmState && (
+        <ConfirmDialog
+          message={confirmState.message}
+          confirmLabel="Révoquer"
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
+        />
       )}
     </div>
   )
