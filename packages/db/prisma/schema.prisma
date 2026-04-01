@@ -108,6 +108,8 @@ enum FolderRuleTagType {
   fixed
   year
   entity_name
+
+  @@map("folder_rule_tag_type")
 }
 
 enum DocumentEntityType {
