@@ -246,6 +246,7 @@ model Cabinet {
   contactProfiles       CabinetContactProfile[]
   storageConfigs        CabinetStorageConfig[]
   documents             Document[]
+  folderRules           FolderRule[]
   collaboratorTrainings CollaboratorTraining[]
   shares                Share[]
   notifications         Notification[]
@@ -1203,6 +1204,28 @@ model DocumentLink {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// GED — RÈGLES DE CLASSEMENT
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Règle de classement automatique : quand un doc est uploadé depuis entityType, le mettre dans folderId.
+/// Une seule règle par (cabinet, entityType).
+model FolderRule {
+  id         String   @id @default(uuid()) @db.Uuid
+  cabinetId  String   @map("cabinet_id") @db.Uuid
+  entityType String   @map("entity_type")
+  folderId   String   @map("folder_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  folder  Folder  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([cabinetId, entityType])
+  @@index([cabinetId])
+  @@map("folder_rules")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // GED — DOSSIERS & TAGS
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -1216,10 +1239,11 @@ model Folder {
   order     Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  cabinet   Cabinet    @relation(fields: [cabinetId], references: [id])
-  parent    Folder?    @relation("tree", fields: [parentId], references: [id])
-  children  Folder[]   @relation("tree")
-  documents Document[]
+  cabinet     Cabinet      @relation(fields: [cabinetId], references: [id])
+  parent      Folder?      @relation("tree", fields: [parentId], references: [id])
+  children    Folder[]     @relation("tree")
+  documents   Document[]
+  folderRules FolderRule[]
 
   @@index([cabinetId])
   @@index([parentId])

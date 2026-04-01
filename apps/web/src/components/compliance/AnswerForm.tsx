@@ -137,7 +137,7 @@ function DocForm({ item, onSave, saving }: { item: Item; onSave: (v: AnswerValue
     setUploadError(null)
     setUploading(true)
     try {
-      const res = await documentApi.upload(file, token!)
+      const res = await documentApi.upload(file, token!, 'compliance_answer')
       setSelectedDoc(res.data.document)
       queryClient.invalidateQueries({ queryKey: ['docs-picker', token] })
     } catch (err) {

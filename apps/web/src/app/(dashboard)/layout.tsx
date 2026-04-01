@@ -66,6 +66,7 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
       items: ([
         { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
         hasCabinet && { href: '/cabinet', label: 'Mon Cabinet', icon: Building2 },
+        hasCabinet && canAll && { href: '/cabinet/ged-regles', label: 'Classement GED', icon: FolderOpen },
         hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck, showProgress: true },
         hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
         { href: '/formations', label: 'Formations', icon: GraduationCap },
@@ -120,6 +121,7 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, glo
   const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
   return ([
     hasCabinet && { href: '/cabinet', label: 'Mon Cabinet', icon: Building2 },
+    hasCabinet && canAll && { href: '/cabinet/ged-regles', label: 'Classement GED', icon: FolderOpen },
     hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
     hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
     { href: '/formations', label: 'Formations', icon: GraduationCap },
@@ -141,6 +143,7 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, glo
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: 'Tableau de bord',
   cabinet: 'Mon Cabinet',
+  'ged-regles': 'Règles de classement GED',
   conformite: 'Conformité',
   fournisseurs: 'Fournisseurs',
   produits: 'Produits',

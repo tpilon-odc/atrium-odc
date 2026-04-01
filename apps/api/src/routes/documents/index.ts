@@ -24,10 +24,14 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
   await app.register(multipart, { limits: { fileSize: MAX_FILE_SIZE } })
 
   // ── POST /api/v1/documents/upload ─────────────────────────────────────────
+  // Paramètre optionnel ?entityType=contact|supplier|product|training|compliance_answer
+  // Si une règle de classement existe pour ce contexte, le document est affecté au dossier configuré.
   app.post(
     '/upload',
     { preHandler: [authMiddleware, cabinetMiddleware] },
     async (request, reply) => {
+      const { entityType } = request.query as { entityType?: string }
+
       const file = await request.file()
       if (!file) {
         return reply.status(400).send({ error: 'Aucun fichier reçu', code: 'NO_FILE' })
@@ -47,6 +51,16 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(400).send({ error: 'Fichier trop volumineux (max 10 Mo)', code: 'FILE_TOO_LARGE' })
       }
 
+      // Résolution de la règle de classement automatique
+      let folderId: string | undefined
+      if (entityType) {
+        const rule = await prisma.folderRule.findUnique({
+          where: { cabinetId_entityType: { cabinetId: request.cabinetId, entityType } },
+          select: { folderId: true },
+        })
+        if (rule) folderId = rule.folderId
+      }
+
       const storagePath = buildStoragePath(request.cabinetId, file.filename)
 
       await uploadToMinio(storagePath, buffer, file.mimetype)
@@ -60,6 +74,7 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
           storagePath,
           mimeType: file.mimetype,
           sizeBytes: BigInt(buffer.length),
+          ...(folderId ? { folderId } : {}),
         },
       })
 

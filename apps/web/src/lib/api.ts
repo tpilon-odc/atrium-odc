@@ -1813,10 +1813,11 @@ export const documentApi = {
   getSharedUrl: (id: string, token: string) =>
     call<{ url: string; expiresIn: number | null }>(`/api/v1/documents/${id}/shared-url`, { token }),
 
-  upload: async (file: File, token: string) => {
+  upload: async (file: File, token: string, entityType?: string) => {
     const form = new FormData()
     form.append('file', file)
-    const res = await fetch(`${API_URL}/api/v1/documents/upload`, {
+    const q = entityType ? `?entityType=${encodeURIComponent(entityType)}` : ''
+    const res = await fetch(`${API_URL}/api/v1/documents/upload${q}`, {
       method: 'POST',
       body: form,
       headers: { Authorization: `Bearer ${token}` },
@@ -1865,6 +1866,39 @@ export const documentApi = {
       method: 'DELETE',
       token,
     }),
+}
+
+export type FolderRuleEntityType = 'contact' | 'supplier' | 'product' | 'training' | 'compliance_answer'
+
+export const FOLDER_RULE_LABELS: Record<FolderRuleEntityType, string> = {
+  contact: 'CRM / Contacts',
+  supplier: 'Fournisseurs',
+  product: 'Produits',
+  training: 'Formations (certificats)',
+  compliance_answer: 'Conformité',
+}
+
+export type FolderRule = {
+  id: string
+  cabinetId: string
+  entityType: FolderRuleEntityType
+  folderId: string
+  folder: { id: string; name: string; parentId: string | null; isSystem: boolean }
+}
+
+export const folderRulesApi = {
+  list: (token: string) =>
+    call<{ rules: FolderRule[] }>('/api/v1/folder-rules', { token }),
+
+  upsert: (data: { entityType: FolderRuleEntityType; folderId: string }, token: string) =>
+    call<{ rule: FolderRule }>('/api/v1/folder-rules', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  delete: (entityType: FolderRuleEntityType, token: string) =>
+    call<unknown>(`/api/v1/folder-rules/${entityType}`, { method: 'DELETE', token }),
 }
 
 export const folderApi = {

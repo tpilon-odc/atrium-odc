@@ -128,7 +128,7 @@ function InlineUpload({
         const res = await supplierPortalApi.uploadDocument(supplierId, files[0], token!)
         doc = res.data.document
       } else {
-        const res = await documentApi.upload(files[0], token!)
+        const res = await documentApi.upload(files[0], token!, entityType)
         doc = res.data.document
       }
       onDone(doc)

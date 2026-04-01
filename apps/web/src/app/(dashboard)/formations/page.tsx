@@ -144,7 +144,7 @@ function AddTrainingForm({ members, onClose }: { members: CabinetMember[]; onClo
   const handleCertUpload = async (file: File) => {
     setUploading(true)
     try {
-      const res = await documentApi.upload(file, token!)
+      const res = await documentApi.upload(file, token!, 'training')
       setCertDoc(res.data.document)
       queryClient.invalidateQueries({ queryKey: ['docs-picker', token] })
     } finally {
@@ -363,7 +363,7 @@ function EditTrainingForm({ t, onClose }: { t: CollaboratorTraining; onClose: ()
   const handleCertUpload = async (file: File) => {
     setUploading(true)
     try {
-      const res = await documentApi.upload(file, token!)
+      const res = await documentApi.upload(file, token!, 'training')
       setCertDoc(res.data.document)
       queryClient.invalidateQueries({ queryKey: ['docs-picker', token] })
     } finally {
