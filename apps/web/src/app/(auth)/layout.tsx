@@ -5,7 +5,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
-          <img src="/logo.png" alt="Logo" className="h-12 w-auto dark:brightness-0 dark:invert" />
+          <img src="/logo.png" alt="Logo" className="h-12 w-auto " />
         </div>
         {children}
       </div>

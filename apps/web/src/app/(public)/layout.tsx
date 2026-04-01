@@ -9,7 +9,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <img
               src="/logo.png"
               alt="CGP Platform"
-              className="h-8 w-auto dark:brightness-0 dark:invert"
+              className="h-8 w-auto "
             />
           </Link>
           <nav className="flex items-center gap-3">

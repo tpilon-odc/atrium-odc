@@ -52,7 +52,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/30">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
-          <img src="/logo.png" alt="Logo" className="h-12 w-auto dark:brightness-0 dark:invert" />
+          <img src="/logo.png" alt="Logo" className="h-12 w-auto " />
         </div>
 
         <div className="bg-card rounded-xl shadow-sm border border-border p-8">

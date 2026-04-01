@@ -5,62 +5,65 @@
 @layer base {
   :root {
     /* ── Neutrals ─────────────────────────────────────────────────────────── */
-    --background: 0 0% 98%;
-    --foreground: 222 25% 10%;
+    --background: 180 20% 98%;          /* Blanc légèrement teinté teal */
+    --foreground: 200 35% 12%;          /* Bleu-ardoise foncé (texte "myGaïa") */
 
     --card: 0 0% 100%;
-    --card-foreground: 222 25% 10%;
+    --card-foreground: 200 35% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 25% 10%;
+    --popover-foreground: 200 35% 12%;
 
-    --muted: 220 20% 96%;
-    --muted-foreground: 220 12% 48%;
+    --muted: 174 18% 95%;               /* Teal très désaturé */
+    --muted-foreground: 192 14% 46%;
 
-    --border: 220 18% 91%;
-    --input: 220 18% 91%;
+    --border: 174 18% 88%;              /* Bordure teintée teal */
+    --input: 174 18% 88%;
 
-    --accent: 220 20% 95%;
-    --accent-foreground: 222 25% 10%;
+    --accent: 174 18% 93%;
+    --accent-foreground: 200 35% 12%;
 
-    /* ── Primary — Navy professionnel ─────────────────────────────────────── */
-    --primary: 222 72% 42%;
+    /* ── Primary — Teal myGaïa ────────────────────────────────────────────── */
+    --primary: 175 48% 35%;             /* #2D7D78 — teal profond du logo */
     --primary-foreground: 0 0% 100%;
 
-    /* ── Secondary — bleu-gris doux ───────────────────────────────────────── */
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 222 30% 25%;
+    /* ── Primary light — dégradé clair ───────────────────────────────────── */
+    --primary-light: 174 42% 52%;       /* #5BBFB5 — teal clair du logo */
+
+    /* ── Secondary — ardoise douce ───────────────────────────────────────── */
+    --secondary: 174 18% 92%;
+    --secondary-foreground: 200 35% 22%;
 
     /* ── Statuts sémantiques ──────────────────────────────────────────────── */
-    --success: 152 55% 38%;
+    --success: 152 55% 36%;
     --success-foreground: 0 0% 100%;
-    --success-subtle: 152 50% 95%;
-    --success-subtle-foreground: 152 55% 30%;
+    --success-subtle: 152 45% 94%;
+    --success-subtle-foreground: 152 55% 28%;
 
-    --warning: 38 90% 48%;
+    --warning: 38 90% 46%;
     --warning-foreground: 38 80% 12%;
-    --warning-subtle: 38 90% 95%;
-    --warning-subtle-foreground: 38 80% 30%;
+    --warning-subtle: 38 90% 94%;
+    --warning-subtle-foreground: 38 80% 28%;
 
-    --danger: 4 82% 55%;
+    --danger: 4 80% 52%;
     --danger-foreground: 0 0% 100%;
-    --danger-subtle: 4 80% 96%;
-    --danger-subtle-foreground: 4 82% 40%;
+    --danger-subtle: 4 75% 95%;
+    --danger-subtle-foreground: 4 80% 38%;
 
-    --info: 205 75% 42%;
+    --info: 199 68% 40%;
     --info-foreground: 0 0% 100%;
-    --info-subtle: 205 70% 95%;
-    --info-subtle-foreground: 205 75% 30%;
+    --info-subtle: 199 60% 94%;
+    --info-subtle-foreground: 199 68% 28%;
 
     /* ── Destructive (alias danger — shadcn compat) ───────────────────────── */
-    --destructive: 4 82% 55%;
+    --destructive: 4 80% 52%;
     --destructive-foreground: 0 0% 100%;
 
     /* ── Ring ─────────────────────────────────────────────────────────────── */
-    --ring: 222 72% 42%;
+    --ring: 175 48% 35%;
 
-    /* ── Radius — 6 px, corporate tight ──────────────────────────────────── */
-    --radius: 0.375rem;
+    /* ── Radius — légèrement plus doux, nature ────────────────────────────── */
+    --radius: 0.5rem;
 
     /* ── Sidebar ──────────────────────────────────────────────────────────── */
     --sidebar-width: 240px;
@@ -68,59 +71,62 @@
 
   .dark {
     /* ── Neutrals ─────────────────────────────────────────────────────────── */
-    --background: 222 25% 8%;
-    --foreground: 210 25% 94%;
+    --background: 200 30% 7%;           /* Ardoise très foncé */
+    --foreground: 174 20% 92%;
 
-    --card: 222 25% 11%;
-    --card-foreground: 210 25% 94%;
+    --card: 200 28% 10%;
+    --card-foreground: 174 20% 92%;
 
-    --popover: 222 25% 11%;
-    --popover-foreground: 210 25% 94%;
+    --popover: 200 28% 10%;
+    --popover-foreground: 174 20% 92%;
 
-    --muted: 220 20% 16%;
-    --muted-foreground: 220 12% 58%;
+    --muted: 196 22% 15%;
+    --muted-foreground: 192 14% 56%;
 
-    --border: 220 18% 19%;
-    --input: 220 18% 19%;
+    --border: 196 20% 18%;
+    --input: 196 20% 18%;
 
-    --accent: 220 20% 15%;
-    --accent-foreground: 210 25% 94%;
+    --accent: 196 22% 14%;
+    --accent-foreground: 174 20% 92%;
 
-    /* ── Primary — bleu plus lumineux sur fond sombre ─────────────────────── */
-    --primary: 222 72% 58%;
-    --primary-foreground: 0 0% 100%;
+    /* ── Primary — teal lumineux sur fond sombre ──────────────────────────── */
+    --primary: 174 42% 52%;             /* #5BBFB5 — teal clair, lisible sur sombre */
+    --primary-foreground: 200 35% 8%;
+
+    /* ── Primary light ────────────────────────────────────────────────────── */
+    --primary-light: 174 38% 64%;
 
     /* ── Secondary ────────────────────────────────────────────────────────── */
-    --secondary: 220 20% 16%;
-    --secondary-foreground: 210 25% 85%;
+    --secondary: 196 22% 15%;
+    --secondary-foreground: 174 20% 80%;
 
     /* ── Statuts sémantiques (ton réduit sur fond sombre) ─────────────────── */
-    --success: 152 50% 45%;
+    --success: 152 48% 44%;
     --success-foreground: 0 0% 100%;
-    --success-subtle: 152 30% 14%;
-    --success-subtle-foreground: 152 50% 65%;
+    --success-subtle: 152 28% 13%;
+    --success-subtle-foreground: 152 48% 62%;
 
-    --warning: 38 85% 52%;
+    --warning: 38 82% 50%;
     --warning-foreground: 38 80% 10%;
-    --warning-subtle: 38 50% 14%;
-    --warning-subtle-foreground: 38 85% 68%;
+    --warning-subtle: 38 45% 13%;
+    --warning-subtle-foreground: 38 82% 66%;
 
-    --danger: 4 75% 58%;
+    --danger: 4 72% 56%;
     --danger-foreground: 0 0% 100%;
-    --danger-subtle: 4 50% 14%;
-    --danger-subtle-foreground: 4 75% 72%;
+    --danger-subtle: 4 45% 13%;
+    --danger-subtle-foreground: 4 72% 70%;
 
-    --info: 205 70% 50%;
+    --info: 199 62% 48%;
     --info-foreground: 0 0% 100%;
-    --info-subtle: 205 45% 14%;
-    --info-subtle-foreground: 205 70% 68%;
+    --info-subtle: 199 40% 13%;
+    --info-subtle-foreground: 199 62% 66%;
 
     /* ── Destructive ──────────────────────────────────────────────────────── */
-    --destructive: 4 75% 58%;
+    --destructive: 4 72% 56%;
     --destructive-foreground: 0 0% 100%;
 
     /* ── Ring ─────────────────────────────────────────────────────────────── */
-    --ring: 222 72% 58%;
+    --ring: 174 42% 52%;
   }
 }
 
@@ -239,4 +245,22 @@
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
+}
+
+/* ── Dégradé de marque myGaïa ──────────────────────────────────────────────── */
+
+.brand-gradient {
+  background: linear-gradient(135deg, hsl(175 48% 35%), hsl(174 42% 52%));
+}
+
+.brand-gradient-text {
+  background: linear-gradient(135deg, hsl(175 48% 35%), hsl(174 42% 52%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sidebar avec légère teinte teal */
+.sidebar-bg {
+  background: linear-gradient(180deg, hsl(200 28% 10%) 0%, hsl(196 26% 9%) 100%);
 }

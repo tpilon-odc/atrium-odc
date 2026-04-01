@@ -501,9 +501,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Sidebar (desktop) ────────────────────────────────────────────── */}
       <aside className="hidden md:flex w-60 flex-col bg-card border-r border-border shrink-0">
         {/* Logo */}
-        <div className="px-4 py-3.5 border-b border-border flex justify-center">
+        <div className="px-4 py-4 border-b border-border flex justify-center">
           <Link href="/dashboard">
-            <img src="/logo.png" alt="Logo" className="h-10 w-auto dark:brightness-0 dark:invert" />
+            <img src="/logo.png" alt="myGaïa" className="h-9 w-auto" />
           </Link>
         </div>
 

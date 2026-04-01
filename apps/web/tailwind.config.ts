@@ -15,6 +15,7 @@ const config: Config = {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
+          light: 'hsl(var(--primary-light))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -84,8 +85,8 @@ const config: Config = {
         semibold: '600',
       },
       boxShadow: {
-        card: '0 1px 3px 0 hsl(220 18% 88%), 0 1px 2px -1px hsl(220 18% 88%)',
-        'card-md': '0 4px 6px -1px hsl(220 18% 88%), 0 2px 4px -2px hsl(220 18% 88%)',
+        card: '0 1px 3px 0 hsl(174 18% 84%), 0 1px 2px -1px hsl(174 18% 84%)',
+        'card-md': '0 4px 6px -1px hsl(174 18% 84%), 0 2px 4px -2px hsl(174 18% 84%)',
       },
       spacing: {
         /* Gap standard entre items de liste */
