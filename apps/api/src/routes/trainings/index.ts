@@ -32,7 +32,14 @@ const createTrainingBody = z.object({
   notes: z.string().optional(),
 })
 
-const updateTrainingBody = createTrainingBody.omit({ userId: true, trainingId: true }).partial()
+const updateTrainingBody = createTrainingBody
+  .omit({ userId: true, trainingId: true })
+  .partial()
+  .extend({
+    trainingDateEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format date invalide').nullable().optional(),
+    certificateDocumentId: z.string().uuid().nullable().optional(),
+    notes: z.string().nullable().optional(),
+  })
 
 const listTrainingsQuery = z.object({
   userId: z.string().uuid().optional(),
