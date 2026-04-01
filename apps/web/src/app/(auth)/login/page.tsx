@@ -106,6 +106,12 @@ export default function LoginPage() {
           Créer un compte
         </Link>
       </p>
+
+      <div className="mt-4 pt-4 border-t border-border text-center">
+        <Link href="/annuaire" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+          Consulter l&apos;annuaire des cabinets
+        </Link>
+      </div>
     </div>
   )
 }
