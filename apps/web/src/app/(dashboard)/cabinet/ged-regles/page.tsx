@@ -1,19 +1,24 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FolderOpen, Check, X, ChevronRight } from 'lucide-react'
+import { FolderOpen, Check, X, ChevronRight, Plus, Tag, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import {
   folderRulesApi,
   folderApi,
   type FolderRule,
   type FolderRuleEntityType,
+  type FolderRuleTag,
+  type FolderRuleTagType,
   FOLDER_RULE_LABELS,
+  FOLDER_RULE_TAG_LABELS,
+  ENTITY_TAG_TYPES,
   type Folder,
 } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
 
 const ENTITY_TYPES: FolderRuleEntityType[] = [
   'contact',
@@ -37,7 +42,7 @@ function buildFolderPath(folder: Folder, all: Folder[]): string {
   return parts.join(' / ')
 }
 
-// ── Sélecteur de dossier (arbre à plat trié) ──────────────────────────────────
+// ── Sélecteur de dossier ──────────────────────────────────────────────────────
 
 function FolderSelect({
   folders,
@@ -53,12 +58,9 @@ function FolderSelect({
   const [open, setOpen] = useState(false)
   const selected = value ? folders.find((f) => f.id === value) : null
 
-  // Trie : parents d'abord, puis enfants — ordre alphabétique dans chaque niveau
-  const sorted = [...folders].sort((a, b) => {
-    const pathA = buildFolderPath(a, folders)
-    const pathB = buildFolderPath(b, folders)
-    return pathA.localeCompare(pathB, 'fr')
-  })
+  const sorted = [...folders].sort((a, b) =>
+    buildFolderPath(a, folders).localeCompare(buildFolderPath(b, folders), 'fr')
+  )
 
   return (
     <div className="relative">
@@ -79,11 +81,7 @@ function FolderSelect({
           <span
             role="button"
             className="p-0.5 rounded hover:bg-muted"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClear()
-              setOpen(false)
-            }}
+            onClick={(e) => { e.stopPropagation(); onClear(); setOpen(false) }}
           >
             <X className="h-3.5 w-3.5 text-muted-foreground" />
           </span>
@@ -93,25 +91,19 @@ function FolderSelect({
       {open && (
         <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white dark:bg-zinc-900 border border-border rounded-md shadow-lg py-1">
           {sorted.map((f) => {
-            const path = buildFolderPath(f, folders)
-            const depth = path.split(' / ').length - 1
+            const depth = buildFolderPath(f, folders).split(' / ').length - 1
             return (
               <button
                 key={f.id}
                 type="button"
                 className={cn(
-                  'flex items-center gap-2 w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors',
+                  'flex items-center gap-2 w-full text-left py-1.5 text-sm hover:bg-muted transition-colors',
                   value === f.id && 'bg-primary/5 text-primary font-medium'
                 )}
-                style={{ paddingLeft: `${12 + depth * 16}px` }}
-                onClick={() => {
-                  onChange(f.id)
-                  setOpen(false)
-                }}
+                style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: '12px' }}
+                onClick={() => { onChange(f.id); setOpen(false) }}
               >
-                {depth > 0 && (
-                  <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                )}
+                {depth > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
                 <FolderOpen className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
                 <span className="truncate">{f.name}</span>
                 {value === f.id && <Check className="h-3.5 w-3.5 ml-auto shrink-0" />}
@@ -120,6 +112,95 @@ function FolderSelect({
           })}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Badge tag rule ────────────────────────────────────────────────────────────
+
+function TagRuleBadge({
+  tagRule,
+  entityType,
+  onDelete,
+}: {
+  tagRule: FolderRuleTag
+  entityType: FolderRuleEntityType
+  onDelete: () => void
+}) {
+  const label =
+    tagRule.type === 'fixed'
+      ? tagRule.fixedValue ?? ''
+      : FOLDER_RULE_TAG_LABELS[tagRule.type]
+
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
+      <Tag className="h-3 w-3 text-muted-foreground shrink-0" />
+      {label}
+      <button
+        type="button"
+        onClick={onDelete}
+        className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  )
+}
+
+// ── Ajout d'un tag rule ───────────────────────────────────────────────────────
+
+function AddTagRuleInline({
+  entityType,
+  onAdd,
+  onClose,
+}: {
+  entityType: FolderRuleEntityType
+  onAdd: (type: FolderRuleTagType, fixedValue?: string) => void
+  onClose: () => void
+}) {
+  const [selectedType, setSelectedType] = useState<FolderRuleTagType | ''>('')
+  const [fixedValue, setFixedValue] = useState('')
+  const availableTypes = ENTITY_TAG_TYPES[entityType]
+
+  const canSubmit =
+    selectedType !== '' &&
+    (selectedType !== 'fixed' || fixedValue.trim().length > 0)
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap mt-1">
+      <select
+        className="text-xs border border-border rounded px-2 py-1 bg-white dark:bg-zinc-900"
+        value={selectedType}
+        onChange={(e) => setSelectedType(e.target.value as FolderRuleTagType | '')}
+      >
+        <option value="">Type de tag…</option>
+        {availableTypes.map((t) => (
+          <option key={t} value={t}>{FOLDER_RULE_TAG_LABELS[t]}</option>
+        ))}
+      </select>
+
+      {selectedType === 'fixed' && (
+        <Input
+          className="h-7 text-xs w-36"
+          placeholder="Valeur du tag…"
+          value={fixedValue}
+          onChange={(e) => setFixedValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && canSubmit && onAdd('fixed', fixedValue.trim())}
+          autoFocus
+        />
+      )}
+
+      <Button
+        size="sm"
+        className="h-7 text-xs px-2"
+        disabled={!canSubmit}
+        onClick={() => onAdd(selectedType as FolderRuleTagType, selectedType === 'fixed' ? fixedValue.trim() : undefined)}
+      >
+        Ajouter
+      </Button>
+      <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <X className="h-4 w-4" />
+      </button>
     </div>
   )
 }
@@ -138,70 +219,122 @@ function RuleRow({
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
   const [pendingFolderId, setPendingFolderId] = useState<string | null>(rule?.folderId ?? null)
-  const [dirty, setDirty] = useState(false)
+  const [folderDirty, setFolderDirty] = useState(false)
+  const [addingTag, setAddingTag] = useState(false)
 
   const upsert = useMutation({
     mutationFn: (folderId: string) =>
       folderRulesApi.upsert({ entityType, folderId }, token!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folder-rules'] })
-      setDirty(false)
+      setFolderDirty(false)
     },
   })
 
-  const remove = useMutation({
+  const removeRule = useMutation({
     mutationFn: () => folderRulesApi.delete(entityType, token!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folder-rules'] })
       setPendingFolderId(null)
-      setDirty(false)
+      setFolderDirty(false)
     },
   })
 
-  const handleChange = (folderId: string) => {
+  const addTagRule = useMutation({
+    mutationFn: ({ type, fixedValue }: { type: FolderRuleTagType; fixedValue?: string }) =>
+      folderRulesApi.addTagRule(entityType, { type, fixedValue }, token!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['folder-rules'] })
+      setAddingTag(false)
+    },
+  })
+
+  const deleteTagRule = useMutation({
+    mutationFn: (tagRuleId: string) =>
+      folderRulesApi.deleteTagRule(entityType, tagRuleId, token!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['folder-rules'] }),
+  })
+
+  const handleFolderChange = (folderId: string) => {
     setPendingFolderId(folderId)
-    setDirty(true)
+    setFolderDirty(true)
   }
 
-  const handleClear = () => {
-    if (rule) {
-      remove.mutate()
-    } else {
-      setPendingFolderId(null)
-      setDirty(false)
-    }
+  const handleFolderClear = () => {
+    if (rule) removeRule.mutate()
+    else { setPendingFolderId(null); setFolderDirty(false) }
   }
 
-  const handleSave = () => {
-    if (pendingFolderId) upsert.mutate(pendingFolderId)
-  }
-
-  const saving = upsert.isPending || remove.isPending
+  const saving = upsert.isPending || removeRule.isPending
 
   return (
-    <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-4 py-3 border-b border-border last:border-0">
-      <div>
-        <p className="text-sm font-medium">{FOLDER_RULE_LABELS[entityType]}</p>
-        {!rule && !pendingFolderId && (
-          <p className="text-xs text-muted-foreground mt-0.5">Pas de règle — dossier "Général" par défaut</p>
-        )}
+    <div className="py-4 border-b border-border last:border-0 space-y-3">
+      {/* Ligne dossier */}
+      <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-4">
+        <div>
+          <p className="text-sm font-medium">{FOLDER_RULE_LABELS[entityType]}</p>
+          {!rule && !pendingFolderId && (
+            <p className="text-xs text-muted-foreground mt-0.5">Aucun dossier — non classé par défaut</p>
+          )}
+        </div>
+
+        <FolderSelect
+          folders={folders}
+          value={pendingFolderId}
+          onChange={handleFolderChange}
+          onClear={handleFolderClear}
+        />
+
+        <Button
+          size="sm"
+          disabled={!folderDirty || !pendingFolderId || saving}
+          onClick={() => pendingFolderId && upsert.mutate(pendingFolderId)}
+          className="shrink-0"
+        >
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </Button>
       </div>
 
-      <FolderSelect
-        folders={folders}
-        value={pendingFolderId}
-        onChange={handleChange}
-        onClear={handleClear}
-      />
+      {/* Tags automatiques — uniquement si une règle de dossier existe */}
+      {rule && (
+        <div className="ml-0 pl-4 border-l-2 border-border space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground font-medium">Tags auto :</span>
 
-      <Button
-        size="sm"
-        disabled={!dirty || !pendingFolderId || saving}
-        onClick={handleSave}
-        className="shrink-0"
-      >
-        {saving ? 'Enregistrement…' : 'Enregistrer'}
-      </Button>
+            {rule.tagRules.length === 0 && !addingTag && (
+              <span className="text-xs text-muted-foreground italic">aucun</span>
+            )}
+
+            {rule.tagRules.map((tr) => (
+              <TagRuleBadge
+                key={tr.id}
+                tagRule={tr}
+                entityType={entityType}
+                onDelete={() => deleteTagRule.mutate(tr.id)}
+              />
+            ))}
+
+            {!addingTag && (
+              <button
+                type="button"
+                onClick={() => setAddingTag(true)}
+                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                Ajouter un tag
+              </button>
+            )}
+          </div>
+
+          {addingTag && (
+            <AddTagRuleInline
+              entityType={entityType}
+              onAdd={(type, fixedValue) => addTagRule.mutate({ type, fixedValue })}
+              onClose={() => setAddingTag(false)}
+            />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -237,7 +370,7 @@ export default function GedReglesPage() {
       <div>
         <h2 className="text-2xl font-semibold">Règles de classement GED</h2>
         <p className="text-muted-foreground mt-1">
-          Définissez dans quel dossier sont automatiquement rangés les documents selon leur contexte d&apos;upload.
+          Définissez dans quel dossier sont rangés les documents et quels tags leur sont automatiquement appliqués selon le contexte d&apos;upload.
         </p>
       </div>
 
@@ -246,11 +379,12 @@ export default function GedReglesPage() {
           <div className="py-8 text-center text-sm text-muted-foreground">Chargement…</div>
         ) : folders.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            Aucun dossier configuré dans votre GED. Créez d&apos;abord vos dossiers.
+            Aucun dossier dans votre GED.{' '}
+            <a href="/ged" className="text-primary hover:underline">Créez d&apos;abord vos dossiers.</a>
           </div>
         ) : (
           <div>
-            <div className="grid grid-cols-[1fr_2fr_auto] gap-4 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+            <div className="grid grid-cols-[1fr_2fr_auto] gap-4 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70 border-b border-border mb-1">
               <span>Contexte</span>
               <span>Dossier de destination</span>
               <span />
@@ -265,6 +399,13 @@ export default function GedReglesPage() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="bg-muted/40 border border-border rounded-lg p-4 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground">Comment fonctionnent les tags automatiques ?</p>
+        <p><strong>Tag fixe</strong> — une valeur que vous saisissez, posée sur tous les docs de ce contexte. Ex : &quot;Client&quot;, &quot;Contrat&quot;.</p>
+        <p><strong>Année d&apos;upload</strong> — l&apos;année en cours au moment de l&apos;upload. Ex : &quot;2025&quot;.</p>
+        <p><strong>Nom de l&apos;entité</strong> — le nom du contact, fournisseur ou produit lié au document.</p>
       </div>
     </div>
   )

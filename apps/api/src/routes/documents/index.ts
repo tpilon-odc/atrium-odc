@@ -20,24 +20,62 @@ import {
   addDocumentTagBody,
 } from './schemas'
 
+// Résout le nom lisible d'une entité pour le tagging automatique
+async function resolveEntityName(entityType: string, entityId: string): Promise<string | null> {
+  try {
+    switch (entityType) {
+      case 'contact': {
+        const c = await prisma.contact.findUnique({ where: { id: entityId }, select: { firstName: true, lastName: true } })
+        if (!c) return null
+        return [c.firstName, c.lastName].filter(Boolean).join(' ') || null
+      }
+      case 'supplier': {
+        const s = await prisma.supplier.findUnique({ where: { id: entityId }, select: { name: true } })
+        return s?.name ?? null
+      }
+      case 'product': {
+        const p = await prisma.product.findUnique({ where: { id: entityId }, select: { name: true } })
+        return p?.name ?? null
+      }
+      case 'training': {
+        const t = await prisma.collaboratorTraining.findUnique({
+          where: { id: entityId },
+          select: {
+            user: { select: { firstName: true, lastName: true } },
+            member: { select: { externalFirstName: true, externalLastName: true } },
+          },
+        })
+        if (!t) return null
+        if (t.user) return [t.user.firstName, t.user.lastName].filter(Boolean).join(' ') || null
+        if (t.member) return [t.member.externalFirstName, t.member.externalLastName].filter(Boolean).join(' ') || null
+        return null
+      }
+      default:
+        return null
+    }
+  } catch {
+    return null
+  }
+}
+
 export const documentRoutes: FastifyPluginAsync = async (app) => {
   await app.register(multipart, { limits: { fileSize: MAX_FILE_SIZE } })
 
   // ── POST /api/v1/documents/upload ─────────────────────────────────────────
-  // Paramètre optionnel ?entityType=contact|supplier|product|training|compliance_answer
-  // Si une règle de classement existe pour ce contexte, le document est affecté au dossier configuré.
+  // Paramètres optionnels :
+  //   ?entityType=contact|supplier|product|training|compliance_answer
+  //   ?entityId=<uuid>  (utilisé pour résoudre le nom de l'entité si tag entity_name configuré)
   app.post(
     '/upload',
     { preHandler: [authMiddleware, cabinetMiddleware] },
     async (request, reply) => {
-      const { entityType } = request.query as { entityType?: string }
+      const { entityType, entityId } = request.query as { entityType?: string; entityId?: string }
 
       const file = await request.file()
       if (!file) {
         return reply.status(400).send({ error: 'Aucun fichier reçu', code: 'NO_FILE' })
       }
 
-      // Validation MIME côté serveur (specs section 10 - points critiques)
       if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
         return reply.status(400).send({
           error: `Type de fichier non autorisé : ${file.mimetype}`,
@@ -51,31 +89,71 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(400).send({ error: 'Fichier trop volumineux (max 10 Mo)', code: 'FILE_TOO_LARGE' })
       }
 
-      // Résolution de la règle de classement automatique
+      // Résolution de la règle (dossier + tags auto)
       let folderId: string | undefined
+      let tagNamesToApply: string[] = []
+
       if (entityType) {
         const rule = await prisma.folderRule.findUnique({
           where: { cabinetId_entityType: { cabinetId: request.cabinetId, entityType } },
-          select: { folderId: true },
+          include: { tagRules: { orderBy: { order: 'asc' } } },
         })
-        if (rule) folderId = rule.folderId
+
+        if (rule) {
+          folderId = rule.folderId
+
+          // Résolution du nom de l'entité pour les tags entity_name
+          let entityName: string | null = null
+          if (entityId && rule.tagRules.some((t) => t.type === 'entity_name')) {
+            entityName = await resolveEntityName(entityType, entityId)
+          }
+
+          const year = new Date().getFullYear().toString()
+
+          for (const tagRule of rule.tagRules) {
+            if (tagRule.type === 'fixed' && tagRule.fixedValue) {
+              tagNamesToApply.push(tagRule.fixedValue)
+            } else if (tagRule.type === 'year') {
+              tagNamesToApply.push(year)
+            } else if (tagRule.type === 'entity_name' && entityName) {
+              tagNamesToApply.push(entityName)
+            }
+          }
+        }
       }
 
       const storagePath = buildStoragePath(request.cabinetId, file.filename)
-
       await uploadToMinio(storagePath, buffer, file.mimetype)
 
-      const document = await prisma.document.create({
-        data: {
-          cabinetId: request.cabinetId,
-          uploadedBy: request.user.id,
-          name: file.filename,
-          storageMode: StorageMode.hosted,
-          storagePath,
-          mimeType: file.mimetype,
-          sizeBytes: BigInt(buffer.length),
-          ...(folderId ? { folderId } : {}),
-        },
+      const document = await prisma.$transaction(async (tx) => {
+        const doc = await tx.document.create({
+          data: {
+            cabinetId: request.cabinetId,
+            uploadedBy: request.user.id,
+            name: file.filename,
+            storageMode: StorageMode.hosted,
+            storagePath,
+            mimeType: file.mimetype,
+            sizeBytes: BigInt(buffer.length),
+            ...(folderId ? { folderId } : {}),
+          },
+        })
+
+        // Upsert + association des tags automatiques
+        for (const tagName of tagNamesToApply) {
+          const tag = await tx.tag.upsert({
+            where: { cabinetId_name: { cabinetId: request.cabinetId, name: tagName } },
+            create: { cabinetId: request.cabinetId, name: tagName },
+            update: {},
+          })
+          await tx.documentTag.upsert({
+            where: { documentId_tagId: { documentId: doc.id, tagId: tag.id } },
+            create: { documentId: doc.id, tagId: tag.id },
+            update: {},
+          })
+        }
+
+        return doc
       })
 
       return reply.status(201).send({ data: { document: { ...document, sizeBytes: document.sizeBytes?.toString() } } })

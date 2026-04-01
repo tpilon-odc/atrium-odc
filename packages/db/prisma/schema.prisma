@@ -104,6 +104,12 @@ enum StorageProvider {
   other
 }
 
+enum FolderRuleTagType {
+  fixed
+  year
+  entity_name
+}
+
 enum DocumentEntityType {
   cabinet
   contact
@@ -1217,12 +1223,28 @@ model FolderRule {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
-  folder  Folder  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  cabinet  Cabinet          @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+  folder   Folder           @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  tagRules FolderRuleTag[]
 
   @@unique([cabinetId, entityType])
   @@index([cabinetId])
   @@map("folder_rules")
+}
+
+/// Tag automatique attaché à une règle de classement.
+model FolderRuleTag {
+  id           String            @id @default(uuid()) @db.Uuid
+  folderRuleId String            @map("folder_rule_id") @db.Uuid
+  type         FolderRuleTagType
+  fixedValue   String?           @map("fixed_value")
+  order        Int               @default(0)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  folderRule FolderRule @relation(fields: [folderRuleId], references: [id], onDelete: Cascade)
+
+  @@index([folderRuleId])
+  @@map("folder_rule_tags")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

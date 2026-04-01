@@ -1813,11 +1813,14 @@ export const documentApi = {
   getSharedUrl: (id: string, token: string) =>
     call<{ url: string; expiresIn: number | null }>(`/api/v1/documents/${id}/shared-url`, { token }),
 
-  upload: async (file: File, token: string, entityType?: string) => {
+  upload: async (file: File, token: string, entityType?: string, entityId?: string) => {
     const form = new FormData()
     form.append('file', file)
-    const q = entityType ? `?entityType=${encodeURIComponent(entityType)}` : ''
-    const res = await fetch(`${API_URL}/api/v1/documents/upload${q}`, {
+    const q = new URLSearchParams()
+    if (entityType) q.set('entityType', entityType)
+    if (entityId) q.set('entityId', entityId)
+    const qs = q.toString() ? `?${q}` : ''
+    const res = await fetch(`${API_URL}/api/v1/documents/upload${qs}`, {
       method: 'POST',
       body: form,
       headers: { Authorization: `Bearer ${token}` },
@@ -1878,12 +1881,38 @@ export const FOLDER_RULE_LABELS: Record<FolderRuleEntityType, string> = {
   compliance_answer: 'Conformité',
 }
 
+export type FolderRuleTagType = 'fixed' | 'year' | 'entity_name'
+
+export const FOLDER_RULE_TAG_LABELS: Record<FolderRuleTagType, string> = {
+  fixed: 'Tag fixe',
+  year: "Année d'upload",
+  entity_name: "Nom de l'entité",
+}
+
+// entity_name n'est pas pertinent pour compliance_answer (pas d'entité nommée)
+export const ENTITY_TAG_TYPES: Record<FolderRuleEntityType, FolderRuleTagType[]> = {
+  contact: ['fixed', 'year', 'entity_name'],
+  supplier: ['fixed', 'year', 'entity_name'],
+  product: ['fixed', 'year', 'entity_name'],
+  training: ['fixed', 'year', 'entity_name'],
+  compliance_answer: ['fixed', 'year'],
+}
+
+export type FolderRuleTag = {
+  id: string
+  folderRuleId: string
+  type: FolderRuleTagType
+  fixedValue: string | null
+  order: number
+}
+
 export type FolderRule = {
   id: string
   cabinetId: string
   entityType: FolderRuleEntityType
   folderId: string
   folder: { id: string; name: string; parentId: string | null; isSystem: boolean }
+  tagRules: FolderRuleTag[]
 }
 
 export const folderRulesApi = {
@@ -1899,6 +1928,20 @@ export const folderRulesApi = {
 
   delete: (entityType: FolderRuleEntityType, token: string) =>
     call<unknown>(`/api/v1/folder-rules/${entityType}`, { method: 'DELETE', token }),
+
+  addTagRule: (
+    entityType: FolderRuleEntityType,
+    data: { type: FolderRuleTagType; fixedValue?: string; order?: number },
+    token: string
+  ) =>
+    call<{ tagRule: FolderRuleTag }>(`/api/v1/folder-rules/${entityType}/tags`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  deleteTagRule: (entityType: FolderRuleEntityType, tagRuleId: string, token: string) =>
+    call<unknown>(`/api/v1/folder-rules/${entityType}/tags/${tagRuleId}`, { method: 'DELETE', token }),
 }
 
 export const folderApi = {

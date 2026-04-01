@@ -363,7 +363,7 @@ function EditTrainingForm({ t, onClose }: { t: CollaboratorTraining; onClose: ()
   const handleCertUpload = async (file: File) => {
     setUploading(true)
     try {
-      const res = await documentApi.upload(file, token!, 'training')
+      const res = await documentApi.upload(file, token!, 'training', t.id)
       setCertDoc(res.data.document)
       queryClient.invalidateQueries({ queryKey: ['docs-picker', token] })
     } finally {
@@ -374,6 +374,9 @@ function EditTrainingForm({ t, onClose }: { t: CollaboratorTraining; onClose: ()
   const categoryHours = Object.entries(categoryHoursMap)
     .filter(([, v]) => v && Number(v) > 0)
     .map(([categoryId, hours]) => ({ categoryId, hours: Number(hours) }))
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _editTrainingId = t.id // entityId disponible pour le tag entity_name
 
   const mutation = useMutation({
     mutationFn: () => trainingApi.update(t.id, {
