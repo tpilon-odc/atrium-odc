@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { authApi, cabinetApi, ApiError } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { createClient } from '@/lib/supabase/client'
 
 const schema = z.object({
   email: z.string().email('Email invalide'),
@@ -35,7 +36,13 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     try {
       const { data: result } = await authApi.login(data.email, data.password)
-      setAuth(result.session.access_token, result.user)
+      // Branche le SDK Supabase pour qu'il gère le refresh automatiquement
+      const supabase = createClient()
+      await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      })
+      setAuth(result.session.access_token, result.user, result.session.refresh_token)
 
       // Les rôles plateforme n'ont pas de cabinet
       const noCabinet = ['chamber', 'regulator', 'platform_admin', 'supplier'].includes(result.user.globalRole)

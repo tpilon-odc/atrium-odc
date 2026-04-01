@@ -36,6 +36,7 @@ import {
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, cabinetApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 
@@ -66,10 +67,10 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
       items: ([
         { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
         hasCabinet && { href: '/cabinet', label: 'Mon Cabinet', icon: Building2 },
-        hasCabinet && canAll && { href: '/cabinet/ged-regles', label: 'Classement GED', icon: FolderOpen },
         hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck, showProgress: true },
         hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
         { href: '/formations', label: 'Formations', icon: GraduationCap },
+        { href: '/parametres', label: 'Paramètres', icon: Settings },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
     {
@@ -120,11 +121,12 @@ function buildDrawerItems(member: CabinetMember | null, hasCabinet: boolean, glo
   const canAll = !member || member.role === 'owner' || member.role === 'admin'
   const allow = (perm: keyof CabinetMember) => canAll || !!member?.[perm]
   return ([
+    { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
     hasCabinet && { href: '/cabinet', label: 'Mon Cabinet', icon: Building2 },
-    hasCabinet && canAll && { href: '/cabinet/ged-regles', label: 'Classement GED', icon: FolderOpen },
     hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck },
     hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
     { href: '/formations', label: 'Formations', icon: GraduationCap },
+    allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
     { href: '/agenda', label: 'Agenda', icon: CalendarDays },
     { href: '/ged', label: 'Documents', icon: FolderOpen },
     { href: '/partage', label: 'Partage', icon: Share2 },
@@ -456,32 +458,57 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     hydrate()
-    const stored = localStorage.getItem('access_token')
-    if (!stored) {
+
+    const accessToken = localStorage.getItem('access_token')
+    const refreshToken = localStorage.getItem('refresh_token')
+
+    if (!accessToken) {
       router.replace('/login')
       return
     }
-    // Vérifie l'expiration du JWT sans appel réseau
-    try {
-      const parts = stored.split('.')
-      const payload = JSON.parse(atob(parts[1]))
-      const expiredAt = payload.exp * 1000
-      if (Date.now() >= expiredAt) {
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('user')
-        localStorage.removeItem('cabinet')
+
+    const supabase = createSupabaseClient()
+
+    const init = async () => {
+      // Restaure la session Supabase depuis les tokens stockés
+      if (refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      }
+
+      // Vérifie si le token est encore valide (ou vient d'être rafraîchi)
+      const { data: { session }, error } = await supabase.auth.getSession()
+
+      if (error || !session) {
+        useAuthStore.getState().logout()
         router.replace('/login?reason=session_expired')
         return
       }
-    } catch {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('cabinet')
-      router.replace('/login?reason=session_expired')
-      return
+
+      // Met à jour le store si le token a été renouvelé
+      const userRaw = localStorage.getItem('user')
+      const user = userRaw ? JSON.parse(userRaw) : null
+      if (user && session.access_token !== accessToken) {
+        useAuthStore.getState().setAuth(session.access_token, user, session.refresh_token)
+      }
+
+      setReady(true)
     }
-    setReady(true)
-  }, [hydrate, router, pathname])
+
+    init()
+
+    // Écoute les renouvellements automatiques (TOKEN_REFRESHED)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session) {
+        const userRaw = localStorage.getItem('user')
+        const user = userRaw ? JSON.parse(userRaw) : null
+        if (user) {
+          useAuthStore.getState().setAuth(session.access_token, user, session.refresh_token)
+        }
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [hydrate, router])
 
   // Vérifie le consentement CGU — redirige vers /consent si version non acceptée
   useEffect(() => {

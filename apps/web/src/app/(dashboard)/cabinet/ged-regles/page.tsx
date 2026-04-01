@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FolderOpen, Check, X, ChevronRight, Plus, Tag, Trash2 } from 'lucide-react'
+import { FolderOpen, Check, X, ChevronRight, Plus, Tag } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import {
   folderRulesApi,
@@ -211,31 +211,40 @@ function RuleRow({
   entityType,
   rule,
   folders,
+  onDirtyChange,
 }: {
   entityType: FolderRuleEntityType
   rule: FolderRule | undefined
   folders: Folder[]
+  onDirtyChange: (entityType: FolderRuleEntityType, dirty: boolean) => void
 }) {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
-  const [pendingFolderId, setPendingFolderId] = useState<string | null>(rule?.folderId ?? null)
-  const [folderDirty, setFolderDirty] = useState(false)
   const [addingTag, setAddingTag] = useState(false)
 
-  // État local des sous-dossiers — initialisé depuis la règle existante
+  // État local — tout ce qui peut être modifié avant enregistrement
+  const [pendingFolderId, setPendingFolderId] = useState<string | null>(rule?.folderId ?? null)
   const [subEntity, setSubEntity] = useState(rule?.subfolderEntity ?? false)
   const [subYear, setSubYear] = useState(rule?.subfolderYear ?? false)
   const [subOrder, setSubOrder] = useState<'entity_year' | 'year_entity'>(rule?.subfolderOrder ?? 'entity_year')
 
   const hasEntityName = entityType !== 'compliance_answer'
 
+  // Calcul dirty : comparaison avec les valeurs sauvegardées
+  const dirty =
+    pendingFolderId !== (rule?.folderId ?? null) ||
+    subEntity !== (rule?.subfolderEntity ?? false) ||
+    subYear !== (rule?.subfolderYear ?? false) ||
+    subOrder !== (rule?.subfolderOrder ?? 'entity_year')
+
+  useEffect(() => {
+    onDirtyChange(entityType, dirty)
+  }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const upsert = useMutation({
     mutationFn: (data: { folderId: string; subfolderEntity: boolean; subfolderYear: boolean; subfolderOrder: 'entity_year' | 'year_entity' }) =>
       folderRulesApi.upsert({ entityType, ...data }, token!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['folder-rules'] })
-      setFolderDirty(false)
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['folder-rules'] }),
   })
 
   const removeRule = useMutation({
@@ -243,7 +252,6 @@ function RuleRow({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['folder-rules'] })
       setPendingFolderId(null)
-      setFolderDirty(false)
     },
   })
 
@@ -262,56 +270,37 @@ function RuleRow({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['folder-rules'] }),
   })
 
-  const handleFolderChange = (folderId: string) => {
-    setPendingFolderId(folderId)
-    setFolderDirty(true)
+  const handleSave = () => {
+    if (!pendingFolderId) return
+    upsert.mutate({ folderId: pendingFolderId, subfolderEntity: subEntity, subfolderYear: subYear, subfolderOrder: subOrder })
+  }
+
+  const handleDiscard = () => {
+    setPendingFolderId(rule?.folderId ?? null)
+    setSubEntity(rule?.subfolderEntity ?? false)
+    setSubYear(rule?.subfolderYear ?? false)
+    setSubOrder(rule?.subfolderOrder ?? 'entity_year')
   }
 
   const handleFolderClear = () => {
     if (rule) removeRule.mutate()
-    else { setPendingFolderId(null); setFolderDirty(false) }
-  }
-
-  const handleSubfolderToggle = (field: 'entity' | 'year', value: boolean) => {
-    const next = field === 'entity' ? { subEntity: value, subYear } : { subEntity, subYear: value }
-    if (rule) {
-      upsert.mutate({
-        folderId: rule.folderId,
-        subfolderEntity: next.subEntity,
-        subfolderYear: next.subYear,
-        subfolderOrder: subOrder,
-      })
-    }
-    if (field === 'entity') setSubEntity(value)
-    else setSubYear(value)
-  }
-
-  const handleOrderChange = (value: 'entity_year' | 'year_entity') => {
-    setSubOrder(value)
-    if (rule) {
-      upsert.mutate({
-        folderId: rule.folderId,
-        subfolderEntity: subEntity,
-        subfolderYear: subYear,
-        subfolderOrder: value,
-      })
-    }
+    else setPendingFolderId(null)
   }
 
   const saving = upsert.isPending || removeRule.isPending
 
-  // Exemple de structure générée
-  const exampleParts: string[] = [rule?.folder.name ?? '…']
+  // Aperçu de la structure
+  const previewBase = pendingFolderId ? (folders.find((f) => f.id === pendingFolderId)?.name ?? '…') : '…'
+  const previewParts: string[] = [previewBase]
   const ordered =
     subOrder === 'entity_year'
       ? [subEntity && hasEntityName ? 'Dupont Jean' : null, subYear ? '2025' : null]
       : [subYear ? '2025' : null, subEntity && hasEntityName ? 'Dupont Jean' : null]
-  ordered.filter(Boolean).forEach((p) => exampleParts.push(p!))
-  exampleParts.push('document.pdf')
+  ordered.filter(Boolean).forEach((p) => previewParts.push(p!))
 
   return (
     <div className="py-4 border-b border-border last:border-0 space-y-3">
-      {/* Ligne dossier */}
+      {/* Ligne dossier + boutons */}
       <div className="grid grid-cols-[1fr_2fr_auto] items-center gap-4">
         <div>
           <p className="text-sm font-medium">{FOLDER_RULE_LABELS[entityType]}</p>
@@ -323,27 +312,40 @@ function RuleRow({
         <FolderSelect
           folders={folders}
           value={pendingFolderId}
-          onChange={handleFolderChange}
+          onChange={setPendingFolderId}
           onClear={handleFolderClear}
         />
 
-        <Button
-          size="sm"
-          disabled={!folderDirty || !pendingFolderId || saving}
-          onClick={() => pendingFolderId && upsert.mutate({
-            folderId: pendingFolderId,
-            subfolderEntity: subEntity,
-            subfolderYear: subYear,
-            subfolderOrder: subOrder,
-          })}
-          className="shrink-0"
-        >
-          {saving ? 'Enregistrement…' : 'Enregistrer'}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {dirty && (
+            <button
+              type="button"
+              onClick={handleDiscard}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Annuler
+            </button>
+          )}
+          <Button
+            size="sm"
+            disabled={!dirty || !pendingFolderId || saving}
+            onClick={handleSave}
+          >
+            {saving ? 'Enregistrement…' : 'Enregistrer'}
+          </Button>
+        </div>
       </div>
 
-      {/* Options sous-dossiers + tags — uniquement si une règle de dossier existe */}
-      {rule && (
+      {/* Indicateur non-sauvegardé */}
+      {dirty && pendingFolderId && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+          Modifications non enregistrées
+        </p>
+      )}
+
+      {/* Options sous-dossiers + tags */}
+      {(rule || pendingFolderId) && (
         <div className="pl-4 border-l-2 border-border space-y-3">
 
           {/* Sous-dossiers automatiques */}
@@ -356,9 +358,9 @@ function RuleRow({
                     type="checkbox"
                     className="rounded"
                     checked={subEntity}
-                    onChange={(e) => handleSubfolderToggle('entity', e.target.checked)}
+                    onChange={(e) => setSubEntity(e.target.checked)}
                   />
-                  Par entité (nom du {entityType === 'contact' ? 'contact' : entityType === 'supplier' ? 'fournisseur' : entityType === 'product' ? 'produit' : 'collaborateur'})
+                  Par {entityType === 'contact' ? 'contact' : entityType === 'supplier' ? 'fournisseur' : entityType === 'product' ? 'produit' : 'collaborateur'}
                 </label>
               )}
               <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -366,7 +368,7 @@ function RuleRow({
                   type="checkbox"
                   className="rounded"
                   checked={subYear}
-                  onChange={(e) => handleSubfolderToggle('year', e.target.checked)}
+                  onChange={(e) => setSubYear(e.target.checked)}
                 />
                 Par année
               </label>
@@ -377,7 +379,7 @@ function RuleRow({
                   <select
                     className="text-xs border border-border rounded px-2 py-1 bg-white dark:bg-zinc-900"
                     value={subOrder}
-                    onChange={(e) => handleOrderChange(e.target.value as 'entity_year' | 'year_entity')}
+                    onChange={(e) => setSubOrder(e.target.value as 'entity_year' | 'year_entity')}
                   >
                     <option value="entity_year">Entité / Année</option>
                     <option value="year_entity">Année / Entité</option>
@@ -386,52 +388,53 @@ function RuleRow({
               )}
             </div>
 
-            {/* Aperçu de la structure */}
             {(subEntity || subYear) && (
               <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-3 py-1.5 rounded">
-                📁 {exampleParts.slice(0, -1).join(' / ')} / 📄 {exampleParts[exampleParts.length - 1]}
+                📁 {previewParts.join(' / ')} / 📄 document.pdf
               </p>
             )}
           </div>
 
-          {/* Tags automatiques */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground font-medium">Tags auto :</span>
+          {/* Tags automatiques — seulement si règle déjà sauvegardée */}
+          {rule && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium">Tags auto :</span>
 
-              {rule.tagRules.length === 0 && !addingTag && (
-                <span className="text-xs text-muted-foreground italic">aucun</span>
-              )}
+                {rule.tagRules.length === 0 && !addingTag && (
+                  <span className="text-xs text-muted-foreground italic">aucun</span>
+                )}
 
-              {rule.tagRules.map((tr) => (
-                <TagRuleBadge
-                  key={tr.id}
-                  tagRule={tr}
+                {rule.tagRules.map((tr) => (
+                  <TagRuleBadge
+                    key={tr.id}
+                    tagRule={tr}
+                    entityType={entityType}
+                    onDelete={() => deleteTagRule.mutate(tr.id)}
+                  />
+                ))}
+
+                {!addingTag && (
+                  <button
+                    type="button"
+                    onClick={() => setAddingTag(true)}
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Ajouter un tag
+                  </button>
+                )}
+              </div>
+
+              {addingTag && (
+                <AddTagRuleInline
                   entityType={entityType}
-                  onDelete={() => deleteTagRule.mutate(tr.id)}
+                  onAdd={(type, fixedValue) => addTagRule.mutate({ type, fixedValue })}
+                  onClose={() => setAddingTag(false)}
                 />
-              ))}
-
-              {!addingTag && (
-                <button
-                  type="button"
-                  onClick={() => setAddingTag(true)}
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                  Ajouter un tag
-                </button>
               )}
             </div>
-
-            {addingTag && (
-              <AddTagRuleInline
-                entityType={entityType}
-                onAdd={(type, fixedValue) => addTagRule.mutate({ type, fixedValue })}
-                onClose={() => setAddingTag(false)}
-              />
-            )}
-          </div>
+          )}
         </div>
       )}
     </div>
@@ -442,6 +445,26 @@ function RuleRow({
 
 export default function GedReglesPage() {
   const { token } = useAuthStore()
+  const [dirtyRows, setDirtyRows] = useState<Set<FolderRuleEntityType>>(new Set())
+
+  const handleDirtyChange = useCallback((et: FolderRuleEntityType, dirty: boolean) => {
+    setDirtyRows((prev) => {
+      const s = new Set(prev)
+      dirty ? s.add(et) : s.delete(et)
+      return s
+    })
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirtyRows.size > 0) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirtyRows])
 
   const { data: rulesData, isLoading: rulesLoading } = useQuery({
     queryKey: ['folder-rules'],
@@ -473,6 +496,13 @@ export default function GedReglesPage() {
         </p>
       </div>
 
+      {dirtyRows.size > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          <span className="font-medium">Modifications non enregistrées</span>
+          <span className="text-amber-700 dark:text-amber-400">— pensez à sauvegarder avant de quitter la page.</span>
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded-lg p-5">
         {isLoading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">Chargement…</div>
@@ -494,6 +524,7 @@ export default function GedReglesPage() {
                 entityType={et}
                 rule={ruleByType[et]}
                 folders={folders}
+                onDirtyChange={handleDirtyChange}
               />
             ))}
           </div>

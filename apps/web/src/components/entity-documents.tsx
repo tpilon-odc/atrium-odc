@@ -2,11 +2,11 @@
 
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FolderOpen, ExternalLink, X, Plus, Loader2, Upload, FileText, FileImage, File, Eye, EyeOff } from 'lucide-react'
+import { FolderOpen, ExternalLink, X, Loader2, Upload, FileText, FileImage, File, Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { documentApi, supplierPortalApi, supplierPublicApi, type Document } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { cn } from '@/lib/utils'
 
 type EntityType = 'contact' | 'product' | 'supplier'
@@ -24,78 +24,6 @@ function formatSize(bytes: string | null): string {
   if (n < 1024) return `${n} o`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} Ko`
   return `${(n / 1024 / 1024).toFixed(1)} Mo`
-}
-
-// ── Document picker (search existing + detach) ────────────────────────────────
-
-function DocumentPicker({
-  entityType,
-  entityId,
-  linkedDocIds,
-  onPick,
-  onClose,
-}: {
-  entityType: EntityType
-  entityId: string
-  linkedDocIds: Set<string>
-  onPick: (doc: Document) => void
-  onClose: () => void
-}) {
-  const { token } = useAuthStore()
-  const [search, setSearch] = useState('')
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['documents-all', token],
-    queryFn: () => documentApi.list(token!, { limit: 100 }),
-    enabled: !!token,
-  })
-
-  const results = (data?.data.documents ?? []).filter((d) => {
-    if (linkedDocIds.has(d.id)) return false
-    if (!search) return true
-    return d.name.toLowerCase().includes(search.toLowerCase())
-  })
-
-  return (
-    <div className="border border-border rounded-lg bg-card shadow-sm p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">Rattacher un document existant</span>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <Input
-        placeholder="Rechercher…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        autoFocus
-        className="text-sm"
-      />
-      {isLoading ? (
-        <p className="text-xs text-muted-foreground">Chargement…</p>
-      ) : results.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Aucun document disponible.</p>
-      ) : (
-        <ul className="max-h-52 overflow-y-auto space-y-1">
-          {results.map((doc) => {
-            const Icon = mimeIcon(doc.mimeType)
-            return (
-              <li key={doc.id}>
-                <button
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent text-left text-sm transition-colors"
-                  onClick={() => onPick(doc)}
-                >
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <span className="truncate flex-1">{doc.name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">{formatSize(doc.sizeBytes)}</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </div>
-  )
 }
 
 // ── Upload inline ─────────────────────────────────────────────────────────────
@@ -180,14 +108,15 @@ export function EntityDocuments({
 }: {
   entityType: EntityType
   entityId: string
-  supplierId?: string         // mode fournisseur (portail) : upload + toggle public/privé
-  readonlySupplierId?: string // mode lecture publique (fiche cabinet) : docs publics seulement
+  supplierId?: string
+  readonlySupplierId?: string
   title?: string
 }) {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
-  const [picker, setPicker] = useState<'existing' | 'upload' | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [openingId, setOpeningId] = useState<string | null>(null)
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null)
 
   const isSupplierMode = !!supplierId
   const isReadonlySupplier = !!readonlySupplierId
@@ -208,22 +137,6 @@ export function EntityDocuments({
   })
 
   const docs = data?.data.documents ?? []
-  const linkedDocIds = new Set(docs.map((d) => d.id))
-
-  const linkMutation = useMutation({
-    mutationFn: (doc: Document): Promise<unknown> => {
-      const existingLink = doc.links?.find(
-        (l) => l.entityType === entityType && l.entityId === entityId
-      )
-      if (existingLink) return Promise.resolve()
-      return documentApi.addLink(doc.id, entityType, entityId, token!)
-    },
-    onSuccess: () => {
-      setPicker(null)
-      queryClient.invalidateQueries({ queryKey: qKey })
-      queryClient.invalidateQueries({ queryKey: ['documents-all'] })
-    },
-  })
 
   const deleteMutation = useMutation({
     mutationFn: (doc: Document): Promise<unknown> => {
@@ -241,7 +154,7 @@ export function EntityDocuments({
   })
 
   const handleUploadDone = async (doc: Document) => {
-    setPicker(null)
+    setUploading(false)
     if (!isSupplierMode) {
       await documentApi.addLink(doc.id, entityType, entityId, token!)
       queryClient.invalidateQueries({ queryKey: ['documents', token] })
@@ -270,6 +183,10 @@ export function EntityDocuments({
     }
   }
 
+  const handleDelete = (doc: Document) => {
+    setConfirmState({ message: `Supprimer "${doc.name}" ?`, onConfirm: () => deleteMutation.mutate(doc) })
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -277,39 +194,21 @@ export function EntityDocuments({
           <FolderOpen className="h-4 w-4" />
           {title ?? 'Documents'} ({docs.length})
         </h3>
-        {picker === null && !isReadonlySupplier && (
-          <div className="flex gap-2">
-            {!isSupplierMode && (
-              <Button variant="outline" size="sm" onClick={() => setPicker('existing')}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Rattacher
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => setPicker('upload')}>
-              <Upload className="h-3.5 w-3.5 mr-1" />
-              Importer
-            </Button>
-          </div>
+        {!isReadonlySupplier && !uploading && (
+          <Button variant="outline" size="sm" onClick={() => setUploading(true)}>
+            <Upload className="h-3.5 w-3.5 mr-1" />
+            Importer
+          </Button>
         )}
       </div>
 
-      {picker === 'existing' && !isSupplierMode && (
-        <DocumentPicker
-          entityType={entityType}
-          entityId={entityId}
-          linkedDocIds={linkedDocIds}
-          onPick={(doc) => linkMutation.mutate(doc)}
-          onClose={() => setPicker(null)}
-        />
-      )}
-
-      {picker === 'upload' && (
+      {uploading && (
         <InlineUpload
           entityType={entityType}
           entityId={entityId}
           supplierId={supplierId}
           onDone={handleUploadDone}
-          onClose={() => setPicker(null)}
+          onClose={() => setUploading(false)}
         />
       )}
 
@@ -353,7 +252,7 @@ export function EntityDocuments({
                   )}
                   {!isReadonlySupplier && (
                     <button
-                      onClick={() => deleteMutation.mutate(doc)}
+                      onClick={() => handleDelete(doc)}
                       className="text-muted-foreground hover:text-destructive transition-colors"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -364,6 +263,13 @@ export function EntityDocuments({
             )
           })}
         </ul>
+      )}
+      {confirmState && (
+        <ConfirmDialog
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
+        />
       )}
     </div>
   )

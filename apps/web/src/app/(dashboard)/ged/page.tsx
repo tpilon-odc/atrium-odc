@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Upload, FileText, FileImage, File, Trash2, Eye, Loader2, Pencil,
+  Upload, FileText, FileImage, File, Trash2, Eye, Loader2, Pencil, Settings,
   Folder as FolderIcon, FolderOpen, Tag, Plus, X, ChevronDown, ChevronRight, Share2, SlidersHorizontal,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 import { DocumentViewer } from '@/components/ui/DocumentViewer'
 import { ShareModal } from '@/components/ui/ShareModal'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 // ── Palette couleurs tags ──────────────────────────────────────────────────────
 
@@ -378,8 +380,8 @@ function DocumentRow({
           {doc.tags?.map(({ tag }) => (
             <span
               key={tag.id}
-              className="hidden sm:inline text-xs px-1.5 py-0.5 rounded-full font-medium"
-              style={tag.color ? { backgroundColor: tag.color + '22', color: tag.color } : undefined}
+              className="hidden sm:inline text-xs px-1.5 py-0.5 rounded-full font-medium text-white"
+              style={tag.color ? { backgroundColor: tag.color } : { backgroundColor: '#6b7280' }}
             >
               {tag.name}
             </span>
@@ -401,7 +403,7 @@ function DocumentRow({
           variant="ghost"
           size="sm"
           className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-          onClick={() => confirm('Supprimer ce document ?') && onDelete(doc.id)}
+          onClick={() => onDelete(doc.id)}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
@@ -507,7 +509,7 @@ function FolderTreeNode({
 
   return (
     <div>
-      <div className={cn('group flex items-center gap-0.5', depth > 0 && 'ml-3')}>
+      <div className={cn('group flex items-center gap-0.5 rounded-md transition-colors', depth > 0 && 'ml-3', isSelected ? 'bg-primary/10' : 'hover:bg-muted')}>
         <button
           className="w-4 h-6 flex items-center justify-center shrink-0 text-muted-foreground"
           onClick={() => hasChildren && setExpanded((v) => !v)}
@@ -519,10 +521,8 @@ function FolderTreeNode({
         <button
           onClick={() => onSelect(node.id)}
           className={cn(
-            'flex-1 flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm transition-colors text-left',
-            isSelected
-              ? 'bg-primary/10 text-primary font-medium'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            'flex-1 flex items-center gap-1.5 px-2 py-1.5 text-sm text-left transition-colors',
+            isSelected ? 'text-primary font-medium' : 'text-muted-foreground group-hover:text-foreground',
           )}
         >
           {isSelected
@@ -531,18 +531,18 @@ function FolderTreeNode({
           <span className="truncate">{node.name}</span>
         </button>
 
-        <div className="opacity-0 group-hover:opacity-100 flex items-center shrink-0 transition-opacity">
+        <div className="opacity-0 group-hover:opacity-100 flex items-center shrink-0 transition-opacity pr-1 relative z-10">
           <button
             title="Créer un sous-dossier"
             onClick={() => onCreateChild(node.id)}
-            className="p-1 text-muted-foreground hover:text-foreground"
+            className="h-6 w-6 flex items-center justify-center rounded bg-background border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
           >
             <Plus className="h-3 w-3" />
           </button>
           {!node.isSystem && (
             <button
               onClick={() => onDelete(node.id, node.name)}
-              className="p-1 text-muted-foreground hover:text-destructive"
+              className="h-6 w-6 flex items-center justify-center rounded bg-background border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-colors ml-1"
             >
               <Trash2 className="h-3 w-3" />
             </button>
@@ -587,6 +587,9 @@ export default function GEDPage() {
   const [shareDoc, setShareDoc] = useState<Document | null>(null)
   const [editDoc, setEditDoc] = useState<Document | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null)
+
+  const askConfirm = (message: string, onConfirm: () => void) => setConfirmState({ message, onConfirm })
 
   // ── Création de tag inline ────────────────────────────────────────────────
   const [addingTag, setAddingTag] = useState(false)
@@ -672,17 +675,26 @@ export default function GEDPage() {
           <h2 className="text-2xl font-semibold">Gestion documentaire</h2>
           <p className="text-muted-foreground mt-1">Organisez et accédez à vos documents.</p>
         </div>
-        {/* Bouton filtre mobile */}
-        <button
-          className="md:hidden flex items-center gap-1.5 text-sm text-muted-foreground border border-border rounded-lg px-3 py-2 shrink-0 hover:bg-accent transition-colors"
-          onClick={() => setSidebarOpen((v) => !v)}
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          Filtres
-          {(selectedFolderId || selectedTagId) && (
-            <span className="h-2 w-2 rounded-full bg-primary" />
-          )}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/cabinet/ged-regles"
+            className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground border border-border rounded-lg px-3 py-2 hover:bg-accent transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+            Classement automatique
+          </Link>
+          {/* Bouton filtre mobile */}
+          <button
+            className="md:hidden flex items-center gap-1.5 text-sm text-muted-foreground border border-border rounded-lg px-3 py-2 hover:bg-accent transition-colors"
+            onClick={() => setSidebarOpen((v) => !v)}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filtres
+            {(selectedFolderId || selectedTagId) && (
+              <span className="h-2 w-2 rounded-full bg-primary" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar mobile (accordéon) */}
@@ -714,8 +726,8 @@ export default function GEDPage() {
                 key={node.id}
                 node={node}
                 selectedFolderId={selectedFolderId}
-                onSelect={(id) => { setSelectedFolderId(id); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]); setSidebarOpen(false) }}
-                onDelete={(id, name) => confirm(`Supprimer "${name}" ?`) && deleteFolder.mutate(id)}
+                onSelect={(id) => { if (id === selectedFolderId) return; setSelectedFolderId(id); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]); setSidebarOpen(false) }}
+                onDelete={(id, name) => askConfirm(`Supprimer le dossier "${name}" ?`, () => deleteFolder.mutate(id))}
                 onCreateChild={(parentId) => { setNewFolderParentId(parentId); setNewFolderOpen(true) }}
               />
             ))}
@@ -731,10 +743,10 @@ export default function GEDPage() {
                     key={tag.id}
                     onClick={() => { setSelectedTagId(selectedTagId === tag.id ? null : tag.id); setDocCursor(null); setAllDocuments([]); setSidebarOpen(false) }}
                     className={cn(
-                      'flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors',
-                      selectedTagId === tag.id ? 'border-transparent text-white' : 'border-border text-muted-foreground',
+                      'flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border-2 transition-all text-white',
+                      selectedTagId === tag.id ? 'ring-2 ring-offset-1 ring-current opacity-100' : 'opacity-70 hover:opacity-100',
                     )}
-                    style={selectedTagId === tag.id && tag.color ? { backgroundColor: tag.color } : undefined}
+                    style={tag.color ? { backgroundColor: tag.color, borderColor: tag.color } : { backgroundColor: '#6b7280', borderColor: '#6b7280' }}
                   >
                     <Tag className="h-2.5 w-2.5 shrink-0" />
                     {tag.name}
@@ -780,8 +792,8 @@ export default function GEDPage() {
                 key={node.id}
                 node={node}
                 selectedFolderId={selectedFolderId}
-                onSelect={(id) => { setSelectedFolderId(id); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]) }}
-                onDelete={(id, name) => confirm(`Supprimer "${name}" ?`) && deleteFolder.mutate(id)}
+                onSelect={(id) => { if (id === selectedFolderId) return; setSelectedFolderId(id); setSelectedTagId(null); setDocCursor(null); setAllDocuments([]) }}
+                onDelete={(id, name) => askConfirm(`Supprimer le dossier "${name}" ?`, () => deleteFolder.mutate(id))}
                 onCreateChild={(parentId) => { setNewFolderParentId(parentId); setNewFolderOpen(true) }}
               />
             ))}
@@ -843,20 +855,18 @@ export default function GEDPage() {
                     <button
                       onClick={() => { setSelectedTagId(selectedTagId === tag.id ? null : tag.id); setDocCursor(null); setAllDocuments([]) }}
                       className={cn(
-                        'flex items-center gap-1 pl-2 pr-5 py-0.5 rounded-full text-xs font-medium border transition-colors',
-                        selectedTagId === tag.id
-                          ? 'border-transparent text-white'
-                          : 'border-border text-muted-foreground hover:border-primary/40',
+                        'flex items-center gap-1 pl-2 pr-5 py-0.5 rounded-full text-xs font-medium border-2 transition-all text-white',
+                        selectedTagId === tag.id ? 'ring-2 ring-offset-1 ring-current' : 'opacity-70 hover:opacity-100',
                       )}
-                      style={selectedTagId === tag.id && tag.color ? { backgroundColor: tag.color } : undefined}
+                      style={tag.color ? { backgroundColor: tag.color, borderColor: tag.color } : { backgroundColor: '#6b7280', borderColor: '#6b7280' }}
                     >
                       <Tag className="h-2.5 w-2.5 shrink-0" />
                       {tag.name}
                     </button>
                     {!tag.isSystem && (
                       <button
-                        onClick={() => deleteTag.mutate(tag.id)}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                        onClick={() => askConfirm(`Supprimer le tag "${tag.name}" ?`, () => deleteTag.mutate(tag.id))}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-white/80 hover:text-white transition-all"
                       >
                         <X className="h-2.5 w-2.5" />
                       </button>
@@ -917,7 +927,7 @@ export default function GEDPage() {
                 <DocumentRow
                   key={doc.id}
                   doc={doc}
-                  onDelete={(id) => deleteMutation.mutate(id)}
+                  onDelete={(id) => askConfirm('Supprimer ce document ?', () => deleteMutation.mutate(id))}
                   onView={(d) => setViewerDoc(d)}
                   onShare={(d) => setShareDoc(d)}
                   onEdit={(d) => setEditDoc(d)}
@@ -990,6 +1000,13 @@ export default function GEDPage() {
           }
           recipientRoles={['chamber', 'regulator', 'platform_admin', 'cabinet_user']}
           onClose={() => { setShareOpen(false); setShareDoc(null) }}
+        />
+      )}
+      {confirmState && (
+        <ConfirmDialog
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
         />
       )}
     </div>

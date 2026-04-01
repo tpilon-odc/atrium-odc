@@ -19,7 +19,7 @@ interface AuthState {
   token: string | null
   user: User | null
   cabinet: Cabinet | null
-  setAuth: (token: string, user: User) => void
+  setAuth: (token: string, user: User, refreshToken?: string) => void
   setCabinet: (cabinet: Cabinet) => void
   logout: () => void
   hydrate: () => void
@@ -30,9 +30,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   cabinet: null,
 
-  setAuth: (token, user) => {
+  setAuth: (token, user, refreshToken) => {
     localStorage.setItem('access_token', token)
     localStorage.setItem('user', JSON.stringify(user))
+    if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
     set({ token, user })
   },
 
@@ -43,6 +44,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     localStorage.removeItem('cabinet')
     set({ token: null, user: null, cabinet: null })
