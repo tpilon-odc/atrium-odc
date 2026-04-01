@@ -91,7 +91,7 @@ function FolderSelect({
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-popover border border-border rounded-md shadow-md py-1">
+        <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white dark:bg-zinc-900 border border-border rounded-md shadow-lg py-1">
           {sorted.map((f) => {
             const path = buildFolderPath(f, folders)
             const depth = path.split(' / ').length - 1
