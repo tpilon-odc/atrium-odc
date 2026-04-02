@@ -17,6 +17,7 @@ type Cabinet = {
 
 interface AuthState {
   token: string | null
+  refreshToken: string | null
   user: User | null
   cabinet: Cabinet | null
   setAuth: (token: string, user: User, refreshToken?: string) => void
@@ -27,6 +28,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,
+  refreshToken: null,
   user: null,
   cabinet: null,
 
@@ -34,7 +36,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem('access_token', token)
     localStorage.setItem('user', JSON.stringify(user))
     if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
-    set({ token, user })
+    set({ token, refreshToken: refreshToken ?? null, user })
   },
 
   setCabinet: (cabinet) => {
@@ -52,10 +54,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   hydrate: () => {
     const token = localStorage.getItem('access_token')
+    const refreshToken = localStorage.getItem('refresh_token')
     const userRaw = localStorage.getItem('user')
     const cabinetRaw = localStorage.getItem('cabinet')
     set({
       token,
+      refreshToken,
       user: userRaw ? (JSON.parse(userRaw) as User) : null,
       cabinet: cabinetRaw ? (JSON.parse(cabinetRaw) as Cabinet) : null,
     })

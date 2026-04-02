@@ -414,8 +414,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     hydrate()
 
-    const accessToken = localStorage.getItem('access_token')
-    const refreshToken = localStorage.getItem('refresh_token')
+    const { token: accessToken, refreshToken, user } = useAuthStore.getState()
 
     if (!accessToken) {
       router.replace('/login')
@@ -440,8 +439,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
 
       // Met à jour le store si le token a été renouvelé
-      const userRaw = localStorage.getItem('user')
-      const user = userRaw ? JSON.parse(userRaw) : null
       if (user && session.access_token !== accessToken) {
         useAuthStore.getState().setAuth(session.access_token, user, session.refresh_token)
       }
@@ -454,8 +451,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Écoute les renouvellements automatiques (TOKEN_REFRESHED)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'TOKEN_REFRESHED' && session) {
-        const userRaw = localStorage.getItem('user')
-        const user = userRaw ? JSON.parse(userRaw) : null
+        const { user } = useAuthStore.getState()
         if (user) {
           useAuthStore.getState().setAuth(session.access_token, user, session.refresh_token)
         }

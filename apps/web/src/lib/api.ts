@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/stores/auth'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 type ApiResponse<T> = { data: T }
@@ -34,9 +36,7 @@ async function call<T>(
   // Token expiré ou invalide → déconnexion (côté client uniquement)
   if (res.status === 401) {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('cabinet')
+      useAuthStore.getState().logout()
       window.location.href = '/login?reason=session_expired'
     }
     throw new ApiError('Session expirée', 'SESSION_EXPIRED', 401)
