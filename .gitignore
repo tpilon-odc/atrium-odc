@@ -33,3 +33,7 @@ npm-debug.log*
 # Prisma
 packages/db/generated/
 .claude/worktrees/
+
+# Prod secrets
+infra/.env.prod
+infra/nginx/certs/
