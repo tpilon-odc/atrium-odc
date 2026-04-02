@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
-import { CHECKLIST_BY_TYPE, initChecklist } from '../../lib/supplier-checklist'
+import { CHECKLIST_BY_TYPE, initChecklist } from '@cgp/shared'
 
 const VALID_CRITERES = ['solvabilite', 'reputation', 'moyens', 'relation', 'remuneration'] as const
 

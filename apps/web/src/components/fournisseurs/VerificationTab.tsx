@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { SUPPLIER_TYPES, initChecklist } from '@/lib/supplier-checklist'
+import { SUPPLIER_TYPES, initChecklist } from '@cgp/shared'
 
 const DECISION_LABELS = {
   approved: { label: 'Approuvé', color: 'bg-green-100 text-green-700' },
