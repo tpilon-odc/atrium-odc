@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { computeDiff } from '../../lib/diff'
+import { parseBody } from '../../lib/schemas'
 import {
   listToolsQuery,
   createToolBody,
@@ -14,12 +15,10 @@ import {
 export const toolRoutes: FastifyPluginAsync = async (app) => {
   // ── GET /api/v1/tools ─────────────────────────────────────────────────────
   app.get('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
-    const query = listToolsQuery.safeParse(request.query)
-    if (!query.success) {
-      return reply.status(400).send({ error: query.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(listToolsQuery, request.query, reply)
+    if (!parsed.ok) return
 
-    const { cursor, limit, search, category } = query.data
+    const { cursor, limit, search, category } = parsed.data
 
     const tools = await prisma.tool.findMany({
       take: limit + 1,
@@ -96,13 +95,11 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
 
   // ── POST /api/v1/tools ────────────────────────────────────────────────────
   app.post('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
-    const result = createToolBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(createToolBody, request.body, reply)
+    if (!parsed.ok) return
 
     const tool = await prisma.tool.create({
-      data: { ...result.data, createdBy: request.user.id },
+      data: { ...parsed.data, createdBy: request.user.id },
     })
 
     return reply.status(201).send({ data: { tool } })
@@ -112,10 +109,8 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
   app.patch('/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = updateToolBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(updateToolBody, request.body, reply)
+    if (!parsed.ok) return
 
     const existing = await prisma.tool.findUnique({ where: { id, deletedAt: null } })
     if (!existing) {
@@ -123,13 +118,13 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const [tool] = await prisma.$transaction([
-      prisma.tool.update({ where: { id }, data: result.data }),
+      prisma.tool.update({ where: { id }, data: parsed.data }),
       prisma.toolEdit.create({
         data: {
           toolId: id,
           editedBy: request.user.id,
           cabinetId: request.cabinetId,
-          diff: computeDiff(existing as unknown as Record<string, unknown>, result.data as Record<string, unknown>) as object,
+          diff: computeDiff(existing as unknown as Record<string, unknown>, parsed.data as Record<string, unknown>) as object,
         },
       }),
     ])
@@ -153,10 +148,8 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
   app.put('/:id/cabinet', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = upsertCabinetToolBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(upsertCabinetToolBody, request.body, reply)
+    if (!parsed.ok) return
 
     const toolExists = await prisma.tool.findUnique({ where: { id, deletedAt: null } })
     if (!toolExists) {
@@ -165,8 +158,8 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
 
     const cabinetData = await prisma.cabinetTool.upsert({
       where: { cabinetId_toolId: { cabinetId: request.cabinetId, toolId: id } },
-      update: result.data,
-      create: { cabinetId: request.cabinetId, toolId: id, ...result.data },
+      update: parsed.data,
+      create: { cabinetId: request.cabinetId, toolId: id, ...parsed.data },
     })
 
     return reply.send({ data: { cabinetData } })
@@ -176,10 +169,8 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
   app.put('/:id/rating', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = publicRatingBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(publicRatingBody, request.body, reply)
+    if (!parsed.ok) return
 
     const toolExists = await prisma.tool.findUnique({ where: { id, deletedAt: null } })
     if (!toolExists) {
@@ -188,8 +179,8 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
 
     const rating = await prisma.toolPublicRating.upsert({
       where: { toolId_cabinetId: { toolId: id, cabinetId: request.cabinetId } },
-      update: { rating: result.data.rating },
-      create: { toolId: id, cabinetId: request.cabinetId, rating: result.data.rating },
+      update: { rating: parsed.data.rating },
+      create: { toolId: id, cabinetId: request.cabinetId, rating: parsed.data.rating },
     })
 
     return reply.send({ data: { rating } })

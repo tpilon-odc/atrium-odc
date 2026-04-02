@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { computeDiff } from '../../lib/diff'
+import { parseBody } from '../../lib/schemas'
 import { governanceRoutes } from './governance'
 import {
   listProductsQuery,
@@ -45,12 +46,10 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
   // ── GET /api/v1/products ──────────────────────────────────────────────────
   app.get('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
-    const query = listProductsQuery.safeParse(request.query)
-    if (!query.success) {
-      return reply.status(400).send({ error: query.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(listProductsQuery, request.query, reply)
+    if (!parsed.ok) return
 
-    const { cursor, limit, search, mainCategory, category, supplierId, isActive } = query.data
+    const { cursor, limit, search, mainCategory, category, supplierId, isActive } = parsed.data
 
     const products = await prisma.product.findMany({
       take: limit + 1,
@@ -151,13 +150,11 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
   // ── POST /api/v1/products ─────────────────────────────────────────────────
   app.post('/', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
-    const result = createProductBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(createProductBody, request.body, reply)
+    if (!parsed.ok) return
 
     const product = await prisma.product.create({
-      data: { ...result.data, createdBy: request.user.id },
+      data: { ...parsed.data, createdBy: request.user.id },
     })
 
     return reply.status(201).send({ data: { product } })
@@ -167,10 +164,8 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   app.patch('/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = updateProductBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(updateProductBody, request.body, reply)
+    if (!parsed.ok) return
 
     const existing = await prisma.product.findUnique({ where: { id, deletedAt: null } })
     if (!existing) {
@@ -178,13 +173,13 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const [product] = await prisma.$transaction([
-      prisma.product.update({ where: { id }, data: result.data }),
+      prisma.product.update({ where: { id }, data: parsed.data }),
       prisma.productEdit.create({
         data: {
           productId: id,
           editedBy: request.user.id,
           cabinetId: request.cabinetId,
-          diff: computeDiff(existing as unknown as Record<string, unknown>, result.data as Record<string, unknown>) as object,
+          diff: computeDiff(existing as unknown as Record<string, unknown>, parsed.data as Record<string, unknown>) as object,
         },
       }),
     ])
@@ -208,10 +203,8 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   app.put('/:id/cabinet', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = upsertCabinetProductBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(upsertCabinetProductBody, request.body, reply)
+    if (!parsed.ok) return
 
     const productExists = await prisma.product.findUnique({ where: { id, deletedAt: null } })
     if (!productExists) {
@@ -221,8 +214,8 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cabinetData = await prisma.cabinetProduct.upsert({
       where: { cabinetId_productId: { cabinetId: request.cabinetId, productId: id } },
-      update: result.data as any,
-      create: { cabinetId: request.cabinetId, productId: id, ...result.data as any },
+      update: parsed.data as any,
+      create: { cabinetId: request.cabinetId, productId: id, ...parsed.data as any },
     })
 
     return reply.send({ data: { cabinetData } })
@@ -232,10 +225,8 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   app.put('/:id/rating', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = publicRatingBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(publicRatingBody, request.body, reply)
+    if (!parsed.ok) return
 
     const productExists = await prisma.product.findUnique({ where: { id, deletedAt: null } })
     if (!productExists) {
@@ -244,8 +235,8 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
     const rating = await prisma.productPublicRating.upsert({
       where: { productId_cabinetId: { productId: id, cabinetId: request.cabinetId } },
-      update: { rating: result.data.rating },
-      create: { productId: id, cabinetId: request.cabinetId, rating: result.data.rating },
+      update: { rating: parsed.data.rating },
+      create: { productId: id, cabinetId: request.cabinetId, rating: parsed.data.rating },
     })
 
     return reply.send({ data: { rating } })
@@ -314,23 +305,21 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   app.post('/:id/suppliers', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
-    const result = linkSupplierBody.safeParse(request.body)
-    if (!result.success) {
-      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
-    }
+    const parsed = parseBody(linkSupplierBody, request.body, reply)
+    if (!parsed.ok) return
 
     const [productExists, supplierExists] = await Promise.all([
       prisma.product.findUnique({ where: { id, deletedAt: null } }),
-      prisma.supplier.findUnique({ where: { id: result.data.supplierId, deletedAt: null } }),
+      prisma.supplier.findUnique({ where: { id: parsed.data.supplierId, deletedAt: null } }),
     ])
 
     if (!productExists) return reply.status(404).send({ error: 'Produit introuvable', code: 'NOT_FOUND' })
     if (!supplierExists) return reply.status(404).send({ error: 'Fournisseur introuvable', code: 'NOT_FOUND' })
 
     const link = await prisma.productSupplier.upsert({
-      where: { productId_supplierId: { productId: id, supplierId: result.data.supplierId } },
+      where: { productId_supplierId: { productId: id, supplierId: parsed.data.supplierId } },
       update: {},
-      create: { productId: id, supplierId: result.data.supplierId },
+      create: { productId: id, supplierId: parsed.data.supplierId },
     })
 
     return reply.status(201).send({ data: { link } })
