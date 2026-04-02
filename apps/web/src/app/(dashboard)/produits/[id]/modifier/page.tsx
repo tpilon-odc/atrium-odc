@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
@@ -12,21 +11,12 @@ import { productApi, productSubcategoryApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { productSchema as schema, ProductFormData as FormData } from '@/lib/schemas'
 
 const MAIN_CATEGORIES = [
   { value: 'assurance', label: 'Assurance' },
   { value: 'cif', label: 'Conseil en investissement financier (CIF)' },
 ] as const
-
-const schema = z.object({
-  name: z.string().min(1, 'Le nom est requis'),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  website: z.string().optional(),
-  mainCategory: z.enum(['assurance', 'cif']).nullable().optional(),
-})
-
-type FormData = z.infer<typeof schema>
 
 export default function ModifierProduitPage({ params }: { params: { id: string } }) {
   const { token } = useAuthStore()

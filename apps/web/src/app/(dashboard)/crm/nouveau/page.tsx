@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ChevronLeft, AlertTriangle } from 'lucide-react'
@@ -13,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { contactSchema as schema, ContactFormData as FormData } from '@/lib/schemas'
 
 // ── Détection doublons ────────────────────────────────────────────────────────
 
@@ -73,26 +73,6 @@ function DuplicateWarning({ matches, certain }: { matches: Contact[]; certain: b
     </div>
   )
 }
-
-const schema = z.object({
-  lastName: z.string().min(1, 'Le nom est requis'),
-  firstName: z.string().optional(),
-  email: z.string().email('Email invalide').optional().or(z.literal('')),
-  email2: z.string().email('Email invalide').optional().or(z.literal('')),
-  phone: z.string().optional(),
-  phone2: z.string().optional(),
-  type: z.enum(['prospect', 'client', 'ancien_client']),
-  birthDate: z.string().optional(),
-  profession: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  country: z.string().optional(),
-  maritalStatus: z.enum(['celibataire', 'marie', 'pacse', 'divorce', 'veuf']).optional(),
-  dependents: z.coerce.number().int().min(0).optional(),
-})
-
-type FormData = z.infer<typeof schema>
 
 const TYPES: Array<{ value: ContactType; label: string }> = [
   { value: 'prospect', label: 'Prospect' },

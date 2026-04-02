@@ -1,9 +1,7 @@
 import { z } from 'zod'
+import { paginationQuery, publicRatingBody } from '../../lib/schemas'
 
-export const listSuppliersQuery = z.object({
-  cursor: z.string().uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  search: z.string().optional(),
+export const listSuppliersQuery = paginationQuery.extend({
   category: z.string().optional(),
 })
 
@@ -26,6 +24,4 @@ export const upsertCabinetSupplierBody = z.object({
   customFields: z.record(z.unknown()).nullable().optional(),
 })
 
-export const publicRatingBody = z.object({
-  rating: z.number().int().min(1).max(5),
-})
+export { publicRatingBody }

@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
@@ -13,16 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-const schema = z.object({
-  name: z.string().min(1, 'Le nom est requis'),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  website: z.string().optional(),
-  email: z.string().email('Email invalide').optional().or(z.literal('')),
-  phone: z.string().optional(),
-})
-
-type FormData = z.infer<typeof schema>
+import { supplierSchema as schema, SupplierFormData as FormData } from '@/lib/schemas'
 
 export default function ModifierFournisseurPage({ params }: { params: { id: string } }) {
   const { token } = useAuthStore()

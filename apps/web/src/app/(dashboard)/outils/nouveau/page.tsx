@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
@@ -12,15 +11,7 @@ import { toolApi, toolCategoryApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-const schema = z.object({
-  name: z.string().min(1, 'Le nom est requis'),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  url: z.string().optional(),
-})
-
-type FormData = z.infer<typeof schema>
+import { toolSchema as schema, ToolFormData as FormData } from '@/lib/schemas'
 
 export default function NouvelOutilPage() {
   const { token } = useAuthStore()
