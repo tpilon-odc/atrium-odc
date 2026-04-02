@@ -31,12 +31,14 @@ async function call<T>(
     return {} as ApiResponse<T>
   }
 
-  // Token expiré ou invalide → déconnexion immédiate
+  // Token expiré ou invalide → déconnexion (côté client uniquement)
   if (res.status === 401) {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('user')
-    localStorage.removeItem('cabinet')
-    window.location.href = '/login?reason=session_expired'
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('user')
+      localStorage.removeItem('cabinet')
+      window.location.href = '/login?reason=session_expired'
+    }
     throw new ApiError('Session expirée', 'SESSION_EXPIRED', 401)
   }
 

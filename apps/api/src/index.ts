@@ -51,27 +51,29 @@ const app = Fastify({
 })
 
 const start = async () => {
-  // Documentation OpenAPI
-  await app.register(swagger, {
-    openapi: {
-      info: {
-        title: 'CGP Platform API',
-        description: 'API de la plateforme CGP — gestion de cabinets de conseil en gestion de patrimoine',
-        version: '1.0.0',
-      },
-      servers: [{ url: `http://localhost:${process.env.PORT || 3001}` }],
-      components: {
-        securitySchemes: {
-          bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+  // Documentation OpenAPI — désactivée en production
+  if (process.env.NODE_ENV !== 'production') {
+    await app.register(swagger, {
+      openapi: {
+        info: {
+          title: 'CGP Platform API',
+          description: 'API de la plateforme CGP — gestion de cabinets de conseil en gestion de patrimoine',
+          version: '1.0.0',
         },
+        servers: [{ url: `http://localhost:${process.env.PORT || 3001}` }],
+        components: {
+          securitySchemes: {
+            bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+          },
+        },
+        security: [{ bearerAuth: [] }],
       },
-      security: [{ bearerAuth: [] }],
-    },
-  })
-  await app.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: { docExpansion: 'list', deepLinking: true },
-  })
+    })
+    await app.register(swaggerUi, {
+      routePrefix: '/docs',
+      uiConfig: { docExpansion: 'list', deepLinking: true },
+    })
+  }
 
   if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
     throw new Error("Variable d'environnement manquante : FRONTEND_URL")
@@ -93,7 +95,17 @@ const start = async () => {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
   })
-  await app.register(helmet, { contentSecurityPolicy: false })
+  await app.register(helmet, {
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'", process.env.FRONTEND_URL ?? ''],
+      },
+    } : false,
+  })
 
   // Décorateurs pour les propriétés injectées par les middlewares
   app.decorateRequest('user', null)
