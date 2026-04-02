@@ -77,14 +77,16 @@ const start = async () => {
     throw new Error("Variable d'environnement manquante : FRONTEND_URL")
   }
 
-  // Rate limiting global — protège contre brute force et DoS
-  await app.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
-    keyGenerator: (request) => {
-      return (request.user as { id?: string } | null)?.id ?? request.ip
-    },
-  })
+  // Rate limiting global — actif uniquement en production
+  if (process.env.NODE_ENV === 'production') {
+    await app.register(rateLimit, {
+      max: 200,
+      timeWindow: '1 minute',
+      keyGenerator: (request) => {
+        return (request.user as { id?: string } | null)?.id ?? request.ip
+      },
+    })
+  }
 
   // Plugins de sécurité
   await app.register(cors, {

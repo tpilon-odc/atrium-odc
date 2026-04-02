@@ -6,7 +6,7 @@ import { signupBody, loginBody } from './schemas'
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
   // POST /api/v1/auth/signup
-  app.post('/signup', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (request, reply) => {
+  app.post('/signup', async (request, reply) => {
     const result = signupBody.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({
@@ -46,7 +46,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // POST /api/v1/auth/login
-  app.post('/login', { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } }, async (request, reply) => {
+  app.post('/login', async (request, reply) => {
     const result = loginBody.safeParse(request.body)
     if (!result.success) {
       return reply.status(400).send({
