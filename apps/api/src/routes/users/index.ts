@@ -72,7 +72,7 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
     }
 
     await uploadToMinio(key, buffer, data.mimetype)
-    const avatarUrl = getPresignedUrl(key)
+    const avatarUrl = await getPresignedUrl(key)
 
     const user = await prisma.user.update({
       where: { id: request.user.id },

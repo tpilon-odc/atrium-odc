@@ -351,7 +351,7 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
       if (!document.storagePath) {
         return reply.status(500).send({ error: 'Chemin de stockage manquant', code: 'STORAGE_ERROR' })
       }
-      const url = getPresignedUrl(document.storagePath)
+      const url = await getPresignedUrl(document.storagePath)
       return reply.send({ data: { url, expiresIn: 3600 } })
     }
 
@@ -380,7 +380,7 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
       if (!document.storagePath) {
         return reply.status(500).send({ error: 'Chemin de stockage manquant', code: 'STORAGE_ERROR' })
       }
-      const url = getPresignedUrl(document.storagePath)
+      const url = await getPresignedUrl(document.storagePath)
       return reply.send({ data: { url, expiresIn: 3600 } })
     }
 

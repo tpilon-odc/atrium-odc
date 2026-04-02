@@ -165,7 +165,7 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
 
     let downloadUrl: string | null = null
     if (job.status === 'DONE' && job.storagePath) {
-      downloadUrl = getPresignedUrl(job.storagePath)
+      downloadUrl = await getPresignedUrl(job.storagePath)
     }
 
     return reply.send({ data: { job, downloadUrl } })

@@ -256,7 +256,7 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
       }
 
       await uploadToMinio(key, buffer, file.mimetype)
-      const logoUrl = getPresignedUrl(key)
+      const logoUrl = await getPresignedUrl(key)
 
       const cabinet = await prisma.cabinet.update({
         where: { id: request.cabinetId },

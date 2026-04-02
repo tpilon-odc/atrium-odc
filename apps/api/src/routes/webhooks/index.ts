@@ -15,8 +15,10 @@ const activateBody = z.object({
 function verifyOdooSecret(secret: string | undefined): boolean {
   const expected = process.env.ODOO_WEBHOOK_SECRET
   if (!expected) {
-    // En dev sans secret configuré, on autorise (log d'avertissement)
-    console.warn('[webhook] ODOO_WEBHOOK_SECRET non configuré — endpoint non sécurisé')
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error("Variable d'environnement manquante : ODOO_WEBHOOK_SECRET")
+    }
+    console.warn('[webhook] ODOO_WEBHOOK_SECRET non configuré — endpoint non sécurisé en dev')
     return true
   }
   return secret === expected
@@ -26,7 +28,7 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
   // ── POST /api/v1/webhooks/odoo/activate ───────────────────────────────────
   // Appelé par Odoo quand une souscription est confirmée/modifiée.
   // Met à jour subscription_status du cabinet.
-  app.post('/odoo/activate', async (request, reply) => {
+  app.post('/odoo/activate', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
     const secret = request.headers['x-odoo-webhook-secret'] as string | undefined
 
     if (!verifyOdooSecret(secret)) {

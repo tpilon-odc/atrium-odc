@@ -2,6 +2,13 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client
 import { Client as MinioNativeClient } from 'minio'
 import { randomUUID } from 'crypto'
 
+if (process.env.NODE_ENV === 'production') {
+  const required = ['MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY', 'MINIO_ENDPOINT', 'MINIO_BUCKET']
+  for (const key of required) {
+    if (!process.env[key]) throw new Error(`Variable d'environnement manquante : ${key}`)
+  }
+}
+
 // AWS SDK — utilisé pour upload/delete
 export const s3 = new S3Client({
   endpoint: `http://${process.env.MINIO_ENDPOINT || 'localhost'}:${process.env.MINIO_PORT || '9000'}`,
@@ -41,9 +48,19 @@ export const ALLOWED_MIME_TYPES = new Set([
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
+// Sanitize le nom de fichier pour éviter le path traversal
+function sanitizeFilename(filename: string): string {
+  return filename
+    .replace(/\.\./g, '')
+    .replace(/[/\\]/g, '')
+    .replace(/[^a-zA-Z0-9._\-\u00C0-\u017E ]/g, '_')
+    .substring(0, 200)
+    .trim() || 'fichier'
+}
+
 // Génère le chemin de stockage : cabinets/{cabinetId}/{uuid}/{filename}
 export function buildStoragePath(cabinetId: string, filename: string): string {
-  return `cabinets/${cabinetId}/${randomUUID()}/${filename}`
+  return `cabinets/${cabinetId}/${randomUUID()}/${sanitizeFilename(filename)}`
 }
 
 export async function uploadToMinio(
@@ -65,9 +82,7 @@ export async function deleteFromMinio(key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
 }
 
-// URL de téléchargement directe (bucket public en local)
-export function getPresignedUrl(key: string): string {
-  const endpoint = process.env.MINIO_ENDPOINT || 'localhost'
-  const port = process.env.MINIO_PORT || '9000'
-  return `http://${endpoint}:${port}/${BUCKET}/${key}`
+// URL de téléchargement presignée — expire après ttlSeconds (défaut 1h)
+export async function getPresignedUrl(key: string, ttlSeconds = 3600): Promise<string> {
+  return minioNative.presignedGetObject(BUCKET, key, ttlSeconds)
 }

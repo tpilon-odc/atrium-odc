@@ -150,12 +150,12 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // ── GET /api/v1/suppliers/:id/edits ──────────────────────────────────────
-  app.get('/:id/edits', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.get('/:id/edits', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
 
     const edits = await prisma.supplierEdit.findMany({
-      where: { supplierId: id },
-      include: { editor: { select: { id: true, email: true } } },
+      where: { supplierId: id, cabinetId: request.cabinetId },
+      include: { editor: { select: { id: true } } },
       orderBy: { editedAt: 'desc' },
       take: 50,
     })
@@ -337,7 +337,7 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
     if (!document) return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
     if (!document.storagePath) return reply.status(500).send({ error: 'Chemin de stockage manquant', code: 'STORAGE_ERROR' })
 
-    const url = getPresignedUrl(document.storagePath)
+    const url = await getPresignedUrl(document.storagePath)
     return reply.send({ data: { url, expiresIn: 3600 } })
   })
 

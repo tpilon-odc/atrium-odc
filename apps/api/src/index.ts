@@ -9,6 +9,7 @@ import { runGdprExportJob } from './jobs/gdpr-export'
 import { runGdprErasureJob, runGdprPurgeFinalJob } from './jobs/gdpr-erasure'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
+import rateLimit from '@fastify/rate-limit'
 import swagger from '@fastify/swagger'
 import swaggerUi from '@fastify/swagger-ui'
 import { authRoutes } from './routes/auth'
@@ -70,6 +71,19 @@ const start = async () => {
   await app.register(swaggerUi, {
     routePrefix: '/docs',
     uiConfig: { docExpansion: 'list', deepLinking: true },
+  })
+
+  if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+    throw new Error("Variable d'environnement manquante : FRONTEND_URL")
+  }
+
+  // Rate limiting global — protège contre brute force et DoS
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+    keyGenerator: (request) => {
+      return (request.user as { id?: string } | null)?.id ?? request.ip
+    },
   })
 
   // Plugins de sécurité

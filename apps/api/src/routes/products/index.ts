@@ -193,11 +193,11 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // ── GET /api/v1/products/:id/edits ────────────────────────────────────────
-  app.get('/:id/edits', { preHandler: [authMiddleware] }, async (request, reply) => {
+  app.get('/:id/edits', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const edits = await prisma.productEdit.findMany({
-      where: { productId: id },
-      include: { editor: { select: { id: true, email: true } } },
+      where: { productId: id, cabinetId: request.cabinetId },
+      include: { editor: { select: { id: true } } },
       orderBy: { editedAt: 'desc' },
       take: 50,
     })
