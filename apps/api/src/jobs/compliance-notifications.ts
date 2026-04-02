@@ -103,9 +103,9 @@ export async function runComplianceNotificationsJob(): Promise<void> {
           skipDuplicates: true,
         })
 
-        // Envoie un email à chaque owner/admin
-        for (const member of recipients) {
-          await sendComplianceExpiryEmail({
+        // Envoie un email à chaque owner/admin — envoi parallèle
+        await Promise.all(recipients.map((member) =>
+          sendComplianceExpiryEmail({
             to: member.user.email,
             cabinetName: answer.cabinet.name,
             itemLabel: answer.item.label,
@@ -113,7 +113,7 @@ export async function runComplianceNotificationsJob(): Promise<void> {
             expiresAt: answer.expiresAt,
             daysBefore,
           })
-        }
+        ))
 
         // Trace l'envoi dans compliance_notifications
         await prisma.complianceNotification.create({

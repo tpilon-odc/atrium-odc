@@ -84,9 +84,9 @@ export async function runSupplierReviewNotificationsJob(): Promise<void> {
           skipDuplicates: true,
         })
 
-        // Emails
-        for (const member of recipients) {
-          await sendSupplierReviewEmail({
+        // Emails — envoi parallèle
+        await Promise.all(recipients.map((member) =>
+          sendSupplierReviewEmail({
             to: member.user.email,
             supplierName: evaluation.supplier.name,
             cabinetName: evaluation.cabinet.name,
@@ -94,7 +94,7 @@ export async function runSupplierReviewNotificationsJob(): Promise<void> {
             daysLeft,
             supplierUrl: `${process.env.FRONTEND_URL}/fournisseurs/${evaluation.supplierId}`,
           })
-        }
+        ))
 
         sent++
       } catch (err) {
