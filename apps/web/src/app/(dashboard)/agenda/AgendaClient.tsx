@@ -331,14 +331,13 @@ function EventModal({ state, onClose, onSaved }: {
                 <span className="text-sm text-muted-foreground">Toute la journée</span>
               </label>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Début</Label>
                   <DateTimePicker
                     value={allDay ? startAt.slice(0, 10) : startAt}
                     onChange={setStartAt}
                     allDay={allDay}
-                    className="h-8 text-xs"
                   />
                 </div>
                 <div className="space-y-1">
@@ -347,7 +346,6 @@ function EventModal({ state, onClose, onSaved }: {
                     value={allDay ? endAt.slice(0, 10) : endAt}
                     onChange={setEndAt}
                     allDay={allDay}
-                    className="h-8 text-xs"
                   />
                 </div>
               </div>
