@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/auth'
 import { eventApi, contactApi, type CalendarEvent, type EventType, type EventStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateTimePicker } from '@/components/ui/datetime-picker'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { Plus, X, Phone, CalendarDays, CheckSquare, ShieldAlert, ExternalLink, ChevronLeft, ChevronRight, Calendar, MapPin, AlignLeft, User, Clock } from 'lucide-react'
@@ -333,19 +334,19 @@ function EventModal({ state, onClose, onSaved }: {
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Début</Label>
-                  <Input
-                    type={allDay ? 'date' : 'datetime-local'}
+                  <DateTimePicker
                     value={allDay ? startAt.slice(0, 10) : startAt}
-                    onChange={(e) => setStartAt(e.target.value)}
+                    onChange={setStartAt}
+                    allDay={allDay}
                     className="h-8 text-xs"
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-[11px] text-muted-foreground uppercase tracking-wide">Fin</Label>
-                  <Input
-                    type={allDay ? 'date' : 'datetime-local'}
+                  <DateTimePicker
                     value={allDay ? endAt.slice(0, 10) : endAt}
-                    onChange={(e) => setEndAt(e.target.value)}
+                    onChange={setEndAt}
+                    allDay={allDay}
                     className="h-8 text-xs"
                   />
                 </div>
