@@ -33,6 +33,7 @@ import { EntityDocuments } from '@/components/entity-documents'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DatePicker } from '@/components/ui/date-picker'
 
 const TYPE_LABELS: Record<ContactType, string> = {
   prospect: 'Prospect',
@@ -157,7 +158,7 @@ function AddInteractionForm({ contactId }: { contactId: string }) {
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Date</Label>
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-sm" />
+        <DatePicker value={date} onChange={setDate} className="text-sm" />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Note (optionnelle)</Label>

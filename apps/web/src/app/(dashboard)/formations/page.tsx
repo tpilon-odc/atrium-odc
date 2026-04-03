@@ -9,6 +9,7 @@ import { trainingApi, memberApi, documentApi, type CollaboratorTraining, type Tr
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DatePicker } from '@/components/ui/date-picker'
 import { ShareModal } from '@/components/ui/ShareModal'
 import { DocumentViewer } from '@/components/ui/DocumentViewer'
 
@@ -251,11 +252,11 @@ function AddTrainingForm({ members, onClose }: { members: CabinetMember[]; onClo
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Date de début</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-sm" />
+          <DatePicker value={date} onChange={setDate} className="text-sm" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Date de fin <span className="text-muted-foreground">(optionnel)</span></Label>
-          <Input type="date" value={dateEnd} min={date} onChange={(e) => setDateEnd(e.target.value)} className="text-sm" />
+          <DatePicker value={dateEnd} onChange={setDateEnd} className="text-sm" />
         </div>
       </div>
 
@@ -397,11 +398,11 @@ function EditTrainingForm({ t, onClose }: { t: CollaboratorTraining; onClose: ()
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Date de début</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-sm" />
+          <DatePicker value={date} onChange={setDate} className="text-sm" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Date de fin <span className="text-muted-foreground">(optionnel)</span></Label>
-          <Input type="date" value={dateEnd} min={date} onChange={(e) => setDateEnd(e.target.value)} className="text-sm" />
+          <DatePicker value={dateEnd} onChange={setDateEnd} className="text-sm" />
         </div>
       </div>
       <CategoryHoursInput categories={categories} value={categoryHoursMap} onChange={setCategoryHoursMap} />

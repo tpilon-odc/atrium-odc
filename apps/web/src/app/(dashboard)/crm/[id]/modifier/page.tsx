@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -11,6 +11,7 @@ import { contactApi, type ContactType, type MaritalStatus } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 import { contactSchema as schema, ContactFormData as FormData } from '@/lib/schemas'
 
@@ -42,7 +43,7 @@ export default function ModifierContactPage({ params }: { params: { id: string }
 
   const contact = data?.data.contact
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     values: contact ? {
       lastName: contact.lastName,
@@ -133,7 +134,13 @@ export default function ModifierContactPage({ params }: { params: { id: string }
 
           <div className="space-y-1.5">
             <Label>Date de naissance</Label>
-            <Input type="date" {...register('birthDate')} />
+            <Controller
+              name="birthDate"
+              control={control}
+              render={({ field }) => (
+                <DatePicker value={field.value ?? ''} onChange={field.onChange} />
+              )}
+            />
           </div>
         </div>
 

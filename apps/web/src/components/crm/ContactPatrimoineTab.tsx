@@ -7,6 +7,7 @@ import { contactApi, type ContactAsset, type ContactLiability, type ContactIncom
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DatePicker } from '@/components/ui/date-picker'
 import { cn } from '@/lib/utils'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -216,7 +217,7 @@ function LiabilityForm({ contactId, token, onDone, initial }: {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Fin du crédit</Label>
-          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-sm" />
+          <DatePicker value={endDate} onChange={setEndDate} className="text-sm" />
         </div>
       </div>
       <div className="space-y-1">

@@ -10,6 +10,7 @@ import { useContactAdequacy, type AdequacyRow } from '@/hooks/useContactAdequacy
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DatePicker } from '@/components/ui/date-picker'
 
 // ── Helpers visuels ───────────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ function SoldProductForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Date de vente <span className="text-destructive">*</span></Label>
-          <Input type="date" value={soldAt} onChange={(e) => setSoldAt(e.target.value)} className="text-sm h-9" />
+          <DatePicker value={soldAt} onChange={setSoldAt} className="text-sm" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Montant investi (€)</Label>
