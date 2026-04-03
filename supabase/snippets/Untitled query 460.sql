@@ -1,1 +1,0 @@
-ALTER TYPE "ShareEntityType" ADD VALUE IF NOT EXISTS 'compliance_item';
