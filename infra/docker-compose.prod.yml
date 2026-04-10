@@ -40,9 +40,6 @@ services:
     container_name: cgp-web
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
-      NEXT_PUBLIC_API_URL: ${API_URL}
     expose:
       - "3000"
     depends_on:
