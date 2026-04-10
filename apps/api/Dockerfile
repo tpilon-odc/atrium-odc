@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
+COPY packages/shared/package.json ./packages/shared/
 
 RUN npm ci --workspace=apps/api --include-workspace-root
 
@@ -16,6 +17,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
+RUN npx tsc --project packages/shared/tsconfig.json
 RUN npm run build --workspace=apps/api
 
 # ── Stage 3: runner ────────────────────────────────────────────
@@ -33,6 +35,8 @@ COPY --from=builder --chown=apiuser:nodejs /app/node_modules ./node_modules
 COPY --from=deps --chown=apiuser:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/package.json ./packages/db/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/generated ./packages/db/generated
+COPY --from=builder --chown=apiuser:nodejs /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder --chown=apiuser:nodejs /app/packages/shared/dist ./packages/shared/dist
 
 USER apiuser
 
