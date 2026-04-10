@@ -38,6 +38,7 @@ COPY --from=builder --chown=apiuser:nodejs /app/apps/api/node_modules ./apps/api
 COPY --from=deps --chown=apiuser:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/package.json ./packages/db/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/generated ./packages/db/generated
+COPY --from=builder --chown=apiuser:nodejs /app/packages/db/prisma ./packages/db/prisma
 COPY --from=builder --chown=apiuser:nodejs /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/shared/dist ./packages/shared/dist
 
