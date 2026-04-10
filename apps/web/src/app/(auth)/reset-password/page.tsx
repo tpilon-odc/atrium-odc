@@ -15,8 +15,8 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 function createClient() {
   return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     { auth: { flowType: 'implicit' } }
   )
 }
@@ -33,11 +33,11 @@ type FormData = z.infer<typeof schema>
 
 export default function ResetPasswordPage() {
   const router = useRouter()
-  const supabase = createClient()
   const [status, setStatus] = useState<'verifying' | 'ready' | 'done' | 'error'>('verifying')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
+    const supabase = createClient()
     const hash = window.location.hash.substring(1)
     const hashParams = new URLSearchParams(hash)
     const queryParams = new URLSearchParams(window.location.search)
@@ -87,6 +87,7 @@ export default function ResetPasswordPage() {
   } = useForm<FormData>({ resolver: zodResolver(schema) })
 
   const onSubmit = async (data: FormData) => {
+    const supabase = createClient()
     const { error } = await supabase.auth.updateUser({ password: data.password })
     if (error) {
       setErrorMsg(error.message)
