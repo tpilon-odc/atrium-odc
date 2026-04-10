@@ -5,26 +5,20 @@
 ```
 VPS
 ├── /opt/supabase/        ← Supabase officiel (Postgres, Auth, Storage, Studio)
-│   └── docker-compose.yml
-└── /opt/mygaia/          ← Ce repo
+│   ├── docker-compose.yml
+│   └── .env
+└── /opt/mygaia/          ← Ce repo (git clone)
     ├── apps/web/         ← Next.js 14
     ├── apps/api/         ← Fastify
     └── infra/
-        ├── docker-compose.prod.yml   ← web, api, nginx, redis, minio, mailpit
+        ├── docker-compose.prod.yml
         ├── nginx/nginx.conf
-        └── .env.prod
+        ├── .env.prod.example
+        └── .env.prod     ← à créer (gitignored)
 ```
 
-Les deux stacks communiquent via un réseau Docker partagé (`supabase_network`).
-
----
-
-## Prérequis
-
-- Ubuntu 22.04 LTS (ou Debian 12)
-- 4 Go RAM minimum (8 Go recommandé)
-- 40 Go disque minimum
-- Un nom de domaine pointant sur le serveur (ou une IP fixe)
+Les deux stacks communiquent via le réseau Docker `supabase_network` (externe).
+Le container `supabase-db` doit être connecté à ce réseau pour que l'API puisse faire les migrations.
 
 ---
 
@@ -33,9 +27,7 @@ Les deux stacks communiquent via un réseau Docker partagé (`supabase_network`)
 ```bash
 apt update && apt install -y curl git
 curl -fsSL https://get.docker.com | sh
-# Vérifier
-docker --version
-docker compose version
+docker --version && docker compose version
 ```
 
 ---
@@ -45,12 +37,17 @@ docker compose version
 ```bash
 mkdir -p /opt/supabase && cd /opt/supabase
 
-# Télécharger le docker-compose et l'env officiel
+# Télécharger le compose et l'env officiel
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/docker-compose.yml -o docker-compose.yml
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/.env.example -o .env
+```
 
-# Créer la structure des volumes AVANT docker compose up
-# (sinon Docker crée des dossiers vides à la place des fichiers, ce qui brise tout)
+### ⚠️ Créer les fichiers de volume AVANT docker compose up
+
+Docker crée des **dossiers vides** si les fichiers n'existent pas au premier `up`.
+Cela brise kong, le pooler et vector de façon silencieuse.
+
+```bash
 mkdir -p volumes/api volumes/db volumes/pooler volumes/logs volumes/storage volumes/functions
 
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/api/kong.yml -o volumes/api/kong.yml
@@ -64,98 +61,75 @@ curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volume
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/_supabase.sql -o volumes/db/_supabase.sql
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/pooler/pooler.exs -o volumes/pooler/pooler.exs
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/logs/vector.yml -o volumes/logs/vector.yml
-
-# Ouvrir .env et remplir les valeurs obligatoires (voir section ci-dessous)
-nano .env
 ```
 
-### Variables Supabase à remplir dans `/opt/supabase/.env`
+### Variables à remplir dans `/opt/supabase/.env`
 
-> **Important** : `POSTGRES_PASSWORD` ne doit pas contenir de caractères spéciaux (`+`, `=`, `/`)
-> car il est utilisé dans des URLs de connexion. Utiliser un token hex :
-> ```bash
-> openssl rand -hex 32
-> ```
+> **⚠️ POSTGRES_PASSWORD** : ne pas utiliser de caractères spéciaux (`+`, `=`, `/`).
+> Utiliser `openssl rand -hex 32`
 
-Générer les secrets :
 ```bash
-# JWT_SECRET (min 32 chars)
-openssl rand -hex 32
-
-# ANON_KEY et SERVICE_ROLE_KEY : générer sur https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys
-# Ou avec la commande :
-node -e "
-const jwt = require('jsonwebtoken');
-const secret = 'VOTRE_JWT_SECRET_ICI';
-console.log('ANON_KEY:', jwt.sign({ role: 'anon' }, secret, { expiresIn: '10y' }));
-console.log('SERVICE_ROLE_KEY:', jwt.sign({ role: 'service_role' }, secret, { expiresIn: '10y' }));
-"
+# Générer les secrets
+openssl rand -hex 32  # → POSTGRES_PASSWORD
+openssl rand -hex 32  # → JWT_SECRET
 ```
 
-Valeurs à modifier dans `.env` :
+Pour `ANON_KEY` et `SERVICE_ROLE_KEY`, utiliser le générateur officiel :
+https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys
+
 ```env
-POSTGRES_PASSWORD=mot-de-passe-fort
-JWT_SECRET=votre-secret-min-32-chars
-ANON_KEY=jwt-anon-généré
-SERVICE_ROLE_KEY=jwt-service-role-généré
+POSTGRES_PASSWORD=<hex32>
+JWT_SECRET=<hex32>
+ANON_KEY=<jwt-anon>
+SERVICE_ROLE_KEY=<jwt-service-role>
 DASHBOARD_USERNAME=admin
-DASHBOARD_PASSWORD=mot-de-passe-dashboard
-SITE_URL=https://app.mygaia.fr
-API_EXTERNAL_URL=https://supabase.mygaia.fr
-SUPABASE_PUBLIC_URL=https://supabase.mygaia.fr
+DASHBOARD_PASSWORD=<mot-de-passe>
+SITE_URL=http://<IP_SERVEUR>
+API_EXTERNAL_URL=http://<IP_SERVEUR>:8000
+SUPABASE_PUBLIC_URL=http://<IP_SERVEUR>:8000
 ```
 
-### Lancer Supabase
+### Premier démarrage Supabase
 
 ```bash
 cd /opt/supabase
 docker compose up -d
 ```
 
-> **Note** : Le premier `up` peut échouer sur `supabase-analytics` (unhealthy).
-> C'est un bug connu du setup self-hosted — la base `_supabase` et les schémas
-> ne sont pas créés automatiquement. Exécuter les commandes suivantes **une seule fois**
-> après le premier démarrage :
+### ⚠️ Étapes manuelles obligatoires (une seule fois)
+
+La base `_supabase` et certains schémas ne sont pas créés automatiquement :
 
 ```bash
-# Créer la base et les schémas requis
+# 1. Créer la base analytics et les schémas
 docker exec supabase-db psql -U postgres -c "CREATE DATABASE _supabase OWNER supabase_admin;"
-docker exec supabase-db psql -U postgres -c "ALTER USER supabase_admin PASSWORD '$(grep POSTGRES_PASSWORD /opt/supabase/.env | cut -d= -f2-)';"
 docker exec supabase-db psql -U postgres -d _supabase -c "CREATE SCHEMA _analytics;"
-docker exec supabase-db psql -U postgres -d _supabase -c "CREATE SCHEMA IF NOT EXISTS _realtime; ALTER SCHEMA _realtime OWNER TO supabase_admin;"
-docker exec supabase-db psql -U postgres -c "ALTER ROLE supabase_admin SET search_path TO _analytics, _realtime, public, extensions;"
+docker exec supabase-db psql -U postgres -d _supabase -c "CREATE SCHEMA IF NOT EXISTS _realtime;"
+docker exec supabase-db psql -U postgres -d _supabase -c "ALTER SCHEMA _realtime OWNER TO supabase_admin;"
 
-# Corriger la propriété des fonctions auth (nécessaire pour les migrations GoTrue)
+# 2. Logflare utilise le mot de passe hardcodé 'supabase_admin' (pas POSTGRES_PASSWORD)
+docker exec supabase-db psql -U postgres -c "ALTER USER supabase_admin PASSWORD 'supabase_admin';"
+
+# 3. Corriger les fonctions auth
 docker exec supabase-db psql -U postgres -c "ALTER FUNCTION auth.uid() OWNER TO supabase_auth_admin;"
 docker exec supabase-db psql -U postgres -c "ALTER FUNCTION auth.role() OWNER TO supabase_auth_admin;"
 docker exec supabase-db psql -U postgres -c "ALTER FUNCTION auth.email() OWNER TO supabase_auth_admin;"
 
-# Lancer les migrations Logflare (analytics)
-docker run --rm \
-  --network supabase_default \
-  -e DB_PASSWORD=$(grep POSTGRES_PASSWORD /opt/supabase/.env | cut -d= -f2-) \
-  -e DB_USERNAME=supabase_admin \
-  -e DB_DATABASE=_supabase \
-  -e DB_HOSTNAME=db \
-  -e DB_PORT=5432 \
-  -e DB_SCHEMA=_analytics \
-  supabase/logflare:1.36.1 \
-  /opt/app/rel/logflare/bin/logflare eval 'Logflare.Release.migrate()'
+# 4. Réinitialiser le mot de passe postgres pour les connexions TCP
+docker exec supabase-db psql -U postgres -c "ALTER USER postgres PASSWORD '$(grep POSTGRES_PASSWORD /opt/supabase/.env | cut -d= -f2)';"
 
-# Relancer tous les services
+# 5. Relancer
 docker compose up -d
 ```
 
+Vérifier que tous les services sont healthy :
 ```bash
-# Vérifier que tout tourne
 docker compose ps
 ```
 
-Supabase Studio sera accessible sur `http://localhost:3000` (en local via tunnel SSH).
-
 ---
 
-## Étape 3 — Cloner le repo myGaïa
+## Étape 3 — Cloner le repo
 
 ```bash
 git clone https://github.com/tpilon-odc/atrium-odc.git /opt/mygaia
@@ -164,103 +138,123 @@ cd /opt/mygaia
 
 ---
 
-## Étape 4 — Configurer les variables d'env
+## Étape 4 — Créer le fichier `.env.prod`
 
 ```bash
 cp infra/.env.prod.example infra/.env.prod
+ln -s /opt/mygaia/infra/.env.prod /opt/mygaia/infra/.env
 nano infra/.env.prod
 ```
 
-Reprendre les valeurs générées pour Supabase :
+### Toutes les variables requises
+
 ```env
-SUPABASE_URL=https://supabase.mygaia.fr
-SUPABASE_ANON_KEY=jwt-anon-généré      # même valeur que dans /opt/supabase/.env
-SUPABASE_SERVICE_ROLE_KEY=jwt-service-role-généré
-API_URL=https://api.mygaia.fr
-JWT_SECRET=votre-secret-min-32-chars   # même valeur que SUPABASE_JWT_SECRET
-MINIO_ACCESS_KEY=minio-admin
-MINIO_SECRET_KEY=minio-mot-de-passe
+# Supabase (reprendre depuis /opt/supabase/.env)
+SUPABASE_URL=http://<IP_SERVEUR>:8000
+SUPABASE_ANON_KEY=<ANON_KEY>
+SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY>
+
+# Next.js build-time (OBLIGATOIRE — inliné dans le bundle JS)
+NEXT_PUBLIC_SUPABASE_URL=http://<IP_SERVEUR>:8000
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY>
+NEXT_PUBLIC_API_URL=http://<IP_SERVEUR>/api
+
+# API
+API_URL=http://<IP_SERVEUR>/api
+JWT_SECRET=<même valeur que dans /opt/supabase/.env>
+FRONTEND_URL=http://<IP_SERVEUR>
+
+# Base de données (connexion directe Postgres, pas via pooler)
+DATABASE_URL=postgresql://postgres:<POSTGRES_PASSWORD>@supabase-db:5432/postgres
+DIRECT_URL=postgresql://postgres:<POSTGRES_PASSWORD>@supabase-db:5432/postgres
+
+# MinIO
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=<hex32>
+MINIO_BUCKET=cgp-documents
+
+# SMTP (mailpit en dev, SMTP externe en prod)
+SMTP_HOST=mailpit
+SMTP_PORT=1025
 ```
+
+> **⚠️ `NEXT_PUBLIC_*`** : Ces variables sont inlinées dans le bundle JS au moment du `docker compose build`.
+> Elles doivent être dans `.env.prod` AVANT le build. Un rebuild est nécessaire si elles changent.
 
 ---
 
-## Étape 5 — Certificats SSL
-
-### Option A — Let's Encrypt (domaine public)
+## Étape 5 — Créer le réseau partagé et connecter supabase-db
 
 ```bash
-apt install -y certbot
-# Stopper nginx s'il tourne déjà sur le port 80
-certbot certonly --standalone -d app.mygaia.fr -d api.mygaia.fr -d supabase.mygaia.fr
-
-mkdir -p /opt/mygaia/infra/nginx/certs
-cp /etc/letsencrypt/live/app.mygaia.fr/fullchain.pem /opt/mygaia/infra/nginx/certs/
-cp /etc/letsencrypt/live/app.mygaia.fr/privkey.pem /opt/mygaia/infra/nginx/certs/
-```
-
-### Option B — Certificat auto-signé (test sans domaine)
-
-```bash
-mkdir -p /opt/mygaia/infra/nginx/certs
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /opt/mygaia/infra/nginx/certs/privkey.pem \
-  -out /opt/mygaia/infra/nginx/certs/fullchain.pem \
-  -subj "/CN=localhost"
-```
-
-> Le navigateur affichera un avertissement SSL — normal pour un certificat auto-signé.
-
----
-
-## Étape 6 — Adapter la configuration Nginx
-
-Éditer `/opt/mygaia/infra/nginx/nginx.conf` et remplacer les `server_name` :
-
-```bash
-sed -i 's/app.mygaia.fr/VOTRE_DOMAINE_APP/g' /opt/mygaia/infra/nginx/nginx.conf
-sed -i 's/api.mygaia.fr/VOTRE_DOMAINE_API/g' /opt/mygaia/infra/nginx/nginx.conf
-```
-
----
-
-## Étape 7 — Créer le réseau Docker partagé
-
-```bash
-# Le réseau doit exister avant de lancer notre stack
+# Créer le réseau partagé (une seule fois)
 docker network create supabase_network 2>/dev/null || true
 
-# Connecter le kong de Supabase à ce réseau
-docker network connect supabase_network supabase-kong-1 2>/dev/null || true
+# Connecter supabase-db au réseau pour que l'API puisse faire les migrations
+docker network connect supabase_network supabase-db
 ```
 
-> Le nom exact du container kong peut varier. Vérifier avec `docker ps | grep kong`.
+> **⚠️** Cette connexion réseau est perdue au redémarrage de supabase-db.
+> Pour la rendre permanente, ajouter `supabase_network` dans le `docker-compose.yml` Supabase
+> pour le service `db`.
 
 ---
 
-## Étape 8 — Lancer la stack myGaïa
+## Étape 6 — Builder et lancer la stack
 
 ```bash
-cd /opt/mygaia
-docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --build
+cd /opt/mygaia/infra
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-Le premier `--build` peut prendre 5-10 minutes (compilation Next.js + Fastify).
+Le premier build prend 5-15 minutes.
+
+---
+
+## Étape 7 — Migrations Prisma
+
+```bash
+cd /opt/mygaia/infra
+
+# S'assurer que supabase-db est sur le réseau
+docker network connect supabase_network supabase-db 2>/dev/null || true
+
+# Lancer les migrations
+docker compose -f docker-compose.prod.yml exec api \
+  npx prisma migrate deploy --schema=/app/packages/db/prisma/schema.prisma
+```
+
+---
+
+## Étape 8 — Créer le premier utilisateur admin
+
+```bash
+SERVICE_KEY=$(grep "^SERVICE_ROLE_KEY=" /opt/supabase/.env | cut -d= -f2)
+
+curl -s -X POST http://<IP_SERVEUR>:8000/auth/v1/admin/users \
+  -H "apikey: ${SERVICE_KEY}" \
+  -H "Authorization: Bearer ${SERVICE_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"MotDePasse1234!","email_confirm":true}'
+```
 
 ---
 
 ## Étape 9 — Vérifications
 
 ```bash
-# État de tous les containers
-docker compose -f infra/docker-compose.prod.yml ps
+# État des containers
+docker compose -f docker-compose.prod.yml ps
 
-# Logs en temps réel
-docker compose -f infra/docker-compose.prod.yml logs -f web
-docker compose -f infra/docker-compose.prod.yml logs -f api
+# Test API
+curl http://<IP_SERVEUR>/api/v1/health
 
-# Test HTTP
-curl -k https://app.mygaia.fr
-curl -k https://api.mygaia.fr/health
+# Test web
+curl -o /dev/null -w "%{http_code}" http://<IP_SERVEUR>/
+
+# Logs
+docker logs cgp-api --tail=20
+docker logs cgp-web --tail=20
 ```
 
 ---
@@ -270,52 +264,47 @@ curl -k https://api.mygaia.fr/health
 ```bash
 cd /opt/mygaia
 git pull
-docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --build web api
-```
 
-Seuls `web` et `api` sont rebuilds — redis/minio/nginx redémarrent sans rebuild.
+cd infra
+
+# Rebuild uniquement web et api
+docker compose -f docker-compose.prod.yml build web api
+docker compose -f docker-compose.prod.yml up -d --force-recreate web api
+
+# Si des migrations ont été ajoutées
+docker network connect supabase_network supabase-db 2>/dev/null || true
+docker compose -f docker-compose.prod.yml exec api \
+  npx prisma migrate deploy --schema=/app/packages/db/prisma/schema.prisma
+```
 
 ---
 
-## Backup des données
+## Backup
 
 ```bash
-# Postgres (via Supabase)
-cd /opt/supabase
-docker compose exec db pg_dump -U postgres postgres > backup_$(date +%Y%m%d).sql
+# Postgres
+docker exec supabase-db pg_dump -U postgres postgres > backup_$(date +%Y%m%d).sql
 
-# MinIO (volumes Docker)
-docker run --rm -v cgp-minio_data:/data -v $(pwd):/backup alpine \
-  tar czf /backup/minio_$(date +%Y%m%d).tar.gz /data
+# MinIO
+docker run --rm \
+  -v infra_minio_data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/minio_$(date +%Y%m%d).tar.gz /data
 ```
 
 ---
 
-## Renouvellement SSL automatique (Let's Encrypt)
+## Ports
 
-```bash
-# Ajouter un cron
-crontab -e
-# Ajouter cette ligne :
-0 3 * * * certbot renew --quiet && \
-  cp /etc/letsencrypt/live/app.mygaia.fr/fullchain.pem /opt/mygaia/infra/nginx/certs/ && \
-  cp /etc/letsencrypt/live/app.mygaia.fr/privkey.pem /opt/mygaia/infra/nginx/certs/ && \
-  docker restart cgp-nginx
-```
-
----
-
-## Ports exposés sur le serveur
-
-| Port | Service | Accès |
+| Port | Service | Notes |
 |------|---------|-------|
-| 80 | Nginx (redirect HTTPS) | Public |
-| 443 | Nginx (app + api) | Public |
-| 8025 | Mailpit UI | localhost uniquement |
-| 3000 | Supabase Studio | localhost uniquement (tunnel SSH) |
+| 80 | Nginx → web (Next.js) + /api → API | Public |
+| 8000 | Kong (Supabase gateway) | Interne |
+| 8025 | Mailpit UI | `127.0.0.1` uniquement |
+| 9001 | MinIO console | Interne |
 
-Accéder au Studio Supabase depuis votre machine locale :
+Accès au Studio Supabase (port 8000) depuis votre poste :
 ```bash
-ssh -L 3000:localhost:3000 user@votre-serveur
-# Puis ouvrir http://localhost:3000
+ssh -L 8000:localhost:8000 user@<IP_SERVEUR>
+# Puis ouvrir http://localhost:8000
 ```
