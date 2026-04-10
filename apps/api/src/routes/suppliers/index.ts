@@ -24,7 +24,8 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
 
     const { cursor, limit, search, category } = parsed.data
 
-    const where = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: any = {
       deletedAt: null,
       ...(category ? { category } : {}),
       ...(search
@@ -173,7 +174,8 @@ export const supplierRoutes: FastifyPluginAsync = async (app) => {
         return reply.status(404).send({ error: 'Fournisseur introuvable', code: 'NOT_FOUND' })
       }
 
-      const cabinetData = await prisma.cabinetSupplier.upsert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cabinetData = await (prisma.cabinetSupplier as any).upsert({
         where: { cabinetId_supplierId: { cabinetId: request.cabinetId, supplierId: id } },
         update: parsed.data,
         create: { cabinetId: request.cabinetId, supplierId: id, ...parsed.data },

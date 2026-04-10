@@ -79,9 +79,9 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
       orderBy: { trainingDate: 'desc' },
     })
 
-    const rows = trainings.map((t) => ({
+    const rows = trainings.filter((t) => t.user).map((t) => ({
       id: t.id,
-      collaborateur: t.user.email,
+      collaborateur: t.user!.email,
       formation: t.training.name,
       organisateur: t.training.organizer ?? '',
       categorie: t.training.category ?? '',

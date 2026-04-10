@@ -91,9 +91,9 @@ export async function runComplianceNotificationsJob(): Promise<void> {
       try {
         // Crée une notification in-app pour chaque owner/admin
         await prisma.notification.createMany({
-          data: recipients.map((m) => ({
+          data: recipients.filter((m) => m.user).map((m) => ({
             cabinetId: answer.cabinetId,
-            userId: m.user.id,
+            userId: m.user!.id,
             type,
             title,
             message,
@@ -104,13 +104,13 @@ export async function runComplianceNotificationsJob(): Promise<void> {
         })
 
         // Envoie un email à chaque owner/admin — envoi parallèle
-        await Promise.all(recipients.map((member) =>
+        await Promise.all(recipients.filter((member) => member.user).map((member) =>
           sendComplianceExpiryEmail({
-            to: member.user.email,
+            to: member.user!.email,
             cabinetName: answer.cabinet.name,
             itemLabel: answer.item.label,
             phaseLabel: answer.item.phase.label,
-            expiresAt: answer.expiresAt,
+            expiresAt: answer.expiresAt!,
             daysBefore,
           })
         ))

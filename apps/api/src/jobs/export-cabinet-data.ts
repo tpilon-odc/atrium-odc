@@ -206,12 +206,12 @@ async function collectCabinetData(cabinetId: string) {
   const metadata = {
     exportedAt: new Date().toISOString(),
     cabinet,
-    members: members.map((m) => ({
+    members: members.filter((m) => m.user).map((m) => ({
       id: m.id,
       role: m.role,
-      email: m.user.email,
-      firstName: m.user.firstName,
-      lastName: m.user.lastName,
+      email: m.user!.email,
+      firstName: m.user!.firstName,
+      lastName: m.user!.lastName,
     })),
     contacts: contacts.map((c) => ({
       id: c.id,
@@ -243,9 +243,9 @@ async function collectCabinetData(cabinetId: string) {
       privateRating: cs.privateRating,
       privateNote: cs.privateNote,
     })),
-    trainings: trainings.map((t) => ({
+    trainings: trainings.filter((t) => t.user).map((t) => ({
       id: t.id,
-      collaborateur: t.user.email,
+      collaborateur: t.user!.email,
       formation: t.training.name,
       organizer: t.training.organizer,
       category: t.training.category,

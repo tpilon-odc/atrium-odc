@@ -70,8 +70,8 @@ export const pcaRoutes: FastifyPluginAsync = async (app) => {
 
     const pca = await prisma.cabinetPca.upsert({
       where: { cabinetId },
-      create: { cabinetId, data: body.data },
-      update: { data: body.data },
+      create: { cabinetId, data: body.data as object },
+      update: { data: body.data as object },
     })
 
     // Only save history if something actually changed
@@ -79,7 +79,7 @@ export const pcaRoutes: FastifyPluginAsync = async (app) => {
       await prisma.cabinetPcaHistory.create({
         data: {
           cabinetId: request.cabinetId,
-          data: diff,
+          data: diff as object,
           savedBy: request.user.id,
         },
       })

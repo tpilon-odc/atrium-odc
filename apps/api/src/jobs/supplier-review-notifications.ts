@@ -72,9 +72,9 @@ export async function runSupplierReviewNotificationsJob(): Promise<void> {
       try {
         // Notifications in-app
         await prisma.notification.createMany({
-          data: recipients.map((m) => ({
+          data: recipients.filter((m) => m.user).map((m) => ({
             cabinetId: evaluation.cabinetId,
-            userId: m.user.id,
+            userId: m.user!.id,
             type: `supplier_review_due_${threshold}`,
             title,
             message,
@@ -85,12 +85,12 @@ export async function runSupplierReviewNotificationsJob(): Promise<void> {
         })
 
         // Emails — envoi parallèle
-        await Promise.all(recipients.map((member) =>
+        await Promise.all(recipients.filter((member) => member.user).map((member) =>
           sendSupplierReviewEmail({
-            to: member.user.email,
+            to: member.user!.email,
             supplierName: evaluation.supplier.name,
             cabinetName: evaluation.cabinet.name,
-            nextReviewDate: evaluation.nextReviewDate,
+            nextReviewDate: evaluation.nextReviewDate!,
             daysLeft,
             supplierUrl: `${process.env.FRONTEND_URL}/fournisseurs/${evaluation.supplierId}`,
           })

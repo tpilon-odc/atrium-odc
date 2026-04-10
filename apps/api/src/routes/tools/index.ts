@@ -156,7 +156,8 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Outil introuvable', code: 'NOT_FOUND' })
     }
 
-    const cabinetData = await prisma.cabinetTool.upsert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cabinetData = await (prisma.cabinetTool as any).upsert({
       where: { cabinetId_toolId: { cabinetId: request.cabinetId, toolId: id } },
       update: parsed.data,
       create: { cabinetId: request.cabinetId, toolId: id, ...parsed.data },

@@ -103,7 +103,7 @@ export async function runGdprErasureJob(): Promise<void> {
       const memberIds = (await prisma.cabinetMember.findMany({
         where: { cabinetId },
         select: { userId: true },
-      })).map((m) => m.userId)
+      })).map((m) => m.userId).filter((id): id is string => id !== null)
 
       if (memberIds.length > 0) {
         await prisma.$transaction([
