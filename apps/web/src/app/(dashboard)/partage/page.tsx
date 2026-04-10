@@ -138,7 +138,7 @@ function ShareRow({ share, onRevoke }: { share: Share; onRevoke?: () => void }) 
           </p>
           {training && (
             <p className="text-xs text-muted-foreground">
-              {[training.user.firstName, training.user.lastName].filter(Boolean).join(' ') || training.user.email}
+              {[training.user?.firstName, training.user?.lastName].filter(Boolean).join(' ') || training.user?.email}
               {' · '}{new Date(training.trainingDate).toLocaleDateString('fr-FR')}
               {training.trainingDateEnd ? ` → ${new Date(training.trainingDateEnd).toLocaleDateString('fr-FR')}` : ''}
               {training.hoursCompleted ? ` · ${training.hoursCompleted}h` : ''}

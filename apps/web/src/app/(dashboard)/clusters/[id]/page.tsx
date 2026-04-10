@@ -253,7 +253,7 @@ export default function ClusterDetailPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-bold">{cluster.name}</h1>
-              {cluster.isVerified && <BadgeCheck className="h-4 w-4 text-primary" title="Vérifié" />}
+              {cluster.isVerified && <BadgeCheck className="h-4 w-4 text-primary" aria-label="Vérifié" />}
               {cluster.role && (
                 <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
                   {cluster.role}

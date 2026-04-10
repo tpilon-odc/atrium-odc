@@ -241,15 +241,15 @@ function EvaluationForm({
         <Label className="text-xs">Évaluateurs</Label>
         <div className="flex flex-wrap gap-2">
           {members.map((m) => {
-            const name = [m.user.firstName, m.user.lastName].filter(Boolean).join(' ') || m.user.email
-            const selected = evaluateurIds.includes(m.userId)
+            const name = [m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ') || m.user?.email
+            const selected = m.userId ? evaluateurIds.includes(m.userId) : false
             return (
               <button
                 key={m.userId}
                 type="button"
                 onClick={() =>
                   setEvaluateurIds((prev) =>
-                    selected ? prev.filter((id) => id !== m.userId) : [...prev, m.userId]
+                    selected ? prev.filter((id) => id !== m.userId) : [...prev, m.userId].filter((id): id is string => id !== null)
                   )
                 }
                 className={cn(
@@ -438,7 +438,7 @@ export function EvaluationTab({ supplierId }: { supplierId: string }) {
   const resolveName = (userId: string) => {
     const m = members.find((m) => m.userId === userId)
     if (!m) return userId
-    return [m.user.firstName, m.user.lastName].filter(Boolean).join(' ') || m.user.email
+    return [m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ') || m.user?.email || userId
   }
 
   const evaluations = data?.data.evaluations ?? []

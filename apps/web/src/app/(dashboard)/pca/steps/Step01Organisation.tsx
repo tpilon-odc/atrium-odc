@@ -111,7 +111,7 @@ export default function Step01Organisation({ data, onChange }: Props) {
               <button
                 key={m.id}
                 type="button"
-                onClick={() => fillFromMember(m.userId)}
+                onClick={() => m.userId && fillFromMember(m.userId)}
                 className="text-xs bg-muted hover:bg-muted/80 px-2.5 py-1 rounded-full transition-colors"
               >
                 {displayName(m.user!)}

@@ -49,16 +49,38 @@ mkdir -p /opt/supabase && cd /opt/supabase
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/docker-compose.yml -o docker-compose.yml
 curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/.env.example -o .env
 
+# Créer la structure des volumes AVANT docker compose up
+# (sinon Docker crée des dossiers vides à la place des fichiers, ce qui brise tout)
+mkdir -p volumes/api volumes/db volumes/pooler volumes/logs volumes/storage volumes/functions
+
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/api/kong.yml -o volumes/api/kong.yml
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/api/kong-entrypoint.sh -o volumes/api/kong-entrypoint.sh
+chmod +x volumes/api/kong-entrypoint.sh
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/roles.sql -o volumes/db/roles.sql
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/jwt.sql -o volumes/db/jwt.sql
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/webhooks.sql -o volumes/db/webhooks.sql
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/logs.sql -o volumes/db/logs.sql
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/realtime.sql -o volumes/db/realtime.sql
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/db/_supabase.sql -o volumes/db/_supabase.sql
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/pooler/pooler.exs -o volumes/pooler/pooler.exs
+curl -L https://raw.githubusercontent.com/supabase/supabase/master/docker/volumes/logs/vector.yml -o volumes/logs/vector.yml
+
 # Ouvrir .env et remplir les valeurs obligatoires (voir section ci-dessous)
 nano .env
 ```
 
 ### Variables Supabase à remplir dans `/opt/supabase/.env`
 
+> **Important** : `POSTGRES_PASSWORD` ne doit pas contenir de caractères spéciaux (`+`, `=`, `/`)
+> car il est utilisé dans des URLs de connexion. Utiliser un token hex :
+> ```bash
+> openssl rand -hex 32
+> ```
+
 Générer les secrets :
 ```bash
 # JWT_SECRET (min 32 chars)
-openssl rand -base64 32
+openssl rand -hex 32
 
 # ANON_KEY et SERVICE_ROLE_KEY : générer sur https://supabase.com/docs/guides/self-hosting/docker#generate-api-keys
 # Ou avec la commande :
@@ -88,7 +110,43 @@ SUPABASE_PUBLIC_URL=https://supabase.mygaia.fr
 ```bash
 cd /opt/supabase
 docker compose up -d
+```
 
+> **Note** : Le premier `up` peut échouer sur `supabase-analytics` (unhealthy).
+> C'est un bug connu du setup self-hosted — la base `_supabase` et les schémas
+> ne sont pas créés automatiquement. Exécuter les commandes suivantes **une seule fois**
+> après le premier démarrage :
+
+```bash
+# Créer la base et les schémas requis
+docker exec supabase-db psql -U postgres -c "CREATE DATABASE _supabase OWNER supabase_admin;"
+docker exec supabase-db psql -U postgres -c "ALTER USER supabase_admin PASSWORD '$(grep POSTGRES_PASSWORD /opt/supabase/.env | cut -d= -f2-)';"
+docker exec supabase-db psql -U postgres -d _supabase -c "CREATE SCHEMA _analytics;"
+docker exec supabase-db psql -U postgres -d _supabase -c "CREATE SCHEMA IF NOT EXISTS _realtime; ALTER SCHEMA _realtime OWNER TO supabase_admin;"
+docker exec supabase-db psql -U postgres -c "ALTER ROLE supabase_admin SET search_path TO _analytics, _realtime, public, extensions;"
+
+# Corriger la propriété des fonctions auth (nécessaire pour les migrations GoTrue)
+docker exec supabase-db psql -U postgres -c "ALTER FUNCTION auth.uid() OWNER TO supabase_auth_admin;"
+docker exec supabase-db psql -U postgres -c "ALTER FUNCTION auth.role() OWNER TO supabase_auth_admin;"
+docker exec supabase-db psql -U postgres -c "ALTER FUNCTION auth.email() OWNER TO supabase_auth_admin;"
+
+# Lancer les migrations Logflare (analytics)
+docker run --rm \
+  --network supabase_default \
+  -e DB_PASSWORD=$(grep POSTGRES_PASSWORD /opt/supabase/.env | cut -d= -f2-) \
+  -e DB_USERNAME=supabase_admin \
+  -e DB_DATABASE=_supabase \
+  -e DB_HOSTNAME=db \
+  -e DB_PORT=5432 \
+  -e DB_SCHEMA=_analytics \
+  supabase/logflare:1.36.1 \
+  /opt/app/rel/logflare/bin/logflare eval 'Logflare.Release.migrate()'
+
+# Relancer tous les services
+docker compose up -d
+```
+
+```bash
 # Vérifier que tout tourne
 docker compose ps
 ```

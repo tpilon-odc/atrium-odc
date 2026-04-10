@@ -126,7 +126,7 @@ function ClusterCard({ cluster }: { cluster: Cluster }) {
               {cluster.name}
             </Link>
             {cluster.isVerified && (
-              <BadgeCheck className="h-3.5 w-3.5 text-primary shrink-0" title="Vérifié" />
+              <BadgeCheck className="h-3.5 w-3.5 text-primary shrink-0" aria-label="Vérifié" />
             )}
             {cluster.isMember && (
               <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium shrink-0">Membre</span>

@@ -449,8 +449,8 @@ export function GovernanceTab({ productId, token, mainCategory }: { productId: s
   const baseGov = draft ?? active
   const effectiveForm = baseGov ? { ...baseGov, ...formData } : formData
 
-  const handleChange = (patch: Partial<Record<string, unknown>>) => {
-    setFormData((prev) => ({ ...prev, ...patch }))
+  const handleChange = (patch: Partial<Record<string, string | number | boolean | null>>) => {
+    setFormData((prev) => ({ ...prev, ...patch }) as Record<string, string | number | boolean | null>)
   }
 
   const handleMarcheChange = (field: string, value: MarcheCibleValue) => {

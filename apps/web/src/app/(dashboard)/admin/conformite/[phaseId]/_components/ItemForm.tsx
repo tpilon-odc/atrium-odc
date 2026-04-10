@@ -360,7 +360,7 @@ export function ItemForm({
                 <Label className="text-xs">Opérateur</Label>
                 <select
                   value={operator}
-                  onChange={(e) => setOperator(e.target.value)}
+                  onChange={(e) => setOperator(e.target.value as "eq" | "not_eq" | "in" | "not_in")}
                   className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background"
                 >
                   {Object.entries(OPERATOR_LABELS).map(([v, l]) => (
