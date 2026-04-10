@@ -60,7 +60,7 @@ export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgCha
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${apiPath}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}${apiPath}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error('Erreur chargement avis')
@@ -91,7 +91,7 @@ export function ReviewSection({ entityType, entityId, token, cabinetId, onAvgCha
   const mutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/${entityType}s/${entityId}/review`,
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/${entityType}s/${entityId}/review`,
         {
           method: 'POST',
           headers: {

@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/stores/auth'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
 
 type ApiResponse<T> = { data: T }
 
@@ -577,7 +577,7 @@ export const productApi = {
     }),
 
   exportGovernance: (token: string) =>
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/products/governance/export`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/products/governance/export`, {
       headers: { Authorization: `Bearer ${token}` },
     }),
 
@@ -2060,7 +2060,7 @@ export const eventApi = {
     call<unknown>(`/api/v1/events/${id}`, { method: 'DELETE', token }),
 
   getIcsUrl: (cabinetId: string, icsToken: string) =>
-    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/calendar/${cabinetId}/feed.ics?token=${icsToken}`,
+    `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/calendar/${cabinetId}/feed.ics?token=${icsToken}`,
 
   regenerateToken: (token: string) =>
     call<{ icsToken: string }>('/api/v1/calendar/regenerate-token', {

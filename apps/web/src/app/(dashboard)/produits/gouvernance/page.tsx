@@ -42,7 +42,7 @@ export default function GovernanceTableauPage() {
     queryKey: ['governance-export-list', token],
     queryFn: async () => {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/products/governance/due-revision`,
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/products/governance/due-revision`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (!res.ok) throw new Error('Erreur chargement')
@@ -55,7 +55,7 @@ export default function GovernanceTableauPage() {
     queryKey: ['governance-table', token],
     queryFn: async () => {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/products/governance/list`,
+        `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/products/governance/list`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (!res.ok) throw new Error('Erreur chargement')
