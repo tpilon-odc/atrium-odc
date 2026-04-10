@@ -75,6 +75,8 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       JWT_SECRET: ${JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
     expose:
       - "3001"
     depends_on:
