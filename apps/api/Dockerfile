@@ -29,7 +29,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copier uniquement le dist compilé + node_modules de prod
 COPY --from=builder --chown=apiuser:nodejs /app/apps/api/dist ./apps/api/dist
-COPY --from=deps --chown=apiuser:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=apiuser:nodejs /app/node_modules ./node_modules
 COPY --from=deps --chown=apiuser:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages ./packages
 
