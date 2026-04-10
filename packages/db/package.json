@@ -9,12 +9,12 @@
     "migrate:reset": "prisma migrate reset",
     "studio": "prisma studio"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./generated/client/index.js",
+  "types": "./generated/client/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
+      "require": "./generated/client/index.js",
+      "default": "./generated/client/index.js"
     }
   },
   "dependencies": {

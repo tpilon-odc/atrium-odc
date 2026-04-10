@@ -16,7 +16,6 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
-RUN npx tsc --project packages/db/tsconfig.json
 RUN npm run build --workspace=apps/api
 
 # ── Stage 3: runner ────────────────────────────────────────────
@@ -33,7 +32,6 @@ COPY --from=builder --chown=apiuser:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=apiuser:nodejs /app/node_modules ./node_modules
 COPY --from=deps --chown=apiuser:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/package.json ./packages/db/package.json
-COPY --from=builder --chown=apiuser:nodejs /app/packages/db/dist ./packages/db/dist
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/generated ./packages/db/generated
 
 USER apiuser
