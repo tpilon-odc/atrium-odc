@@ -14,6 +14,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
 
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
@@ -32,6 +33,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copier uniquement le dist compilé + node_modules de prod
 COPY --from=builder --chown=apiuser:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=apiuser:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=apiuser:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=deps --chown=apiuser:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/package.json ./packages/db/package.json
 COPY --from=builder --chown=apiuser:nodejs /app/packages/db/generated ./packages/db/generated
