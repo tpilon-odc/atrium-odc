@@ -33,6 +33,10 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_API_URL: ${API_URL}
     container_name: cgp-web
     environment:
       NODE_ENV: production
