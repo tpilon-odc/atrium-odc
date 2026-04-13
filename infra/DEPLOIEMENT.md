@@ -308,14 +308,42 @@ docker compose -f docker-compose.prod.yml exec api \
 
 ## Accès Supabase Studio
 
-Le Studio est proxifié via nginx sur `/studio/` :
-```
-http://<DOMAINE>/studio/
+Le Studio nécessite un sous-domaine dédié. Dans nginx, ajouter un bloc `server` **avant** le bloc principal avec `default_server` :
+
+```nginx
+server {
+    listen 80;
+    server_name bdd.<DOMAINE>;
+
+    resolver 127.0.0.11 valid=10s;
+
+    location / {
+        set $studio_upstream http://172.21.0.1:54323;
+        proxy_pass $studio_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
-Pour y accéder via tunnel SSH (si pas de domaine public) :
+> **⚠️** Le bloc principal doit avoir `listen 80 default_server` sinon nginx route tout vers le Studio.
+> **⚠️** `172.21.0.1` est la gateway Docker du réseau `cgp` — vérifier avec `docker inspect cgp-nginx | grep Gateway`.
+> **⚠️** Le Studio doit être exposé sur `0.0.0.0:54323` (pas `127.0.0.1`) dans `/opt/supabase/docker-compose.yml`.
+
+Dans NPM, créer un proxy host :
+- **Domain Names** : `bdd.<DOMAINE>`
+- **Forward Hostname** : `<IP_SERVEUR>`
+- **Forward Port** : `80`
+- Cocher **Websockets Support**
+
+Pour y accéder via tunnel SSH (si pas de sous-domaine) :
 ```bash
-ssh -L 54324:192.168.105.3:54323 <user>@<serveur-rebond> -N
+ssh -L 54324:<IP_SERVEUR>:54323 <user>@<serveur-rebond> -N
 # Puis ouvrir http://localhost:54324
 ```
 
@@ -363,6 +391,10 @@ docker run --rm \
 ---
 
 ## Problèmes connus et solutions
+
+### Nginx route tout vers le mauvais bloc server
+Quand plusieurs blocs `server` coexistent, nginx prend le premier par défaut si aucun `server_name` ne matche.
+Le bloc principal doit avoir `listen 80 default_server` pour être le fallback.
 
 ### Double `/api/api/` dans les URLs
 `NEXT_PUBLIC_API_URL` ne doit PAS finir par `/api`. Le code ajoute déjà `/api/v1/...`.
