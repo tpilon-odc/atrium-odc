@@ -84,9 +84,9 @@ ANON_KEY=<jwt-anon>
 SERVICE_ROLE_KEY=<jwt-service-role>
 DASHBOARD_USERNAME=admin
 DASHBOARD_PASSWORD=<mot-de-passe>
-SITE_URL=http://<IP_SERVEUR>
-API_EXTERNAL_URL=http://<IP_SERVEUR>:8000
-SUPABASE_PUBLIC_URL=http://<IP_SERVEUR>:8000
+SITE_URL=http://<DOMAINE>
+API_EXTERNAL_URL=http://<DOMAINE>:8000
+SUPABASE_PUBLIC_URL=http://<DOMAINE>:8000
 ```
 
 ### Premier démarrage Supabase
@@ -127,11 +127,29 @@ Vérifier que tous les services sont healthy :
 docker compose ps
 ```
 
+### ⚠️ Exposer le Studio Supabase
+
+Par défaut le Studio n'expose pas son port. Modifier `/opt/supabase/docker-compose.yml` pour le service `studio` :
+
+```yaml
+    restart: unless-stopped
+    ports:
+      - "54323:3000"
+```
+
+Puis :
+```bash
+cd /opt/supabase && docker compose up -d --force-recreate studio
+```
+
+Le Studio sera accessible via nginx à `http://<DOMAINE>/studio/` (voir configuration nginx).
+
 ---
 
 ## Étape 3 — Cloner le repo
 
 ```bash
+git config --global --add safe.directory /opt/mygaia
 git clone https://github.com/tpilon-odc/atrium-odc.git /opt/mygaia
 cd /opt/mygaia
 ```
@@ -142,11 +160,16 @@ cd /opt/mygaia
 
 ```bash
 cp infra/.env.prod.example infra/.env.prod
-ln -s /opt/mygaia/infra/.env.prod /opt/mygaia/infra/.env
 nano infra/.env.prod
 ```
 
 ### Toutes les variables requises
+
+> **⚠️ `NEXT_PUBLIC_*`** : Ces variables sont inlinées dans le bundle JS au moment du `docker compose build`.
+> Elles doivent être dans `.env.prod` AVANT le build. Un rebuild est nécessaire si elles changent.
+>
+> **⚠️ `NEXT_PUBLIC_API_URL`** : doit être l'URL de base **sans** `/api` (le code ajoute `/api/v1/...`).
+> **⚠️ `NEXT_PUBLIC_SUPABASE_URL`** : doit pointer vers le proxy nginx `/supabase` (pas le port 8000 direct).
 
 ```env
 # Supabase (reprendre depuis /opt/supabase/.env)
@@ -155,14 +178,15 @@ SUPABASE_ANON_KEY=<ANON_KEY>
 SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY>
 
 # Next.js build-time (OBLIGATOIRE — inliné dans le bundle JS)
-NEXT_PUBLIC_SUPABASE_URL=http://<IP_SERVEUR>:8000
+# Utiliser le nom de domaine public, pas l'IP
+NEXT_PUBLIC_SUPABASE_URL=http://<DOMAINE>/supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY>
-NEXT_PUBLIC_API_URL=http://<IP_SERVEUR>/api
+NEXT_PUBLIC_API_URL=http://<DOMAINE>
 
 # API
-API_URL=http://<IP_SERVEUR>/api
+API_URL=http://<DOMAINE>/api
 JWT_SECRET=<même valeur que dans /opt/supabase/.env>
-FRONTEND_URL=http://<IP_SERVEUR>
+FRONTEND_URL=http://<DOMAINE>
 
 # Base de données (connexion directe Postgres, pas via pooler)
 DATABASE_URL=postgresql://postgres:<POSTGRES_PASSWORD>@supabase-db:5432/postgres
@@ -177,9 +201,6 @@ MINIO_BUCKET=cgp-documents
 SMTP_HOST=mailpit
 SMTP_PORT=1025
 ```
-
-> **⚠️ `NEXT_PUBLIC_*`** : Ces variables sont inlinées dans le bundle JS au moment du `docker compose build`.
-> Elles doivent être dans `.env.prod` AVANT le build. Un rebuild est nécessaire si elles changent.
 
 ---
 
@@ -208,6 +229,9 @@ docker compose -f docker-compose.prod.yml up -d
 ```
 
 Le premier build prend 5-15 minutes.
+
+> **⚠️ Pas d'accès internet au build** : le Dockerfile web contient `NEXT_IGNORE_INCORRECT_LOCKFILE=true`
+> pour éviter que Next.js tente de télécharger le binaire SWC depuis internet.
 
 ---
 
@@ -277,6 +301,38 @@ docker compose -f docker-compose.prod.yml exec api \
   npx prisma migrate deploy --schema=/app/packages/db/prisma/schema.prisma
 ```
 
+> **⚠️ Après un changement de `NEXT_PUBLIC_*` dans `.env.prod`** : un rebuild de `web` est obligatoire.
+> Ces variables sont inlinées au build, pas injectées à runtime.
+
+---
+
+## Accès Supabase Studio
+
+Le Studio est proxifié via nginx sur `/studio/` :
+```
+http://<DOMAINE>/studio/
+```
+
+Pour y accéder via tunnel SSH (si pas de domaine public) :
+```bash
+ssh -L 54324:192.168.105.3:54323 <user>@<serveur-rebond> -N
+# Puis ouvrir http://localhost:54324
+```
+
+---
+
+## Nginx Proxy Manager (NPM)
+
+Si un NPM est disponible en amont, créer un proxy host :
+- **Domain Names** : `<DOMAINE>`
+- **Scheme** : `http`
+- **Forward Hostname / IP** : `<IP_SERVEUR>`
+- **Forward Port** : `80`
+- Cocher **Websockets Support**
+
+> **⚠️** Les `NEXT_PUBLIC_*` doivent utiliser le nom de domaine public (pas l'IP),
+> sinon les appels API depuis le navigateur échouent quand on accède via le domaine.
+
 ---
 
 ## Backup
@@ -298,13 +354,42 @@ docker run --rm \
 
 | Port | Service | Notes |
 |------|---------|-------|
-| 80 | Nginx → web (Next.js) + /api → API | Public |
+| 80 | Nginx → web (Next.js) + /api → API + /supabase → Kong + /studio → Studio | Public |
 | 8000 | Kong (Supabase gateway) | Interne |
 | 8025 | Mailpit UI | `127.0.0.1` uniquement |
 | 9001 | MinIO console | Interne |
+| 54323 | Supabase Studio | Exposé sur l'hôte |
 
-Accès au Studio Supabase (port 8000) depuis votre poste :
+---
+
+## Problèmes connus et solutions
+
+### Double `/api/api/` dans les URLs
+`NEXT_PUBLIC_API_URL` ne doit PAS finir par `/api`. Le code ajoute déjà `/api/v1/...`.
+✅ Correct : `http://mygaia.app.lab.odc.solutions`
+❌ Incorrect : `http://mygaia.app.lab.odc.solutions/api`
+
+### `ERR_CONNECTION_TIMED_OUT` sur port 8000
+Le port 8000 (Kong) est souvent bloqué par le réseau. Supabase est proxifié via nginx sur `/supabase/`.
+`NEXT_PUBLIC_SUPABASE_URL` doit pointer vers `http://<DOMAINE>/supabase`.
+
+### nginx "host not found in upstream"
+Utiliser `resolver 127.0.0.11 valid=10s` + `set $upstream http://...` pour la résolution DNS dynamique.
+Ne pas utiliser `proxy_pass` avec une URL statique contenant un hostname Docker.
+
+### Next.js tente de télécharger SWC au build (pas d'internet)
+Ajouter `ENV NEXT_IGNORE_INCORRECT_LOCKFILE=true` dans le Dockerfile web.
+
+### `NEXT_PUBLIC_*` pas inlinées dans le bundle
+Ces variables doivent être présentes dans `.env.prod` AVANT le build ET passées comme `ARG` dans le Dockerfile.
+Elles ne peuvent pas être injectées à runtime — un rebuild est obligatoire après tout changement.
+
+### supabase-db "Tenant or user not found" après redémarrage
 ```bash
-ssh -L 8000:localhost:8000 user@<IP_SERVEUR>
-# Puis ouvrir http://localhost:8000
+docker network connect supabase_network supabase-db
+```
+
+### Authentication failed for user postgres
+```bash
+docker exec supabase-db psql -U postgres -c "ALTER USER postgres PASSWORD '<POSTGRES_PASSWORD>';"
 ```
