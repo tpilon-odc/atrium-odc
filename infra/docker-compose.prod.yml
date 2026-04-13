@@ -78,6 +78,7 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       JWT_SECRET: ${JWT_SECRET}
+      API_URL: ${API_URL}
       FRONTEND_URL: ${FRONTEND_URL}
       DATABASE_URL: ${DATABASE_URL}
       DIRECT_URL: ${DIRECT_URL}
