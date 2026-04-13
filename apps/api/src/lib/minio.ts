@@ -1,5 +1,5 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
-import { Client as MinioNativeClient } from 'minio'
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { randomUUID } from 'crypto'
 
 if (process.env.NODE_ENV === 'production') {
@@ -20,13 +20,18 @@ export const s3 = new S3Client({
   forcePathStyle: true,
 })
 
-// Client MinIO natif — utilisé pour les URLs presignées (évite x-amz-checksum-mode)
-export const minioNative = new MinioNativeClient({
-  endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-  port: parseInt(process.env.MINIO_PORT || '9000'),
-  useSSL: false,
-  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+// Client S3 public — utilisé pour les URLs presignées, pointe vers l'URL publique
+const s3PublicEndpoint = process.env.MINIO_PUBLIC_URL
+  || `http://${process.env.MINIO_ENDPOINT || 'localhost'}:${process.env.MINIO_PORT || '9000'}`
+
+export const s3Public = new S3Client({
+  endpoint: s3PublicEndpoint,
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+    secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+  },
+  forcePathStyle: true,
 })
 
 export const BUCKET = process.env.MINIO_BUCKET || 'cgp-documents'
@@ -83,13 +88,7 @@ export async function deleteFromMinio(key: string): Promise<void> {
 }
 
 // URL de téléchargement presignée — expire après ttlSeconds (défaut 1h)
-// MINIO_PUBLIC_URL permet de remplacer l'endpoint interne Docker par l'URL publique
+// Utilise s3Public qui pointe vers MINIO_PUBLIC_URL pour que la signature soit valide depuis le navigateur
 export async function getPresignedUrl(key: string, ttlSeconds = 3600): Promise<string> {
-  const url = await minioNative.presignedGetObject(BUCKET, key, ttlSeconds)
-  const publicUrl = process.env.MINIO_PUBLIC_URL
-  if (publicUrl) {
-    const internalBase = `http://${process.env.MINIO_ENDPOINT || 'minio'}:${process.env.MINIO_PORT || '9000'}`
-    return url.replace(internalBase, publicUrl)
-  }
-  return url
+  return getSignedUrl(s3Public, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: ttlSeconds })
 }
