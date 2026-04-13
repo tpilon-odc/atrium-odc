@@ -1,7 +1,7 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { Client as MinioNativeClient } from 'minio'
 import { randomUUID } from 'crypto'
+
 
 if (process.env.NODE_ENV === 'production') {
   const required = ['MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY', 'MINIO_ENDPOINT', 'MINIO_BUCKET']
@@ -30,19 +30,6 @@ export const minioNative = new MinioNativeClient({
   secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
 })
 
-// Client S3 public — utilisé pour les URLs presignées, pointe vers l'URL publique
-const s3PublicEndpoint = process.env.MINIO_PUBLIC_URL
-  || `http://${process.env.MINIO_ENDPOINT || 'localhost'}:${process.env.MINIO_PORT || '9000'}`
-
-export const s3Public = new S3Client({
-  endpoint: s3PublicEndpoint,
-  region: 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-    secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
-  },
-  forcePathStyle: true,
-})
 
 export const BUCKET = process.env.MINIO_BUCKET || 'cgp-documents'
 
@@ -97,8 +84,12 @@ export async function deleteFromMinio(key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
 }
 
-// URL de téléchargement presignée — expire après ttlSeconds (défaut 1h)
-// Utilise s3Public qui pointe vers MINIO_PUBLIC_URL pour que la signature soit valide depuis le navigateur
-export async function getPresignedUrl(key: string, ttlSeconds = 3600): Promise<string> {
-  return getSignedUrl(s3Public, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: ttlSeconds })
+// URL de téléchargement — retourne une URL API proxy plutôt qu'une URL presignée MinIO directe
+// logos/ et avatars/ → /public/ (sans auth, utilisés dans <img> y compris pages publiques)
+// Tout le reste → /private/ (JWT requis)
+export function getPresignedUrl(key: string, _ttlSeconds = 3600): Promise<string> {
+  const apiBase = (process.env.API_URL || 'http://localhost:3001/api').replace(/\/api$/, '')
+  const isPublic = key.startsWith('logos/') || key.startsWith('avatars/')
+  const visibility = isPublic ? 'public' : 'private'
+  return Promise.resolve(`${apiBase}/api/v1/files/${visibility}/${key}`)
 }

@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { documentApi, supplierPortalApi, supplierPublicApi, type Document } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { cn } from '@/lib/utils'
+import { cn, withToken } from '@/lib/utils'
 
 type EntityType = 'contact' | 'product' | 'supplier'
 
@@ -177,7 +177,7 @@ export function EntityDocuments({
         : isReadonlySupplier
           ? await supplierPublicApi.getDocumentUrl(readonlySupplierId!, doc.id, token!)
           : await documentApi.getUrl(doc.id, token!)
-      window.open(res.data.url, '_blank', 'noopener,noreferrer')
+      window.open(withToken(res.data.url, token) ?? res.data.url, '_blank', 'noopener,noreferrer')
     } finally {
       setOpeningId(null)
     }

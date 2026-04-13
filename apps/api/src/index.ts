@@ -40,6 +40,7 @@ import { pcaRoutes } from './routes/pca'
 import { supplierPortalRoutes } from './routes/supplier-portal'
 import { publicRoutes } from './routes/public'
 import { folderRulesRoutes } from './routes/folder-rules'
+import { fileRoutes } from './routes/files'
 
 const app = Fastify({
   logger: {
@@ -140,6 +141,7 @@ const start = async () => {
   app.register(supplierPortalRoutes, { prefix: '/api/v1/supplier-portal' })
   app.register(publicRoutes, { prefix: '/api/v1/public' })
   app.register(folderRulesRoutes, { prefix: '/api/v1/folder-rules' })
+  app.register(fileRoutes, { prefix: '/api/v1/files' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))

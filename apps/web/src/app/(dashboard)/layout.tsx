@@ -35,7 +35,8 @@ import {
   Layers,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { cn } from '@/lib/utils'
+import { cn, withToken } from '@/lib/utils'
+
 import { useAuthStore } from '@/stores/auth'
 import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, cabinetApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
@@ -158,11 +159,11 @@ function ThemeToggle() {
 
 // ── Avatar initiales ────────────────────────────────────────────────────────
 
-function UserAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
+function UserAvatar({ name, avatarUrl, token }: { name: string; avatarUrl?: string | null; token?: string | null }) {
   if (avatarUrl) {
     return (
       <img
-        src={avatarUrl}
+        src={withToken(avatarUrl, token) ?? avatarUrl}
         alt={name}
         className="h-7 w-7 rounded-full object-cover shrink-0"
       />
@@ -553,7 +554,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Footer utilisateur */}
         <div className="px-2.5 py-3 border-t border-border">
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1 min-w-0">
-            <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} />
+            <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} token={token} />
             <Link href="/profil" className="flex-1 min-w-0 rounded-md hover:bg-accent px-1 py-0.5 transition-colors">
               <p className="text-xs font-medium truncate">{user ? displayName(user) : '…'}</p>
               <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
@@ -584,7 +585,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex items-center gap-1">
             {token && <NotificationBell token={token} />}
-            <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} />
+            <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} token={token} />
           </div>
         </header>
 

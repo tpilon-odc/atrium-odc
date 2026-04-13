@@ -12,7 +12,7 @@ import { cabinetApi, storageConfigApi, userApi, eventApi, exportJobApi, gdprApi,
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { cn, withToken } from '@/lib/utils'
 
 const PROVIDER_LABELS: Record<string, string> = {
   aws: 'AWS S3',
@@ -327,7 +327,7 @@ const STATUS_COLORS: Record<string, string> = {
   EXPIRED: 'bg-muted text-muted-foreground',
 }
 
-function JobRow({ job, downloadUrl }: { job: ExportJob; downloadUrl?: string | null }) {
+function JobRow({ job, downloadUrl, token }: { job: ExportJob; downloadUrl?: string | null; token?: string | null }) {
   return (
     <li className="flex items-center gap-3 py-2 border-b border-border last:border-0">
       <div className="flex-1 min-w-0">
@@ -349,7 +349,7 @@ function JobRow({ job, downloadUrl }: { job: ExportJob; downloadUrl?: string | n
           <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
         )}
         {job.status === 'DONE' && downloadUrl && (
-          <a href={downloadUrl} download className="text-primary hover:underline text-xs flex items-center gap-1">
+          <a href={withToken(downloadUrl, token) ?? downloadUrl} download className="text-primary hover:underline text-xs flex items-center gap-1">
             <Download className="h-3.5 w-3.5" />
             Télécharger
           </a>
@@ -427,7 +427,7 @@ function ExportSection() {
       ) : (
         <ul className="space-y-0">
           {jobs.map((job) => (
-            <JobRow key={job.id} job={job} downloadUrl={urlsData?.[job.id]} />
+            <JobRow key={job.id} job={job} downloadUrl={urlsData?.[job.id]} token={token} />
           ))}
         </ul>
       )}
