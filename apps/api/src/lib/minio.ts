@@ -83,12 +83,12 @@ export async function deleteFromMinio(key: string): Promise<void> {
 }
 
 // URL de téléchargement presignée — expire après ttlSeconds (défaut 1h)
+// MINIO_PUBLIC_URL permet de remplacer l'endpoint interne Docker par l'URL publique
 export async function getPresignedUrl(key: string, ttlSeconds = 3600): Promise<string> {
   const url = await minioNative.presignedGetObject(BUCKET, key, ttlSeconds)
-  // Remplacer l'endpoint interne Docker par l'URL publique si définie
   const publicUrl = process.env.MINIO_PUBLIC_URL
   if (publicUrl) {
-    const internalBase = `http://${process.env.MINIO_ENDPOINT || 'localhost'}:${process.env.MINIO_PORT || '9000'}`
+    const internalBase = `http://${process.env.MINIO_ENDPOINT || 'minio'}:${process.env.MINIO_PORT || '9000'}`
     return url.replace(internalBase, publicUrl)
   }
   return url
