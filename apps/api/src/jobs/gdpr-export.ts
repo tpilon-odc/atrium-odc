@@ -1,7 +1,7 @@
 import archiver from 'archiver'
 import { Readable } from 'stream'
 import { prisma } from '../lib/prisma'
-import { uploadToMinio, minioNative, BUCKET } from '../lib/minio'
+import { uploadToMinio, minioNative, BUCKET, getPresignedUrl } from '../lib/minio'
 import { sendGdprRequestConfirmEmail } from '../lib/mailer'
 
 const DOWNLOAD_TTL_SECONDS = 7 * 24 * 60 * 60 // 7 jours
@@ -37,7 +37,7 @@ export async function runGdprExportJob(): Promise<void> {
       const storagePath = `cabinets/${req.cabinetId}/gdpr-exports/${req.id}.zip`
       await uploadToMinio(storagePath, zipBuffer, 'application/zip')
 
-      const downloadUrl = await minioNative.presignedGetObject(BUCKET, storagePath, DOWNLOAD_TTL_SECONDS)
+      const downloadUrl = await getPresignedUrl(storagePath, DOWNLOAD_TTL_SECONDS)
 
       await prisma.gdprRequest.update({
         where: { id: req.id },

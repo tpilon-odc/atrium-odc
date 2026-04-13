@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { Client as MinioNativeClient } from 'minio'
 import { randomUUID } from 'crypto'
 
 if (process.env.NODE_ENV === 'production') {
@@ -18,6 +19,15 @@ export const s3 = new S3Client({
     secretAccessKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
   },
   forcePathStyle: true,
+})
+
+// Client MinIO natif — utilisé pour les opérations serveur (getObject, listObjects, removeObjects)
+export const minioNative = new MinioNativeClient({
+  endPoint: process.env.MINIO_ENDPOINT || 'localhost',
+  port: parseInt(process.env.MINIO_PORT || '9000'),
+  useSSL: false,
+  accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+  secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
 })
 
 // Client S3 public — utilisé pour les URLs presignées, pointe vers l'URL publique

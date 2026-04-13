@@ -7,7 +7,7 @@ import { prisma } from '../../lib/prisma'
 import { supabaseAdmin } from '../../lib/supabase'
 import { updateReportBody } from '../clusters/schemas'
 import { sendGdprRequestConfirmEmail } from '../../lib/mailer'
-import { minioNative, BUCKET } from '../../lib/minio'
+import { getPresignedUrl } from '../../lib/minio'
 
 async function platformAdminMiddleware(request: Parameters<typeof authMiddleware>[0], reply: Parameters<typeof authMiddleware>[1]) {
   if (request.user?.globalRole !== GlobalRole.platform_admin) {
@@ -354,11 +354,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     let downloadUrl: string | null = null
     if (status === 'DONE' && updated.exportPath) {
       try {
-        downloadUrl = await minioNative.presignedGetObject(
-          BUCKET,
-          updated.exportPath,
-          7 * 24 * 60 * 60 // 7 jours
-        )
+        downloadUrl = await getPresignedUrl(updated.exportPath, 7 * 24 * 60 * 60)
       } catch { /* non bloquant */ }
     }
 
