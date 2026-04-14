@@ -146,7 +146,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+      className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground dark:text-white hover:text-foreground hover:bg-accent transition-colors shrink-0"
       title={resolvedTheme === 'dark' ? 'Passer en clair' : 'Passer en sombre'}
     >
       {resolvedTheme === 'dark'
@@ -500,7 +500,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Logo */}
         <div className="px-4 py-4 border-b border-border flex justify-center">
           <Link href="/dashboard">
-            <img src="/logo.png" alt="myGaïa" className="h-9 w-auto" />
+            <img src="/logo.png" alt="myGaïa" className="h-9 w-auto dark:brightness-0 dark:invert" />
           </Link>
         </div>
 
@@ -585,6 +585,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex items-center gap-1">
             {token && <NotificationBell token={token} />}
+            <ThemeToggle />
             <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} token={token} />
           </div>
         </header>
