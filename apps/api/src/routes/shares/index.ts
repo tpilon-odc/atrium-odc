@@ -46,7 +46,8 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
       },
     })
 
-    return reply.send({ data: { shares } })
+    const enriched = await enrichShares(shares)
+    return reply.send({ data: { shares: enriched } })
   })
 
   // ── POST /api/v1/shares/batch ─────────────────────────────────────────────
@@ -266,30 +267,7 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
       },
     })
 
-    // Résoudre les entités pour les formations
-    const trainingIds = shares
-      .filter((s) => s.entityType === 'collaborator_training' && s.entityId)
-      .map((s) => s.entityId!)
-
-    const trainings = trainingIds.length > 0
-      ? await prisma.collaboratorTraining.findMany({
-          where: { id: { in: trainingIds }, deletedAt: null },
-          include: {
-            training: true,
-            user: { select: { id: true, email: true, firstName: true, lastName: true } },
-            certificate: { select: { id: true, name: true, mimeType: true } },
-          },
-        })
-      : []
-    const trainingsById = new Map(trainings.map((t) => [t.id, t]))
-
-    const enriched = shares.map((s) => ({
-      ...s,
-      resolvedTraining: s.entityType === 'collaborator_training' && s.entityId
-        ? trainingsById.get(s.entityId) ?? null
-        : null,
-    }))
-
+    const enriched = await enrichShares(shares)
     return reply.send({ data: { shares: enriched } })
   })
 
@@ -396,7 +374,8 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
       orderBy: { createdAt: 'desc' },
     })
 
-    return reply.send({ data: { shares } })
+    const enriched = await enrichShares(shares)
+    return reply.send({ data: { shares: enriched } })
   })
 
   // ── DELETE /api/v1/shares/:id ─────────────────────────────────────────────
@@ -418,4 +397,75 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
 
     return reply.status(204).send()
   })
+}
+
+// ── Résolution des entités liées à une liste de shares ────────────────────────
+async function enrichShares(shares: any[]) {
+  const trainingIds = shares.filter((s) => s.entityType === 'collaborator_training' && s.entityId).map((s) => s.entityId!)
+  const trainings = trainingIds.length > 0
+    ? await prisma.collaboratorTraining.findMany({
+        where: { id: { in: trainingIds }, deletedAt: null },
+        include: {
+          training: true,
+          user: { select: { id: true, email: true, firstName: true, lastName: true } },
+          member: { select: { id: true, externalFirstName: true, externalLastName: true, externalEmail: true } },
+          certificate: { select: { id: true, name: true, mimeType: true } },
+          categoryHours: { select: { hours: true, category: { select: { name: true } } } },
+        },
+      })
+    : []
+  const trainingsById = new Map(trainings.map((t) => [t.id, t]))
+
+  const documentIds = shares.filter((s) => s.entityType === 'document' && s.entityId).map((s) => s.entityId!)
+  const documents = documentIds.length > 0
+    ? await prisma.document.findMany({
+        where: { id: { in: documentIds }, deletedAt: null },
+        select: {
+          id: true, name: true, mimeType: true, sizeBytes: true, storageMode: true, folderId: true,
+          folder: { select: { id: true, name: true, parentId: true } },
+        },
+      })
+    : []
+  const documentsById = new Map(documents.map((d) => [d.id, { ...d, sizeBytes: d.sizeBytes !== null ? String(d.sizeBytes) : null }]))
+
+  const contactIds = shares.filter((s) => s.entityType === 'contact' && s.entityId).map((s) => s.entityId!)
+  const contacts = contactIds.length > 0
+    ? await prisma.contact.findMany({
+        where: { id: { in: contactIds }, deletedAt: null },
+        select: { id: true, firstName: true, lastName: true, email: true, type: true },
+      })
+    : []
+  const contactsById = new Map(contacts.map((c) => [c.id, c]))
+
+  const complianceItemIds = shares.filter((s) => s.entityType === 'compliance_item' && s.entityId).map((s) => s.entityId!)
+  const complianceItems = complianceItemIds.length > 0
+    ? await prisma.complianceItem.findMany({
+        where: { id: { in: complianceItemIds } },
+        select: { id: true, label: true, type: true, phase: { select: { id: true, label: true } } },
+      })
+    : []
+  const complianceItemsById = new Map(complianceItems.map((i) => [i.id, i]))
+
+  const cabinetIds = [...new Set(shares.filter((s) => s.entityType === 'compliance_item').map((s) => s.cabinetId).filter(Boolean))]
+  const complianceAnswers = complianceItemIds.length > 0 && cabinetIds.length > 0
+    ? await prisma.cabinetComplianceAnswer.findMany({
+        where: { itemId: { in: complianceItemIds }, cabinetId: { in: cabinetIds }, deletedAt: null },
+        select: { itemId: true, cabinetId: true, value: true, status: true, submittedAt: true, expiresAt: true },
+      })
+    : []
+  const complianceAnswersByKey = new Map(complianceAnswers.map((a) => [`${a.cabinetId}:${a.itemId}`, a]))
+
+  return shares.map((s) => ({
+    ...s,
+    resolvedTraining: s.entityType === 'collaborator_training' && s.entityId ? trainingsById.get(s.entityId) ?? null : null,
+    resolvedDocument: s.entityType === 'document' && s.entityId ? documentsById.get(s.entityId) ?? null : null,
+    resolvedContact: s.entityType === 'contact' && s.entityId ? contactsById.get(s.entityId) ?? null : null,
+    resolvedComplianceItem: s.entityType === 'compliance_item' && s.entityId
+      ? (() => {
+          const item = complianceItemsById.get(s.entityId) ?? null
+          const answer = s.cabinetId ? complianceAnswersByKey.get(`${s.cabinetId}:${s.entityId}`) ?? null : null
+          return item ? { item, answer } : null
+        })()
+      : null,
+  }))
 }

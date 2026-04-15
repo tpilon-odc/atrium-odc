@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Settings, ShieldAlert, MessagesSquare, Users, Layers, ShieldCheck, Wrench, GraduationCap, ChevronRight } from 'lucide-react'
+import { Settings, ShieldAlert, MessagesSquare, Users, Layers, ShieldCheck, Wrench, GraduationCap, ChevronRight, Megaphone } from 'lucide-react'
 
 const groups = [
   {
@@ -47,6 +47,12 @@ const groups = [
         icon: GraduationCap,
         label: 'Catégories de formations',
         description: 'Paramétrez les catégories réglementaires et leurs quotas d\'heures.',
+      },
+      {
+        href: '/admin/communications',
+        icon: Megaphone,
+        label: 'Catégories de communications',
+        description: 'Gérez les catégories des publications de la chambre visibles par les cabinets.',
       },
     ],
   },

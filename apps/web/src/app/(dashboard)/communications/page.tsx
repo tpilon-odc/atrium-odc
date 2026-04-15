@@ -8,10 +8,14 @@ import { chamberApi, type ChamberOwnPost } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { OwnPostCard } from '@/components/chamber/PostCard'
 import { PostEditor } from '@/components/chamber/PostEditor'
+import { cn } from '@/lib/utils'
+
+const DEFAULT_CATEGORY_ID = '00000000-0000-0000-0000-000000000001'
 
 type FormState = {
   title: string
   content: string
+  categoryId: string
   status: 'draft' | 'published'
 }
 
@@ -20,7 +24,7 @@ export default function CommunicationsPage() {
   const queryClient = useQueryClient()
   const [editingPost, setEditingPost] = useState<ChamberOwnPost | null>(null)
   const [isCreating, setIsCreating] = useState(false)
-  const [form, setForm] = useState<FormState>({ title: '', content: '', status: 'draft' })
+  const [form, setForm] = useState<FormState>({ title: '', content: '', categoryId: DEFAULT_CATEGORY_ID, status: 'draft' })
 
   const { data, isLoading } = useQuery({
     queryKey: ['chamber-posts', token],
@@ -28,12 +32,19 @@ export default function CommunicationsPage() {
     enabled: !!token,
   })
 
+  const { data: catData } = useQuery({
+    queryKey: ['chamber-categories', token],
+    queryFn: () => chamberApi.getCategories(token!),
+    enabled: !!token,
+  })
+  const categories = catData?.data.categories ?? []
+
   const createMutation = useMutation({
     mutationFn: (d: FormState) => chamberApi.createPost(d, token!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chamber-posts'] })
       setIsCreating(false)
-      setForm({ title: '', content: '', status: 'draft' })
+      setForm({ title: '', content: '', categoryId: DEFAULT_CATEGORY_ID, status: 'draft' })
     },
   })
 
@@ -64,14 +75,14 @@ export default function CommunicationsPage() {
 
   function openEdit(post: ChamberOwnPost) {
     setEditingPost(post)
-    setForm({ title: post.title, content: post.content, status: post.status })
+    setForm({ title: post.title, content: post.content, categoryId: post.categoryId, status: post.status })
     setIsCreating(false)
   }
 
   function openCreate() {
     setIsCreating(true)
     setEditingPost(null)
-    setForm({ title: '', content: '', status: 'draft' })
+    setForm({ title: '', content: '', categoryId: DEFAULT_CATEGORY_ID, status: 'draft' })
   }
 
   const showForm = isCreating || !!editingPost
@@ -104,6 +115,32 @@ export default function CommunicationsPage() {
             >
               <X size={18} />
             </button>
+          </div>
+
+          {/* Catégorie */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Catégorie <span className="text-destructive">*</span></label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setForm((f) => ({ ...f, categoryId: cat.id }))}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all',
+                    form.categoryId === cat.id
+                      ? 'border-transparent text-white'
+                      : 'border-border bg-background hover:bg-muted/50 text-muted-foreground'
+                  )}
+                  style={form.categoryId === cat.id ? { backgroundColor: cat.color } : {}}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: form.categoryId === cat.id ? 'rgba(255,255,255,0.7)' : cat.color }}
+                  />
+                  {cat.name}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -142,7 +179,7 @@ export default function CommunicationsPage() {
             </Button>
             <Button
               size="sm"
-              disabled={!form.title.trim() || !form.content.trim() || createMutation.isPending || updateMutation.isPending}
+              disabled={!form.title.trim() || !form.content.trim() || !form.categoryId || createMutation.isPending || updateMutation.isPending}
               onClick={() => {
                 if (editingPost) {
                   updateMutation.mutate({ id: editingPost.id, ...form, status: 'published' })

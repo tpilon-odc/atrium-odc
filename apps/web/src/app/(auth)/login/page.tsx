@@ -47,10 +47,16 @@ function LoginForm() {
       })
       setAuth(result.session.access_token, result.user, result.session.refresh_token)
 
-      // Les rôles plateforme n'ont pas de cabinet
-      const noCabinet = ['chamber', 'regulator', 'platform_admin', 'supplier'].includes(result.user.globalRole)
-      if (noCabinet) {
-        router.push('/dashboard')
+      // Les rôles plateforme n'ont pas de cabinet — redirection selon le rôle
+      const roleRedirects: Record<string, string> = {
+        chamber: '/partage',
+        regulator: '/partage',
+        supplier: '/supplier-portal',
+        platform_admin: '/admin',
+      }
+      const roleRedirect = roleRedirects[result.user.globalRole]
+      if (roleRedirect) {
+        router.push(roleRedirect)
         return
       }
 

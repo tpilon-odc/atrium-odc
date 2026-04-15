@@ -56,6 +56,8 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
         label: 'Espace Chambre',
         items: [
           { href: '/communications', label: 'Communications', icon: Radio },
+          { href: '/partage', label: 'Données partagées', icon: Share2 },
+          { href: '/conformite-partagee', label: 'Conformité partagée', icon: ShieldCheck },
         ] as NavItem[],
       },
     ]
@@ -136,6 +138,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   notifications: 'Notifications',
   actualites: 'Actualités',
   communications: 'Communications',
+  'contacts-partages': 'Contacts partagés',
   profil: 'Mon profil',
   admin: 'Admin',
   nouveau: 'Nouveau',

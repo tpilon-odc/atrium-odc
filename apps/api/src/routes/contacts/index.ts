@@ -94,6 +94,49 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { contacts: data, nextCursor, hasMore, total } })
   })
 
+  // ── GET /api/v1/contacts/:id/shared ──────────────────────────────────────
+  // Accès à un contact via un share actif (pour chambre/régulateur/partenaire)
+  app.get('/:id/shared', { preHandler: [authMiddleware] }, async (request: any, reply) => {
+    const { id } = request.params as { id: string }
+
+    // Vérifie qu'un share actif existe pour cet utilisateur
+    const share = await prisma.share.findFirst({
+      where: {
+        grantedTo: request.user.id,
+        entityType: 'contact',
+        entityId: id,
+        isActive: true,
+      },
+    })
+
+    if (!share) {
+      return reply.status(403).send({ error: 'Accès non autorisé à ce contact', code: 'FORBIDDEN' })
+    }
+
+    const contact = await prisma.contact.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        interactions: {
+          where: { deletedAt: null },
+          orderBy: { occurredAt: 'desc' },
+          take: 10,
+          include: { user: { select: { id: true, email: true } } },
+        },
+      },
+    })
+
+    if (!contact) {
+      return reply.status(404).send({ error: 'Contact introuvable', code: 'NOT_FOUND' })
+    }
+
+    // Log la vue du share
+    await prisma.shareViewLog.create({
+      data: { shareId: share.id, viewerId: request.user.id, ipAddress: request.ip ?? null },
+    }).catch(() => {})
+
+    return reply.send({ data: { contact } })
+  })
+
   // ── GET /api/v1/contacts/:id ──────────────────────────────────────────────
   app.get('/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }

@@ -6,12 +6,14 @@ import { prisma } from '../../lib/prisma'
 const createPostBody = z.object({
   title: z.string().min(1).max(255),
   content: z.string().min(1),
+  categoryId: z.string().uuid(),
   status: z.enum(['draft', 'published']).default('draft'),
 })
 
 const updatePostBody = z.object({
   title: z.string().min(1).max(255).optional(),
   content: z.string().min(1).optional(),
+  categoryId: z.string().uuid().optional(),
   status: z.enum(['draft', 'published']).optional(),
 })
 
@@ -31,17 +33,19 @@ export const chamberRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
     }
 
-    const { title, content, status } = result.data
+    const { title, content, categoryId, status } = result.data
     const now = new Date()
 
     const post = await prisma.chamberPost.create({
       data: {
         chamberId: request.user.id,
+        categoryId,
         title,
         content,
         status,
         publishedAt: status === 'published' ? now : null,
       },
+      include: { category: true },
     })
 
     // Si publication immédiate → notifier tous les membres actifs des cabinets
@@ -59,6 +63,7 @@ export const chamberRoutes: FastifyPluginAsync = async (app) => {
       where: { chamberId: request.user.id },
       orderBy: { createdAt: 'desc' },
       include: {
+        category: true,
         _count: { select: { reads: true } },
       },
     })
@@ -82,7 +87,7 @@ export const chamberRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Post introuvable', code: 'NOT_FOUND' })
     }
 
-    const { title, content, status } = result.data
+    const { title, content, categoryId, status } = result.data
     const wasPublished = existing.status === 'published'
     const isNowPublished = status === 'published'
     const justPublished = !wasPublished && isNowPublished
@@ -92,9 +97,11 @@ export const chamberRoutes: FastifyPluginAsync = async (app) => {
       data: {
         ...(title !== undefined && { title }),
         ...(content !== undefined && { content }),
+        ...(categoryId !== undefined && { categoryId }),
         ...(status !== undefined && { status }),
         ...(justPublished && { publishedAt: new Date() }),
       },
+      include: { category: true },
     })
 
     // Si on publie pour la première fois → notifier
@@ -124,10 +131,16 @@ export const chamberRoutes: FastifyPluginAsync = async (app) => {
   // Cabinets voient tous les posts publiés (toutes chambres)
   // Inclut un flag "isRead" pour l'utilisateur connecté
   app.get('/feed', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { categoryId } = request.query as { categoryId?: string }
+
     const posts = await prisma.chamberPost.findMany({
-      where: { status: 'published' },
+      where: {
+        status: 'published',
+        ...(categoryId ? { categoryId } : {}),
+      },
       orderBy: { publishedAt: 'desc' },
       include: {
+        category: true,
         chamber: {
           select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
         },
@@ -144,12 +157,23 @@ export const chamberRoutes: FastifyPluginAsync = async (app) => {
       content: p.content,
       publishedAt: p.publishedAt,
       createdAt: p.createdAt,
+      category: p.category,
       chamber: p.chamber,
       isRead: p.reads.length > 0,
       readAt: p.reads[0]?.readAt ?? null,
     }))
 
     return reply.send({ data: { posts: postsWithRead } })
+  })
+
+  // ── GET /api/v1/chamber/categories ──────────────────────────────────────
+  // Tous les utilisateurs authentifiés peuvent lister les catégories actives
+  app.get('/categories', { preHandler: [authMiddleware] }, async (_request, reply) => {
+    const categories = await prisma.chamberPostCategory.findMany({
+      where: { isActive: true },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    })
+    return reply.send({ data: { categories } })
   })
 
   // ── PATCH /api/v1/chamber/posts/:id/read ─────────────────────────────────
@@ -179,7 +203,7 @@ export const chamberRoutes: FastifyPluginAsync = async (app) => {
 async function createNotificationsForPost(postId: string, chamberId: string, title: string) {
   // Récupère tous les membres actifs de cabinets
   const members = await prisma.cabinetMember.findMany({
-    where: { isActive: true },
+    where: { deletedAt: null, userId: { not: null } },
     select: { userId: true, cabinetId: true },
   })
 
@@ -197,7 +221,7 @@ async function createNotificationsForPost(postId: string, chamberId: string, tit
   await prisma.notification.createMany({
     data: members.map((m) => ({
       cabinetId: m.cabinetId,
-      userId: m.userId,
+      userId: m.userId!,
       type: 'chamber_post_published',
       title: `Nouvelle communication : ${title}`,
       message: `${chamberName} a publié une nouvelle communication.`,

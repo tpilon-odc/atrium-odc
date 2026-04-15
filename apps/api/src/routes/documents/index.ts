@@ -327,24 +327,53 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Document introuvable', code: 'NOT_FOUND' })
     }
 
-    // Cherche une réponse de conformité qui référence ce document et que cet utilisateur peut voir via un share
-    const share = await prisma.share.findFirst({
+    // Vérifie l'accès : share direct sur le document OU share compliance_item lié au document
+    const directShare = await prisma.share.findFirst({
       where: {
         grantedTo: request.user.id,
-        entityType: 'compliance_item',
+        entityType: 'document',
+        entityId: id,
         isActive: true,
-        cabinet: {
-          complianceAnswers: {
-            some: {
-              value: { path: ['document_id'], equals: id },
-              deletedAt: null,
+      },
+    })
+
+    if (!directShare) {
+      const complianceShare = await prisma.share.findFirst({
+        where: {
+          grantedTo: request.user.id,
+          entityType: 'compliance_item',
+          isActive: true,
+          cabinet: {
+            complianceAnswers: {
+              some: {
+                value: { path: ['document_id'], equals: id },
+                deletedAt: null,
+              },
             },
           },
         },
-      },
-    })
-    if (!share) {
-      return reply.status(403).send({ error: 'Accès non autorisé', code: 'FORBIDDEN' })
+      })
+
+      if (!complianceShare) {
+        // Certificat d'une formation partagée — cherche directement une formation partagée avec ce certificat
+        const trainingShareWithCert = await prisma.share.findFirst({
+          where: {
+            grantedTo: request.user.id,
+            entityType: 'collaborator_training',
+            isActive: true,
+            entityId: {
+              in: await prisma.collaboratorTraining.findMany({
+                where: { certificateDocumentId: id, deletedAt: null },
+                select: { id: true },
+              }).then((rows) => rows.map((r) => r.id)),
+            },
+          },
+        })
+
+        if (!trainingShareWithCert) {
+          return reply.status(403).send({ error: 'Accès non autorisé', code: 'FORBIDDEN' })
+        }
+      }
     }
 
     if (document.storageMode === StorageMode.hosted) {

@@ -1668,9 +1668,24 @@ enum ChamberPostStatus {
   published
 }
 
+model ChamberPostCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  color     String   @default("#6366f1")
+  order     Int      @default(0)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  posts ChamberPost[]
+
+  @@index([order])
+  @@map("chamber_post_categories")
+}
+
 model ChamberPost {
   id          String            @id @default(uuid()) @db.Uuid
   chamberId   String            @map("chamber_id") @db.Uuid
+  categoryId  String            @map("category_id") @db.Uuid
   title       String
   content     String            @db.Text
   status      ChamberPostStatus @default(draft)
@@ -1678,10 +1693,12 @@ model ChamberPost {
   createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
-  chamber User              @relation(fields: [chamberId], references: [id])
-  reads   ChamberPostRead[]
+  chamber  User                @relation(fields: [chamberId], references: [id])
+  category ChamberPostCategory @relation(fields: [categoryId], references: [id])
+  reads    ChamberPostRead[]
 
   @@index([chamberId])
+  @@index([categoryId])
   @@index([status, publishedAt])
   @@map("chamber_posts")
 }

@@ -554,4 +554,59 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     await prisma.trainingCategory.delete({ where: { id } })
     return reply.status(204).send()
   })
+
+  // ── GET /api/v1/admin/chamber-categories ─────────────────────────────────
+  app.get('/chamber-categories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (_request, reply) => {
+    const categories = await prisma.chamberPostCategory.findMany({
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    })
+    return reply.send({ data: { categories } })
+  })
+
+  // ── POST /api/v1/admin/chamber-categories ────────────────────────────────
+  app.post('/chamber-categories', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const body = request.body as { name: string; color?: string; order?: number }
+    if (!body.name?.trim()) {
+      return reply.status(400).send({ error: 'Le nom est requis', code: 'MISSING_NAME' })
+    }
+    const category = await prisma.chamberPostCategory.create({
+      data: {
+        name: body.name.trim(),
+        color: body.color ?? '#6366f1',
+        order: body.order ?? 0,
+      },
+    })
+    return reply.status(201).send({ data: { category } })
+  })
+
+  // ── PATCH /api/v1/admin/chamber-categories/:id ───────────────────────────
+  app.patch('/chamber-categories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const body = request.body as { name?: string; color?: string; order?: number; isActive?: boolean }
+    const category = await prisma.chamberPostCategory.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined ? { name: body.name.trim() } : {}),
+        ...(body.color !== undefined ? { color: body.color } : {}),
+        ...(body.order !== undefined ? { order: body.order } : {}),
+        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      },
+    })
+    return reply.send({ data: { category } })
+  })
+
+  // ── DELETE /api/v1/admin/chamber-categories/:id ──────────────────────────
+  app.delete('/chamber-categories/:id', { preHandler: [authMiddleware, platformAdminMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    // Empêcher la suppression de la catégorie par défaut
+    if (id === '00000000-0000-0000-0000-000000000001') {
+      return reply.status(409).send({ error: 'La catégorie par défaut ne peut pas être supprimée', code: 'DEFAULT_CATEGORY' })
+    }
+    const count = await prisma.chamberPost.count({ where: { categoryId: id } })
+    if (count > 0) {
+      return reply.status(409).send({ error: `Cette catégorie est utilisée par ${count} publication(s)`, code: 'IN_USE' })
+    }
+    await prisma.chamberPostCategory.delete({ where: { id } })
+    return reply.status(204).send()
+  })
 }

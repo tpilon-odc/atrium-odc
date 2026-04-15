@@ -849,6 +849,12 @@ export const contactApi = {
       { token }
     ),
 
+  getShared: (id: string, token: string) =>
+    call<{ contact: Contact & { interactions: Interaction[] } }>(
+      `/api/v1/contacts/${id}/shared`,
+      { token }
+    ),
+
   create: (data: { lastName: string; firstName?: string; email?: string; phone?: string; type: ContactType }, token: string) =>
     call<{ contact: Contact }>('/api/v1/contacts', {
       method: 'POST',
@@ -2395,6 +2401,15 @@ export const pcaApi = {
 
 // ── Chamber Communications ────────────────────────────────────────────────────
 
+export interface ChamberPostCategory {
+  id: string
+  name: string
+  color: string
+  order: number
+  isActive: boolean
+  createdAt: string
+}
+
 export interface ChamberFeedPost {
   id: string
   title: string
@@ -2403,6 +2418,7 @@ export interface ChamberFeedPost {
   createdAt: string
   isRead: boolean
   readAt: string | null
+  category: ChamberPostCategory
   chamber: {
     id: string
     firstName: string | null
@@ -2419,6 +2435,8 @@ export interface ChamberOwnPost {
   status: 'draft' | 'published'
   publishedAt: string | null
   createdAt: string
+  categoryId: string
+  category: ChamberPostCategory
   _count: { reads: number }
 }
 
@@ -2427,14 +2445,14 @@ export const chamberApi = {
   getPosts: (token: string) =>
     call<{ posts: ChamberOwnPost[] }>('/api/v1/chamber/posts', { token }),
 
-  createPost: (data: { title: string; content: string; status: 'draft' | 'published' }, token: string) =>
+  createPost: (data: { title: string; content: string; categoryId: string; status: 'draft' | 'published' }, token: string) =>
     call<{ post: ChamberOwnPost }>('/api/v1/chamber/posts', {
       method: 'POST',
       body: JSON.stringify(data),
       token,
     }),
 
-  updatePost: (id: string, data: { title?: string; content?: string; status?: 'draft' | 'published' }, token: string) =>
+  updatePost: (id: string, data: { title?: string; content?: string; categoryId?: string; status?: 'draft' | 'published' }, token: string) =>
     call<{ post: ChamberOwnPost }>(`/api/v1/chamber/posts/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -2448,12 +2466,40 @@ export const chamberApi = {
     }),
 
   // Cabinet — lire le fil des communications
-  getFeed: (token: string) =>
-    call<{ posts: ChamberFeedPost[] }>('/api/v1/chamber/feed', { token }),
+  getFeed: (token: string, categoryId?: string) =>
+    call<{ posts: ChamberFeedPost[] }>(`/api/v1/chamber/feed${categoryId ? `?categoryId=${categoryId}` : ''}`, { token }),
 
   markRead: (id: string, token: string) =>
     call<{ ok: boolean }>(`/api/v1/chamber/posts/${id}/read`, {
       method: 'PATCH',
       token,
+    }),
+
+  getCategories: (token: string) =>
+    call<{ categories: ChamberPostCategory[] }>('/api/v1/chamber/categories', { token }),
+}
+
+export const adminChamberCategoryApi = {
+  getAll: (token: string) =>
+    call<{ categories: ChamberPostCategory[] }>('/api/v1/admin/chamber-categories', { token }),
+
+  create: (data: { name: string; color?: string; order?: number }, token: string) =>
+    call<{ category: ChamberPostCategory }>('/api/v1/admin/chamber-categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  update: (id: string, data: { name?: string; color?: string; order?: number; isActive?: boolean }, token: string) =>
+    call<{ category: ChamberPostCategory }>(`/api/v1/admin/chamber-categories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  delete: (id: string, token: string) =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/admin/chamber-categories/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
     }),
 }

@@ -16,10 +16,18 @@ export default function ActualitesPage() {
   const queryClient = useQueryClient()
   const [selectedPost, setSelectedPost] = useState<ChamberFeedPost | null>(null)
   const [filter, setFilter] = useState<'all' | 'unread'>('unread')
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
+
+  const { data: catData } = useQuery({
+    queryKey: ['chamber-categories', token],
+    queryFn: () => chamberApi.getCategories(token!),
+    enabled: !!token,
+  })
+  const categories = catData?.data.categories ?? []
 
   const { data, isLoading } = useQuery({
-    queryKey: ['chamber-feed', token],
-    queryFn: () => chamberApi.getFeed(token!),
+    queryKey: ['chamber-feed', token, categoryFilter],
+    queryFn: () => chamberApi.getFeed(token!, categoryFilter ?? undefined),
     enabled: !!token,
   })
 
@@ -68,7 +76,16 @@ export default function ActualitesPage() {
 
         <article className="space-y-4">
           <header className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+              <span
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: `${selectedPost.category.color}20`,
+                  color: selectedPost.category.color,
+                }}
+              >
+                {selectedPost.category.name}
+              </span>
               <span className="font-medium text-foreground">{chamberName}</span>
               <span>·</span>
               {selectedPost.publishedAt && (
@@ -111,7 +128,7 @@ export default function ActualitesPage() {
         )}
       </div>
 
-      {/* Filtre */}
+      {/* Filtre lu/non-lu */}
       <div className="flex gap-2">
         {[
           { label: `Non lues${unreadCount > 0 ? ` (${unreadCount})` : ''}`, value: 'unread' as const },
@@ -131,6 +148,40 @@ export default function ActualitesPage() {
           </button>
         ))}
       </div>
+
+      {/* Filtre catégories */}
+      {categories.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setCategoryFilter(null)}
+            className={cn(
+              'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+              categoryFilter === null
+                ? 'bg-foreground text-background border-foreground'
+                : 'border-border text-muted-foreground hover:bg-muted/50'
+            )}
+          >
+            Toutes les catégories
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoryFilter(cat.id === categoryFilter ? null : cat.id)}
+              className={cn(
+                'px-3 py-1 rounded-full text-xs font-medium border-2 transition-all',
+                categoryFilter === cat.id ? 'text-white' : 'text-muted-foreground hover:bg-muted/50 border-border'
+              )}
+              style={categoryFilter === cat.id ? { backgroundColor: cat.color, borderColor: cat.color } : {}}
+            >
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full mr-1.5 align-middle"
+                style={{ backgroundColor: categoryFilter === cat.id ? 'rgba(255,255,255,0.7)' : cat.color }}
+              />
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Liste */}
       {isLoading ? (

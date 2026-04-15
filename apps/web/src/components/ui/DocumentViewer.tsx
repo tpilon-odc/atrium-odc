@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X, Download, FileText, File, ExternalLink, Loader2 } from 'lucide-react'
 import { documentApi, type Document } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { withToken } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 function isImage(mime: string | null): boolean {
@@ -50,11 +51,20 @@ export function DocumentViewer({ document: doc, onClose, shared = false }: Docum
       setLoading(false)
       return
     }
-    const fetch = shared ? documentApi.getSharedUrl(doc.id, token) : documentApi.getUrl(doc.id, token)
-    fetch
-      .then((res) => setUrl(res.data.url))
+    let blobUrl: string | null = null
+    const apiCall = shared ? documentApi.getSharedUrl(doc.id, token) : documentApi.getUrl(doc.id, token)
+    apiCall
+      .then(async (res) => {
+        const fileUrl = withToken(res.data.url, token)!
+        const response = await fetch(fileUrl)
+        if (!response.ok) throw new Error('Erreur lors du chargement')
+        const blob = await response.blob()
+        blobUrl = URL.createObjectURL(blob)
+        setUrl(blobUrl)
+      })
       .catch(() => setError('Impossible de charger le document.'))
       .finally(() => setLoading(false))
+    return () => { if (blobUrl) URL.revokeObjectURL(blobUrl) }
   }, [doc.id, doc.storageMode, token])
 
   const canPreview = isImage(doc.mimeType) || isPdf(doc.mimeType) || isText(doc.mimeType)

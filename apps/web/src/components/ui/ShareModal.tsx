@@ -122,6 +122,8 @@ export function ShareModal({
 
   // Map id → label pour l'affichage des partages existants
   const entityMap = new Map(entities.map((e) => [e.id, e]))
+  const entityIds = new Set(entities.map((e) => e.id))
+  const relevantShares = existingShares.filter((s) => !s.entityId || entityIds.has(s.entityId))
 
   const shareMutation = useMutation({
     mutationFn: () => createShares(entityType, [...selectedIds], recipients.map((r) => r.id), token!),
@@ -297,19 +299,19 @@ export function ShareModal({
           </section>
 
           {/* Partages actifs */}
-          {existingShares.length > 0 && (
+          {relevantShares.length > 0 && (
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Partages actifs ({existingShares.length})
+                Partages actifs ({relevantShares.length})
               </h3>
               <div className="space-y-1">
-                {existingShares.map((s) => {
+                {relevantShares.map((s) => {
                   const entity = s.entityId ? entityMap.get(s.entityId) : null
                   return (
                     <div key={s.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-sm group">
                       <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                        <span className="font-medium truncate">{entity?.label ?? s.entityId ?? '—'}</span>
-                        <span className="text-muted-foreground">→</span>
+                        {entities.length > 1 && <span className="font-medium truncate">{entity?.label ?? '—'}</span>}
+                        {entities.length > 1 && <span className="text-muted-foreground">→</span>}
                         <span className="text-muted-foreground truncate">{s.recipientUser?.email}</span>
                         <span className="text-[10px] text-muted-foreground shrink-0">
                           ({ROLE_LABELS[s.recipientUser?.globalRole] ?? s.recipientUser?.globalRole})

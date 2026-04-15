@@ -5,6 +5,9 @@ import { fr } from 'date-fns/locale'
 import { CheckCheck, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import type { ChamberPostCategory } from '@/lib/api'
+
+export type PostCategory = ChamberPostCategory
 
 export interface FeedPost {
   id: string
@@ -14,6 +17,7 @@ export interface FeedPost {
   createdAt: string
   isRead: boolean
   readAt: string | null
+  category: PostCategory
   chamber: {
     id: string
     firstName: string | null
@@ -30,6 +34,8 @@ export interface OwnPost {
   status: 'draft' | 'published'
   publishedAt: string | null
   createdAt: string
+  categoryId: string
+  category: PostCategory
   _count: { reads: number }
 }
 
@@ -58,10 +64,16 @@ export function FeedPostCard({ post, onRead, onClick }: FeedPostCardProps) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             {!post.isRead && (
               <span className="inline-block w-2 h-2 rounded-full bg-primary shrink-0" />
             )}
+            <span
+              className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: `${post.category.color}20`, color: post.category.color }}
+            >
+              {post.category.name}
+            </span>
             <span className="text-xs text-muted-foreground">{chamberName}</span>
             <span className="text-xs text-muted-foreground">·</span>
             <span className="text-xs text-muted-foreground">
@@ -97,10 +109,16 @@ export function OwnPostCard({ post, onEdit, onDelete, onPublish }: OwnPostCardPr
   return (
     <div className="rounded-lg border p-4 flex items-start justify-between gap-4">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <Badge variant={post.status === 'published' ? 'default' : 'secondary'} className="text-xs">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <Badge variant={post.status === 'published' ? 'default' : 'muted'} className="text-xs">
             {post.status === 'published' ? 'Publié' : 'Brouillon'}
           </Badge>
+          <span
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+            style={{ backgroundColor: `${post.category.color}20`, color: post.category.color }}
+          >
+            {post.category.name}
+          </span>
           {post.status === 'published' && (
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <CheckCheck size={12} /> {post._count.reads} lecture{post._count.reads !== 1 ? 's' : ''}

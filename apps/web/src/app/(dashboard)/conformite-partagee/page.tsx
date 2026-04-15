@@ -29,7 +29,7 @@ function ItemRow({ item: shared }: { item: ComplianceShareCabinet['items'][0] })
   const answerText = shared.item.type === 'text'
     ? (shared.answer?.value as { text?: string })?.text
     : shared.item.type !== 'doc'
-      ? ((shared.answer?.value as { selected?: string[] })?.selected ?? []).join(', ')
+      ? (Array.isArray((shared.answer?.value as { selected?: unknown })?.selected) ? ((shared.answer?.value as { selected: string[] }).selected).join(', ') : null)
       : null
 
   return (

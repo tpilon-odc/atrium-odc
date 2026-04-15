@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart, ShieldCheck, BarChart3, Landmark } from 'lucide-react'
+import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart, ShieldCheck, BarChart3, Landmark, Share2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { contactApi, eventApi, type ContactType, type MaritalStatus, type InteractionType, type Interaction, type CalendarEvent, type EventType } from '@/lib/api'
+import { ShareModal } from '@/components/ui/ShareModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ContactProfileTab } from '@/components/crm/ContactProfileTab'
@@ -175,16 +176,20 @@ function AddInteractionForm({ contactId }: { contactId: string }) {
 }
 
 export default function ContactDetailPage({ params }: { params: { id: string } }) {
-  const { token } = useAuthStore()
+  const { token, user } = useAuthStore()
   const queryClient = useQueryClient()
   const router = useRouter()
   const { id } = params
   const [activeTab, setActiveTab] = useState<'interactions' | 'agenda' | 'profil_mifid' | 'adequation' | 'patrimoine'>('interactions')
   const [showNewEvent, setShowNewEvent] = useState(false)
+  const [showShare, setShowShare] = useState(false)
+
+  // Les rôles sans cabinet (chambre, régulateur) accèdent via la route partagée
+  const isSharedAccess = user?.globalRole === 'chamber' || user?.globalRole === 'regulator'
 
   const { data, isLoading } = useQuery({
-    queryKey: ['contact', id, token],
-    queryFn: () => contactApi.get(id, token!),
+    queryKey: ['contact', id, token, isSharedAccess],
+    queryFn: () => isSharedAccess ? contactApi.getShared(id, token!) : contactApi.get(id, token!),
     enabled: !!token,
   })
 
@@ -215,12 +220,16 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   return (
     <div className="space-y-6 max-w-6xl">
       <div className="flex items-center justify-between">
-        <Link href="/crm" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <Link href={isSharedAccess ? '/partage' : '/crm'} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ChevronLeft className="h-4 w-4" />
-          Retour aux contacts
+          {isSharedAccess ? 'Retour aux données partagées' : 'Retour aux contacts'}
         </Link>
-        {contact && (
+        {contact && !isSharedAccess && (
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowShare(true)}>
+              <Share2 className="h-3.5 w-3.5 mr-1.5" />
+              Partager
+            </Button>
             <Link href={`/crm/${id}/modifier`}>
               <Button variant="outline" size="sm">
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />
@@ -346,9 +355,11 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
           </div>
 
           {/* Documents */}
-          <div className="bg-card border border-border rounded-lg p-5">
-            <EntityDocuments entityType="contact" entityId={id} />
-          </div>
+          {!isSharedAccess && (
+            <div className="bg-card border border-border rounded-lg p-5">
+              <EntityDocuments entityType="contact" entityId={id} />
+            </div>
+          )}
 
           {/* Onglets */}
           <div>
@@ -461,6 +472,20 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
             )}
           </div>
         </>
+      )}
+
+      {showShare && contact && (
+        <ShareModal
+          title="Partager ce contact"
+          description={`${contact.firstName ?? ''} ${contact.lastName}`.trim()}
+          entityType="contact"
+          entities={[{
+            id,
+            label: `${contact.firstName ?? ''} ${contact.lastName}`.trim(),
+            sublabel: TYPE_LABELS[contact.type],
+          }]}
+          onClose={() => setShowShare(false)}
+        />
       )}
     </div>
   )
