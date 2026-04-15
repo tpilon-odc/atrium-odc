@@ -33,13 +33,15 @@ import {
   ClipboardList,
   BookUser,
   Layers,
+  Newspaper,
+  Radio,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn, withToken } from '@/lib/utils'
 
 import { useAuthStore } from '@/stores/auth'
 import { createClient as createSupabaseClient } from '@/lib/supabase/client'
-import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, cabinetApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
+import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, cabinetApi, chamberApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 
 // ── Nav groups (desktop sidebar) ───────────────────────────────────────────
@@ -47,6 +49,18 @@ import { Button } from '@/components/ui/button'
 type NavItem = { href: string; label: string; icon: React.ElementType; showProgress?: boolean; permission?: keyof CabinetMember }
 
 function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globalRole?: string) {
+  // Navigation dédiée pour les chambres
+  if (globalRole === 'chamber') {
+    return [
+      {
+        label: 'Espace Chambre',
+        items: [
+          { href: '/communications', label: 'Communications', icon: Radio },
+        ] as NavItem[],
+      },
+    ]
+  }
+
   // Navigation dédiée pour les fournisseurs
   if (globalRole === 'supplier') {
     return [
@@ -72,6 +86,7 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
         hasCabinet && { href: '/conformite', label: 'Conformité', icon: ShieldCheck, showProgress: true },
         hasCabinet && canAll && { href: '/pca', label: 'PCA', icon: ClipboardList },
         { href: '/formations', label: 'Formations', icon: GraduationCap },
+        { href: '/actualites', label: 'Actualités', icon: Newspaper },
         { href: '/parametres', label: 'Paramètres', icon: Settings },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
@@ -119,6 +134,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   clusters: 'Clusters',
   'supplier-portal': 'Mes fiches fournisseur',
   notifications: 'Notifications',
+  actualites: 'Actualités',
+  communications: 'Communications',
   profil: 'Mon profil',
   admin: 'Admin',
   nouveau: 'Nouveau',
@@ -208,6 +225,21 @@ function ComplianceProgressBar({ token }: { token: string }) {
   )
 }
 
+// ── Chamber feed unread count ────────────────────────────────────────────────
+
+function useChamberUnread(token: string | null) {
+  return useQuery({
+    queryKey: ['chamber-feed-unread', token],
+    queryFn: async () => {
+      const res = await chamberApi.getFeed(token!)
+      return res.data.posts.filter((p) => !p.isRead).length
+    },
+    enabled: !!token,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  })
+}
+
 // ── Notifications bell ───────────────────────────────────────────────────────
 
 function useNotifications(token: string | null) {
@@ -261,6 +293,10 @@ function NotificationBell({ token }: { token: string }) {
       }
       return
     }
+    if (n.type === 'chamber_post_published') {
+      router.push('/actualites')
+      return
+    }
     const target = n.entityType === 'compliance_phase'
       ? `/conformite/${n.entityId}`
       : '/conformite'
@@ -312,6 +348,8 @@ function NotificationBell({ token }: { token: string }) {
                 >
                   {n.type === 'cluster_reply'
                     ? <MessagesSquare className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    : n.type === 'chamber_post_published'
+                    ? <Newspaper className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                     : n.type === 'compliance_expired'
                     ? <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
                     : <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
@@ -354,11 +392,13 @@ function SidebarLink({
   label,
   icon: Icon,
   isActive,
+  badge,
 }: {
   href: string
   label: string
   icon: React.ElementType
   isActive: boolean
+  badge?: number
 }) {
   return (
     <Link
@@ -371,7 +411,12 @@ function SidebarLink({
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-auto h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center leading-none">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
     </Link>
   )
 }
@@ -411,6 +456,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const globalRole = user?.globalRole
   const navGroups = buildNavGroups(currentMember, hasCabinet, globalRole)
   const [drawerSection, setDrawerSection] = useState<string | null>(null)
+  const { data: chamberUnread } = useChamberUnread(globalRole !== 'chamber' ? token : null)
 
   useEffect(() => {
     hydrate()
@@ -514,6 +560,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <ul className="space-y-0.5">
                 {group.items.map((item) => {
                   const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                  const badge = item.href === '/actualites' ? (chamberUnread ?? 0) : undefined
                   return (
                     <li key={item.href}>
                       <SidebarLink
@@ -521,6 +568,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         label={item.label}
                         icon={item.icon}
                         isActive={isActive}
+                        badge={badge}
                       />
                       {'showProgress' in item && item.showProgress && token && (
                         <ComplianceProgressBar token={token} />

@@ -2392,3 +2392,68 @@ export const pcaApi = {
   historyEntry: (id: string, token: string) =>
     call<{ entry: { id: string; data: PcaData; createdAt: string; user: { firstName: string | null; lastName: string | null; email: string } } }>(`/api/v1/pca/history/${id}`, { token }),
 }
+
+// ── Chamber Communications ────────────────────────────────────────────────────
+
+export interface ChamberFeedPost {
+  id: string
+  title: string
+  content: string
+  publishedAt: string | null
+  createdAt: string
+  isRead: boolean
+  readAt: string | null
+  chamber: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+    avatarUrl: string | null
+  }
+}
+
+export interface ChamberOwnPost {
+  id: string
+  title: string
+  content: string
+  status: 'draft' | 'published'
+  publishedAt: string | null
+  createdAt: string
+  _count: { reads: number }
+}
+
+export const chamberApi = {
+  // Chambre — gérer ses posts
+  getPosts: (token: string) =>
+    call<{ posts: ChamberOwnPost[] }>('/api/v1/chamber/posts', { token }),
+
+  createPost: (data: { title: string; content: string; status: 'draft' | 'published' }, token: string) =>
+    call<{ post: ChamberOwnPost }>('/api/v1/chamber/posts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  updatePost: (id: string, data: { title?: string; content?: string; status?: 'draft' | 'published' }, token: string) =>
+    call<{ post: ChamberOwnPost }>(`/api/v1/chamber/posts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  deletePost: (id: string, token: string) =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/chamber/posts/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  // Cabinet — lire le fil des communications
+  getFeed: (token: string) =>
+    call<{ posts: ChamberFeedPost[] }>('/api/v1/chamber/feed', { token }),
+
+  markRead: (id: string, token: string) =>
+    call<{ ok: boolean }>(`/api/v1/chamber/posts/${id}/read`, {
+      method: 'PATCH',
+      token,
+    }),
+}

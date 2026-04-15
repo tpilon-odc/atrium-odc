@@ -213,6 +213,8 @@ model User {
   gdprRequestsProcessed  GdprRequest[]   @relation("ProcessedBy")
   pcaHistory             CabinetPcaHistory[]
   supplierUsers          SupplierUser[]
+  chamberPosts           ChamberPost[]
+  chamberPostReads       ChamberPostRead[]
 
   @@map("users")
 }
@@ -1655,4 +1657,45 @@ model CabinetPcaHistory {
 
   @@index([cabinetId])
   @@map("cabinet_pca_history")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// COMMUNICATIONS CHAMBRE
+// ──────────────────────────────────────────────────────────────────────────────
+
+enum ChamberPostStatus {
+  draft
+  published
+}
+
+model ChamberPost {
+  id          String            @id @default(uuid()) @db.Uuid
+  chamberId   String            @map("chamber_id") @db.Uuid
+  title       String
+  content     String            @db.Text
+  status      ChamberPostStatus @default(draft)
+  publishedAt DateTime?         @map("published_at") @db.Timestamptz
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  chamber User              @relation(fields: [chamberId], references: [id])
+  reads   ChamberPostRead[]
+
+  @@index([chamberId])
+  @@index([status, publishedAt])
+  @@map("chamber_posts")
+}
+
+model ChamberPostRead {
+  id     String   @id @default(uuid()) @db.Uuid
+  postId String   @map("post_id") @db.Uuid
+  userId String   @map("user_id") @db.Uuid
+  readAt DateTime @default(now()) @map("read_at") @db.Timestamptz
+
+  post ChamberPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@map("chamber_post_reads")
 }
