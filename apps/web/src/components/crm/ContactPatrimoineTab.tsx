@@ -160,11 +160,12 @@ const LIABILITY_TYPE_LABELS: Record<ContactLiability['type'], string> = {
   autre: 'Autre',
 }
 
-function LiabilityForm({ contactId, token, onDone, initial }: {
+function LiabilityForm({ contactId, token, onDone, initial, assets }: {
   contactId: string
   token: string
   onDone: () => void
   initial?: ContactLiability
+  assets: ContactAsset[]
 }) {
   const queryClient = useQueryClient()
   const [type, setType] = useState<ContactLiability['type']>(initial?.type ?? 'immobilier')
@@ -173,6 +174,7 @@ function LiabilityForm({ contactId, token, onDone, initial }: {
   const [monthlyPayment, setMonthlyPayment] = useState(initial?.monthlyPayment?.toString() ?? '')
   const [endDate, setEndDate] = useState(initial?.endDate?.slice(0, 10) ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [assetId, setAssetId] = useState<string>(initial?.assetId ?? '')
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -182,6 +184,7 @@ function LiabilityForm({ contactId, token, onDone, initial }: {
         monthlyPayment: monthlyPayment ? parseFloat(monthlyPayment) : null,
         endDate: endDate || null,
         notes: notes || null,
+        assetId: assetId || null,
       }
       return initial
         ? contactApi.updateLiability(contactId, initial.id, data, token)
@@ -220,6 +223,21 @@ function LiabilityForm({ contactId, token, onDone, initial }: {
           <DatePicker value={endDate} onChange={setEndDate} className="text-sm" />
         </div>
       </div>
+      {assets.length > 0 && (
+        <div className="space-y-1">
+          <Label className="text-xs">Actif lié (optionnel)</Label>
+          <select
+            value={assetId}
+            onChange={(e) => setAssetId(e.target.value)}
+            className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background"
+          >
+            <option value="">— Aucun actif lié —</option>
+            {assets.map((a) => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="space-y-1">
         <Label className="text-xs">Notes (optionnel)</Label>
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarques…" className="text-sm" />
@@ -234,7 +252,7 @@ function LiabilityForm({ contactId, token, onDone, initial }: {
   )
 }
 
-function LiabilitiesSection({ contactId, token }: { contactId: string; token: string }) {
+function LiabilitiesSection({ contactId, token, assets }: { contactId: string; token: string; assets: ContactAsset[] }) {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
@@ -264,7 +282,7 @@ function LiabilitiesSection({ contactId, token }: { contactId: string; token: st
         </Button>
       </div>
 
-      {adding && <LiabilityForm contactId={contactId} token={token} onDone={() => setAdding(false)} />}
+      {adding && <LiabilityForm contactId={contactId} token={token} onDone={() => setAdding(false)} assets={assets} />}
 
       {items.length === 0 && !adding && (
         <p className="text-sm text-muted-foreground">Aucun passif enregistré.</p>
@@ -274,7 +292,7 @@ function LiabilitiesSection({ contactId, token }: { contactId: string; token: st
         {items.map((item) => (
           <div key={item.id}>
             {editing === item.id ? (
-              <LiabilityForm contactId={contactId} token={token} onDone={() => setEditing(null)} initial={item} />
+              <LiabilityForm contactId={contactId} token={token} onDone={() => setEditing(null)} initial={item} assets={assets} />
             ) : (
               <div className="flex items-center gap-3 p-3 rounded-lg border border-border group">
                 <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -284,6 +302,7 @@ function LiabilitiesSection({ contactId, token }: { contactId: string; token: st
                     {LIABILITY_TYPE_LABELS[item.type]}
                     {item.monthlyPayment ? ` · ${fmt(item.monthlyPayment)}/mois` : ''}
                     {item.endDate ? ` · fin ${new Date(item.endDate).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}` : ''}
+                    {item.asset ? ` · lié à ${item.asset.label}` : ''}
                   </p>
                 </div>
                 <span className="text-sm font-semibold text-destructive">{fmt(item.outstandingAmount)}</span>
@@ -310,21 +329,23 @@ const INCOME_TYPE_LABELS: Record<ContactIncome['type'], string> = {
   autre: 'Autre',
 }
 
-function IncomeForm({ contactId, token, onDone, initial }: {
+function IncomeForm({ contactId, token, onDone, initial, assets }: {
   contactId: string
   token: string
   onDone: () => void
   initial?: ContactIncome
+  assets: ContactAsset[]
 }) {
   const queryClient = useQueryClient()
   const [type, setType] = useState<ContactIncome['type']>(initial?.type ?? 'salaire')
   const [label, setLabel] = useState(initial?.label ?? '')
   const [annualAmount, setAnnualAmount] = useState(initial?.annualAmount?.toString() ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [assetId, setAssetId] = useState<string>(initial?.assetId ?? '')
 
   const mutation = useMutation({
     mutationFn: () => {
-      const data = { type, label, annualAmount: parseFloat(annualAmount), notes: notes || null }
+      const data = { type, label, annualAmount: parseFloat(annualAmount), notes: notes || null, assetId: assetId || null }
       return initial
         ? contactApi.updateIncome(contactId, initial.id, data, token)
         : contactApi.addIncome(contactId, data, token)
@@ -354,6 +375,21 @@ function IncomeForm({ contactId, token, onDone, initial }: {
           <Input type="number" value={annualAmount} onChange={(e) => setAnnualAmount(e.target.value)} placeholder="45000" className="text-sm" />
         </div>
       </div>
+      {assets.length > 0 && (
+        <div className="space-y-1">
+          <Label className="text-xs">Actif lié (optionnel)</Label>
+          <select
+            value={assetId}
+            onChange={(e) => setAssetId(e.target.value)}
+            className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background"
+          >
+            <option value="">— Aucun actif lié —</option>
+            {assets.map((a) => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="space-y-1">
         <Label className="text-xs">Notes (optionnel)</Label>
         <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Remarques…" className="text-sm" />
@@ -368,7 +404,7 @@ function IncomeForm({ contactId, token, onDone, initial }: {
   )
 }
 
-function IncomesSection({ contactId, token }: { contactId: string; token: string }) {
+function IncomesSection({ contactId, token, assets }: { contactId: string; token: string; assets: ContactAsset[] }) {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
@@ -398,7 +434,7 @@ function IncomesSection({ contactId, token }: { contactId: string; token: string
         </Button>
       </div>
 
-      {adding && <IncomeForm contactId={contactId} token={token} onDone={() => setAdding(false)} />}
+      {adding && <IncomeForm contactId={contactId} token={token} onDone={() => setAdding(false)} assets={assets} />}
 
       {items.length === 0 && !adding && (
         <p className="text-sm text-muted-foreground">Aucun revenu enregistré.</p>
@@ -408,13 +444,16 @@ function IncomesSection({ contactId, token }: { contactId: string; token: string
         {items.map((item) => (
           <div key={item.id}>
             {editing === item.id ? (
-              <IncomeForm contactId={contactId} token={token} onDone={() => setEditing(null)} initial={item} />
+              <IncomeForm contactId={contactId} token={token} onDone={() => setEditing(null)} initial={item} assets={assets} />
             ) : (
               <div className="flex items-center gap-3 p-3 rounded-lg border border-border group">
                 <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{INCOME_TYPE_LABELS[item.type]}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {INCOME_TYPE_LABELS[item.type]}
+                    {item.asset ? ` · lié à ${item.asset.label}` : ''}
+                  </p>
                 </div>
                 <span className="text-sm font-semibold text-green-600">{fmt(item.annualAmount)}/an</span>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -621,15 +660,22 @@ function SoldProductsSection({ contactId, token }: { contactId: string; token: s
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ContactPatrimoineTab({ contactId, token }: { contactId: string; token: string }) {
+  const { data: assetsData } = useQuery({
+    queryKey: ['contact-assets', contactId],
+    queryFn: () => contactApi.listAssets(contactId, token),
+    enabled: !!token,
+  })
+  const assets = assetsData?.data.items ?? []
+
   return (
     <div className="space-y-8">
       <SoldProductsSection contactId={contactId} token={token} />
       <div className="border-t border-border" />
       <AssetsSection contactId={contactId} token={token} />
       <div className="border-t border-border" />
-      <LiabilitiesSection contactId={contactId} token={token} />
+      <LiabilitiesSection contactId={contactId} token={token} assets={assets} />
       <div className="border-t border-border" />
-      <IncomesSection contactId={contactId} token={token} />
+      <IncomesSection contactId={contactId} token={token} assets={assets} />
       <div className="border-t border-border" />
       <TaxSection contactId={contactId} token={token} />
     </div>

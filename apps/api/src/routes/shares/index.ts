@@ -19,6 +19,15 @@ const batchShareBody = z.object({
   recipientIds: z.array(z.string().uuid()).min(1),
 })
 
+const batchAllContactsBody = z.object({
+  recipientIds: z.array(z.string().uuid()).min(1),
+})
+
+const batchFolderBody = z.object({
+  folderId: z.string().uuid(),
+  recipientIds: z.array(z.string().uuid()).min(1),
+})
+
 export const shareRoutes: FastifyPluginAsync = async (app) => {
   // ── GET /api/v1/shares ────────────────────────────────────────────────────
   // Partages accordés par ce cabinet (filtre optionnel par entityType)
@@ -92,6 +101,157 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return reply.status(201).send({ data: { created: toCreate.length, skipped: existing.length } })
+  })
+
+  // ── POST /api/v1/shares/batch-all-contacts ───────────────────────────────
+  // Partage TOUS les contacts du cabinet avec les destinataires indiqués
+  app.post('/batch-all-contacts', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const result = batchAllContactsBody.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    const { recipientIds } = result.data
+
+    // Vérifie que les destinataires ont un rôle autorisé
+    const recipients = await prisma.user.findMany({
+      where: { id: { in: recipientIds }, globalRole: { in: ['chamber', 'regulator', 'platform_admin', 'cabinet_user'] } },
+      select: { id: true },
+    })
+    if (recipients.length === 0) {
+      return reply.status(400).send({ error: 'Aucun destinataire valide', code: 'INVALID_RECIPIENTS' })
+    }
+    const validRecipientIds = recipients.map((r) => r.id)
+
+    // Récupère tous les contacts du cabinet
+    const contacts = await prisma.contact.findMany({
+      where: { cabinetId: request.cabinetId },
+      select: { id: true },
+    })
+    const contactIds = contacts.map((c) => c.id)
+
+    if (contactIds.length === 0) {
+      return reply.status(201).send({ data: { created: 0, skipped: 0, total: 0 } })
+    }
+
+    // Partages déjà existants
+    const existing = await prisma.share.findMany({
+      where: {
+        cabinetId: request.cabinetId,
+        grantedTo: { in: validRecipientIds },
+        entityType: 'contact',
+        entityId: { in: contactIds },
+        isActive: true,
+      },
+      select: { grantedTo: true, entityId: true },
+    })
+    const existingSet = new Set(existing.map((s) => `${s.grantedTo}:${s.entityId}`))
+
+    const toCreate = validRecipientIds.flatMap((recipientId) =>
+      contactIds
+        .filter((contactId) => !existingSet.has(`${recipientId}:${contactId}`))
+        .map((contactId) => ({
+          cabinetId: request.cabinetId,
+          grantedBy: request.user.id,
+          grantedTo: recipientId,
+          entityType: 'contact' as const,
+          entityId: contactId,
+          isActive: true,
+        }))
+    )
+
+    if (toCreate.length > 0) {
+      await prisma.share.createMany({ data: toCreate })
+    }
+
+    return reply.status(201).send({ data: { created: toCreate.length, skipped: existing.length, total: contactIds.length } })
+  })
+
+  // ── POST /api/v1/shares/batch-folder ─────────────────────────────────────
+  // Partage tous les documents d'un dossier et ses sous-dossiers récursivement
+  app.post('/batch-folder', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const result = batchFolderBody.safeParse(request.body)
+    if (!result.success) {
+      return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+    }
+
+    const { folderId, recipientIds } = result.data
+
+    // Vérifie que le dossier appartient au cabinet
+    const rootFolder = await prisma.folder.findFirst({
+      where: { id: folderId, cabinetId: request.cabinetId },
+    })
+    if (!rootFolder) {
+      return reply.status(404).send({ error: 'Dossier introuvable', code: 'NOT_FOUND' })
+    }
+
+    // Vérifie destinataires
+    const recipients = await prisma.user.findMany({
+      where: { id: { in: recipientIds }, globalRole: { in: ['chamber', 'regulator', 'platform_admin', 'cabinet_user'] } },
+      select: { id: true },
+    })
+    if (recipients.length === 0) {
+      return reply.status(400).send({ error: 'Aucun destinataire valide', code: 'INVALID_RECIPIENTS' })
+    }
+    const validRecipientIds = recipients.map((r) => r.id)
+
+    // Collecte récursive de tous les IDs de sous-dossiers
+    const allFolders = await prisma.folder.findMany({
+      where: { cabinetId: request.cabinetId },
+      select: { id: true, parentId: true },
+    })
+
+    function collectFolderIds(rootId: string): string[] {
+      const ids = [rootId]
+      for (const f of allFolders) {
+        if (f.parentId === rootId) ids.push(...collectFolderIds(f.id))
+      }
+      return ids
+    }
+    const folderIds = collectFolderIds(folderId)
+
+    // Récupère tous les documents dans ces dossiers
+    const documents = await prisma.document.findMany({
+      where: { cabinetId: request.cabinetId, folderId: { in: folderIds }, deletedAt: null },
+      select: { id: true },
+    })
+    const documentIds = documents.map((d) => d.id)
+
+    if (documentIds.length === 0) {
+      return reply.status(201).send({ data: { created: 0, skipped: 0, total: 0 } })
+    }
+
+    // Partages déjà existants
+    const existing = await prisma.share.findMany({
+      where: {
+        cabinetId: request.cabinetId,
+        grantedTo: { in: validRecipientIds },
+        entityType: 'document',
+        entityId: { in: documentIds },
+        isActive: true,
+      },
+      select: { grantedTo: true, entityId: true },
+    })
+    const existingSet = new Set(existing.map((s) => `${s.grantedTo}:${s.entityId}`))
+
+    const toCreate = validRecipientIds.flatMap((recipientId) =>
+      documentIds
+        .filter((docId) => !existingSet.has(`${recipientId}:${docId}`))
+        .map((docId) => ({
+          cabinetId: request.cabinetId,
+          grantedBy: request.user.id,
+          grantedTo: recipientId,
+          entityType: 'document' as const,
+          entityId: docId,
+          isActive: true,
+        }))
+    )
+
+    if (toCreate.length > 0) {
+      await prisma.share.createMany({ data: toCreate })
+    }
+
+    return reply.status(201).send({ data: { created: toCreate.length, skipped: existing.length, total: documentIds.length } })
   })
 
   // ── GET /api/v1/shares/received ───────────────────────────────────────────

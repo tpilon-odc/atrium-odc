@@ -318,8 +318,10 @@ model ContactAsset {
   notes          String?
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
-  contact Contact @relation(fields: [contactId], references: [id])
+  cabinet     Cabinet            @relation(fields: [cabinetId], references: [id])
+  contact     Contact            @relation(fields: [contactId], references: [id])
+  liabilities ContactLiability[]
+  incomes     ContactIncome[]
 
   @@index([cabinetId, contactId])
   @@map("contact_assets")
@@ -330,6 +332,7 @@ model ContactLiability {
   id               String    @id @default(uuid()) @db.Uuid
   cabinetId        String    @map("cabinet_id") @db.Uuid
   contactId        String    @map("contact_id") @db.Uuid
+  assetId          String?   @map("asset_id") @db.Uuid
   type             String    // immobilier | consommation | professionnel | autre
   label            String
   outstandingAmount Float    @map("outstanding_amount")
@@ -338,8 +341,9 @@ model ContactLiability {
   notes            String?
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
-  contact Contact @relation(fields: [contactId], references: [id])
+  cabinet Cabinet       @relation(fields: [cabinetId], references: [id])
+  contact Contact       @relation(fields: [contactId], references: [id])
+  asset   ContactAsset? @relation(fields: [assetId], references: [id])
 
   @@index([cabinetId, contactId])
   @@map("contact_liabilities")
@@ -350,14 +354,16 @@ model ContactIncome {
   id           String   @id @default(uuid()) @db.Uuid
   cabinetId    String   @map("cabinet_id") @db.Uuid
   contactId    String   @map("contact_id") @db.Uuid
+  assetId      String?  @map("asset_id") @db.Uuid
   type         String   // salaire | foncier | dividendes | pension | autre
   label        String
   annualAmount Float    @map("annual_amount")
   notes        String?
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
-  contact Contact @relation(fields: [contactId], references: [id])
+  cabinet Cabinet       @relation(fields: [cabinetId], references: [id])
+  contact Contact       @relation(fields: [contactId], references: [id])
+  asset   ContactAsset? @relation(fields: [assetId], references: [id])
 
   @@index([cabinetId, contactId])
   @@map("contact_incomes")

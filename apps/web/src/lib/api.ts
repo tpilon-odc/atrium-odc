@@ -942,9 +942,9 @@ export const contactApi = {
   // Liabilities
   listLiabilities: (contactId: string, token: string) =>
     call<{ items: ContactLiability[] }>(`/api/v1/contacts/${contactId}/liabilities`, { token }),
-  addLiability: (contactId: string, data: Omit<ContactLiability, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>, token: string) =>
+  addLiability: (contactId: string, data: Omit<ContactLiability, 'id' | 'cabinetId' | 'contactId' | 'createdAt' | 'asset'>, token: string) =>
     call<{ item: ContactLiability }>(`/api/v1/contacts/${contactId}/liabilities`, { method: 'POST', body: JSON.stringify(data), token }),
-  updateLiability: (contactId: string, liabilityId: string, data: Partial<Omit<ContactLiability, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>>, token: string) =>
+  updateLiability: (contactId: string, liabilityId: string, data: Partial<Omit<ContactLiability, 'id' | 'cabinetId' | 'contactId' | 'createdAt' | 'asset'>>, token: string) =>
     call<{ item: ContactLiability }>(`/api/v1/contacts/${contactId}/liabilities/${liabilityId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
   removeLiability: (contactId: string, liabilityId: string, token: string) =>
     call<unknown>(`/api/v1/contacts/${contactId}/liabilities/${liabilityId}`, { method: 'DELETE', token }),
@@ -952,9 +952,9 @@ export const contactApi = {
   // Incomes
   listIncomes: (contactId: string, token: string) =>
     call<{ items: ContactIncome[] }>(`/api/v1/contacts/${contactId}/incomes`, { token }),
-  addIncome: (contactId: string, data: Omit<ContactIncome, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>, token: string) =>
+  addIncome: (contactId: string, data: Omit<ContactIncome, 'id' | 'cabinetId' | 'contactId' | 'createdAt' | 'asset'>, token: string) =>
     call<{ item: ContactIncome }>(`/api/v1/contacts/${contactId}/incomes`, { method: 'POST', body: JSON.stringify(data), token }),
-  updateIncome: (contactId: string, incomeId: string, data: Partial<Omit<ContactIncome, 'id' | 'cabinetId' | 'contactId' | 'createdAt'>>, token: string) =>
+  updateIncome: (contactId: string, incomeId: string, data: Partial<Omit<ContactIncome, 'id' | 'cabinetId' | 'contactId' | 'createdAt' | 'asset'>>, token: string) =>
     call<{ item: ContactIncome }>(`/api/v1/contacts/${contactId}/incomes/${incomeId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
   removeIncome: (contactId: string, incomeId: string, token: string) =>
     call<unknown>(`/api/v1/contacts/${contactId}/incomes/${incomeId}`, { method: 'DELETE', token }),
@@ -993,6 +993,8 @@ export type ContactLiability = {
   id: string
   cabinetId: string
   contactId: string
+  assetId: string | null
+  asset: { id: string; label: string } | null
   type: 'immobilier' | 'consommation' | 'professionnel' | 'autre'
   label: string
   outstandingAmount: number
@@ -1006,6 +1008,8 @@ export type ContactIncome = {
   id: string
   cabinetId: string
   contactId: string
+  assetId: string | null
+  asset: { id: string; label: string } | null
   type: 'salaire' | 'foncier' | 'dividendes' | 'pension' | 'autre'
   label: string
   annualAmount: number

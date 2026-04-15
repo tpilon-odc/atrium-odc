@@ -44,6 +44,7 @@ const VERDICT_GLOBAL_LABEL: Record<AdequacyVerdict, string> = {
 }
 
 type FilterMode = 'all' | 'positif' | 'exclude_negative'
+type SoldFilterMode = 'sold' | 'not_sold' | 'all'
 
 // ── Formulaire ajout/édition produit vendu ────────────────────────────────────
 
@@ -170,6 +171,7 @@ export function ContactAdequacyTab({
 }) {
   const { results, isLoading, hasProfile, summary } = useContactAdequacy(contactId, token)
   const [filter, setFilter] = useState<FilterMode>('all')
+  const [soldFilter, setSoldFilter] = useState<SoldFilterMode>('sold')
   const [addingFromRow, setAddingFromRow] = useState<string | null>(null)
 
   const { data: soldData } = useQuery({
@@ -184,12 +186,17 @@ export function ContactAdequacyTab({
     return <div className="h-40 bg-muted animate-pulse rounded-lg" />
   }
 
-  const filtered: AdequacyRow[] =
-    filter === 'positif'
-      ? results.filter((r) => r.adequacy.global === 'positif')
-      : filter === 'exclude_negative'
-      ? results.filter((r) => r.adequacy.global !== 'negatif')
-      : results
+  const filtered: AdequacyRow[] = results
+    .filter((r) => {
+      if (filter === 'positif') return r.adequacy.global === 'positif'
+      if (filter === 'exclude_negative') return r.adequacy.global !== 'negatif'
+      return true
+    })
+    .filter((r) => {
+      if (soldFilter === 'sold') return soldProductIds.has(r.product.id)
+      if (soldFilter === 'not_sold') return !soldProductIds.has(r.product.id)
+      return true
+    })
 
   return (
     <div className="space-y-6">
@@ -236,8 +243,32 @@ export function ContactAdequacyTab({
               </div>
             )}
 
-            {/* Filtres */}
-            <div className="flex gap-2">
+            {/* Filtres vendus / non vendus */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Produits&nbsp;:</span>
+              {([
+                { key: 'sold', label: 'Vendus' },
+                { key: 'not_sold', label: 'Non vendus' },
+                { key: 'all', label: 'Tous' },
+              ] as { key: SoldFilterMode; label: string }[]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setSoldFilter(key)}
+                  className={cn(
+                    'text-xs px-3 py-1.5 rounded-full font-medium border transition-colors',
+                    soldFilter === key
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Filtres adéquation */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Adéquation&nbsp;:</span>
               {([
                 { key: 'all', label: 'Tous' },
                 { key: 'positif', label: 'Positif uniquement' },

@@ -401,13 +401,17 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
     monthlyPayment: z.number().nonnegative().nullable().optional(),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     notes: z.string().nullable().optional(),
+    assetId: z.string().uuid().nullable().optional(),
   })
+
+  const liabilityInclude = { asset: { select: { id: true, label: true } } }
 
   app.get('/:id/liabilities', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const items = await prisma.contactLiability.findMany({
       where: { cabinetId: request.cabinetId, contactId: id },
       orderBy: { createdAt: 'asc' },
+      include: liabilityInclude,
     })
     return reply.send({ data: { items } })
   })
@@ -424,7 +428,9 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
         monthlyPayment: body.data.monthlyPayment ?? null,
         endDate: body.data.endDate ? new Date(body.data.endDate) : null,
         notes: body.data.notes ?? null,
+        assetId: body.data.assetId ?? null,
       },
+      include: liabilityInclude,
     })
     return reply.status(201).send({ data: { item } })
   })
@@ -437,7 +443,12 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
     if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
     const item = await prisma.contactLiability.update({
       where: { id: liabilityId },
-      data: { ...body.data, endDate: body.data.endDate !== undefined ? (body.data.endDate ? new Date(body.data.endDate) : null) : undefined },
+      data: {
+        ...body.data,
+        endDate: body.data.endDate !== undefined ? (body.data.endDate ? new Date(body.data.endDate) : null) : undefined,
+        assetId: body.data.assetId !== undefined ? (body.data.assetId ?? null) : undefined,
+      },
+      include: liabilityInclude,
     })
     return reply.send({ data: { item } })
   })
@@ -457,13 +468,17 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
     label: z.string().min(1),
     annualAmount: z.number().nonnegative(),
     notes: z.string().nullable().optional(),
+    assetId: z.string().uuid().nullable().optional(),
   })
+
+  const incomeInclude = { asset: { select: { id: true, label: true } } }
 
   app.get('/:id/incomes', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
     const items = await prisma.contactIncome.findMany({
       where: { cabinetId: request.cabinetId, contactId: id },
       orderBy: { createdAt: 'asc' },
+      include: incomeInclude,
     })
     return reply.send({ data: { items } })
   })
@@ -473,7 +488,8 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
     const body = incomeBody.safeParse(request.body)
     if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
     const item = await prisma.contactIncome.create({
-      data: { cabinetId: request.cabinetId, contactId: id, ...body.data, notes: body.data.notes ?? null },
+      data: { cabinetId: request.cabinetId, contactId: id, ...body.data, notes: body.data.notes ?? null, assetId: body.data.assetId ?? null },
+      include: incomeInclude,
     })
     return reply.status(201).send({ data: { item } })
   })
@@ -484,7 +500,11 @@ export const contactProfileRoutes: FastifyPluginAsync = async (app) => {
     if (!body.success) return reply.status(400).send({ error: body.error.errors[0].message, code: 'VALIDATION_ERROR' })
     const entry = await prisma.contactIncome.findFirst({ where: { id: incomeId, cabinetId: request.cabinetId, contactId: id } })
     if (!entry) return reply.status(404).send({ error: 'Introuvable', code: 'NOT_FOUND' })
-    const item = await prisma.contactIncome.update({ where: { id: incomeId }, data: body.data })
+    const item = await prisma.contactIncome.update({
+      where: { id: incomeId },
+      data: { ...body.data, assetId: body.data.assetId !== undefined ? (body.data.assetId ?? null) : undefined },
+      include: incomeInclude,
+    })
     return reply.send({ data: { item } })
   })
 
