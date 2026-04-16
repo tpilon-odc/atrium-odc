@@ -196,7 +196,10 @@ export default function PhaseDetailPage({ params }: { params: { phaseId: string 
                   <span className="font-medium">{pct}%</span>
                 </p>
               </div>
-              <GenerateDocumentButton targetEntity="COMPLIANCE" />
+              <GenerateDocumentButton
+                targetEntity="COMPLIANCE"
+                complianceItemIds={phase.items.map((i) => i.id)}
+              />
             </div>
             <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
               <div

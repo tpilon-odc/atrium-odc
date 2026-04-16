@@ -11,9 +11,11 @@ interface GenerateDocumentButtonProps {
   targetEntity: 'CONTACT' | 'CABINET' | 'COMPLIANCE'
   preselectedContactId?: string
   label?: string
+  /** Si fourni, n'affiche que les templates ayant au moins une variable liée à ces IDs d'items conformité */
+  complianceItemIds?: string[]
 }
 
-export function GenerateDocumentButton({ targetEntity, preselectedContactId, label = 'Générer un document' }: GenerateDocumentButtonProps) {
+export function GenerateDocumentButton({ targetEntity, preselectedContactId, label = 'Générer un document', complianceItemIds }: GenerateDocumentButtonProps) {
   const { token } = useAuthStore()
   const [generateTemplate, setGenerateTemplate] = useState<DocumentTemplate | null>(null)
   const [open, setOpen] = useState(false)
@@ -22,7 +24,18 @@ export function GenerateDocumentButton({ targetEntity, preselectedContactId, lab
     queryKey: ['document-templates', token],
     queryFn: () => documentTemplateApi.list(token!),
     enabled: !!token,
-    select: (res) => res.data.templates.filter((t) => t.targetEntity === targetEntity),
+    select: (res) => {
+      let filtered = res.data.templates.filter((t) => t.targetEntity === targetEntity)
+      // Si des IDs d'items conformité sont fournis, ne garder que les templates
+      // qui ont au moins une variable pointant vers un de ces items
+      if (complianceItemIds && complianceItemIds.length > 0) {
+        const itemFieldKeys = new Set(complianceItemIds.map((id) => `compliance_item_${id}`))
+        filtered = filtered.filter((t) =>
+          t.variables.some((v) => itemFieldKeys.has(v.fieldKey))
+        )
+      }
+      return filtered
+    },
     staleTime: 60_000,
   })
 
