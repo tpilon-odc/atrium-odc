@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { Pencil, Trash2, Plus, X, UserCheck, Building, Globe, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { cabinetApi, memberApi, displayName, type CabinetMember } from '@/lib/api'
+import { GenerateDocumentButton } from '@/components/document-templates/GenerateDocumentButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -538,9 +539,12 @@ function MembersSection() {
 export default function CabinetPage() {
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-2xl font-semibold">Mon Cabinet</h2>
-        <p className="text-muted-foreground mt-1">Informations, profil public et membres de votre cabinet.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Mon Cabinet</h2>
+          <p className="text-muted-foreground mt-1">Informations, profil public et membres de votre cabinet.</p>
+        </div>
+        <GenerateDocumentButton targetEntity="CABINET" />
       </div>
       <CabinetSection />
       <CabinetProfileSection />

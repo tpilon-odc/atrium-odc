@@ -18,6 +18,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
 import { complianceApi, type PhaseProgress } from '@/lib/api'
+import { GenerateDocumentButton } from '@/components/document-templates/GenerateDocumentButton'
 import { StatusBadge } from '@/components/compliance/StatusBadge'
 import { AnswerForm } from '@/components/compliance/AnswerForm'
 import { ShareModal, type ShareableEntity } from '@/components/ui/ShareModal'
@@ -195,6 +196,7 @@ export default function PhaseDetailPage({ params }: { params: { phaseId: string 
                   <span className="font-medium">{pct}%</span>
                 </p>
               </div>
+              <GenerateDocumentButton targetEntity="COMPLIANCE" />
             </div>
             <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
               <div
