@@ -36,7 +36,10 @@ export default function GenerateModal({ template, onClose }: GenerateModalProps)
         token!
       ),
     onSuccess: (res) => {
-      setDownloadUrl(res.data.downloadUrl)
+      // Ajouter le token en query param pour que <a href download> fonctionne sans header
+      const url = new URL(res.data.downloadUrl, window.location.origin)
+      url.searchParams.set('token', token!)
+      setDownloadUrl(url.toString())
     },
     onError: (err: Error) => {
       setError(err.message)

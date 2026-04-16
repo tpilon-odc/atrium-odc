@@ -238,7 +238,11 @@ export default function ModeleDocumentDetailPage() {
                   </p>
                 </div>
                 <a
-                  href={gen.downloadUrl}
+                  href={(() => {
+                    const url = new URL(gen.downloadUrl, window.location.origin)
+                    url.searchParams.set('token', token!)
+                    return url.toString()
+                  })()}
                   download
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-md hover:bg-accent transition-colors"
                 >
