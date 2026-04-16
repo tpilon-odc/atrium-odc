@@ -9,9 +9,10 @@ import { documentTemplateApi, contactApi, type DocumentTemplate, type Contact } 
 interface GenerateModalProps {
   template: DocumentTemplate
   onClose: () => void
+  preselectedContactId?: string
 }
 
-export default function GenerateModal({ template, onClose }: GenerateModalProps) {
+export default function GenerateModal({ template, onClose, preselectedContactId }: GenerateModalProps) {
   const { token } = useAuthStore()
   const [contactSearch, setContactSearch] = useState('')
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
@@ -19,11 +20,13 @@ export default function GenerateModal({ template, onClose }: GenerateModalProps)
   const [error, setError] = useState<string | null>(null)
 
   const needsContact = template.targetEntity === 'CONTACT'
+  // Si un contact est pré-sélectionné (depuis la fiche contact), on l'utilise directement
+  const contactId = preselectedContactId ?? (needsContact && selectedContact ? selectedContact.id : undefined)
 
   const { data: contactsData, isLoading: contactsLoading } = useQuery({
     queryKey: ['contacts-for-generate', token, contactSearch],
     queryFn: () => contactApi.list(token!, { search: contactSearch, limit: 20 }),
-    enabled: !!token && needsContact,
+    enabled: !!token && needsContact && !preselectedContactId,
   })
 
   const contacts = contactsData?.data.contacts ?? []
@@ -32,7 +35,7 @@ export default function GenerateModal({ template, onClose }: GenerateModalProps)
     mutationFn: () =>
       documentTemplateApi.generate(
         template.id,
-        needsContact && selectedContact ? { contactId: selectedContact.id } : {},
+        contactId ? { contactId } : {},
         token!
       ),
     onSuccess: (res) => {
@@ -46,7 +49,7 @@ export default function GenerateModal({ template, onClose }: GenerateModalProps)
     },
   })
 
-  const canGenerate = !needsContact || !!selectedContact
+  const canGenerate = !needsContact || !!contactId
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -66,7 +69,7 @@ export default function GenerateModal({ template, onClose }: GenerateModalProps)
         <div className="p-5 space-y-4">
           {!downloadUrl ? (
             <>
-              {needsContact && (
+              {needsContact && !preselectedContactId && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Sélectionner un contact *</label>
 
@@ -134,6 +137,12 @@ export default function GenerateModal({ template, onClose }: GenerateModalProps)
                     </div>
                   )}
                 </div>
+              )}
+
+              {needsContact && preselectedContactId && (
+                <p className="text-sm text-muted-foreground">
+                  Le document sera généré avec les données de ce contact.
+                </p>
               )}
 
               {!needsContact && (

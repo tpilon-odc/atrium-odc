@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart, ShieldCheck, BarChart3, Landmark, Share2 } from 'lucide-react'
+import { ChevronLeft, Mail, Phone, Pencil, Trash2, Plus, Phone as PhoneIcon, Mail as MailIcon, Calendar, StickyNote, MessageSquare, CalendarDays, ShieldAlert, CheckSquare, MapPin, Briefcase, Baby, Heart, ShieldCheck, BarChart3, Landmark, Share2, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { contactApi, eventApi, type ContactType, type MaritalStatus, type InteractionType, type Interaction, type CalendarEvent, type EventType } from '@/lib/api'
+import { contactApi, eventApi, documentTemplateApi, type ContactType, type MaritalStatus, type InteractionType, type Interaction, type CalendarEvent, type EventType, type DocumentTemplate } from '@/lib/api'
 import { ShareModal } from '@/components/ui/ShareModal'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -31,6 +31,7 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
   RDV: 'RDV', CALL: 'Appel', TASK: 'Tâche', COMPLIANCE: 'Conformité',
 }
 import { EntityDocuments } from '@/components/entity-documents'
+import GenerateModal from '../../modeles-documents/GenerateModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -183,6 +184,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   const [activeTab, setActiveTab] = useState<'interactions' | 'agenda' | 'profil_mifid' | 'adequation' | 'patrimoine'>('interactions')
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [generateTemplate, setGenerateTemplate] = useState<DocumentTemplate | null>(null)
 
   // Les rôles sans cabinet (chambre, régulateur) accèdent via la route partagée
   const isSharedAccess = user?.globalRole === 'chamber' || user?.globalRole === 'regulator'
@@ -192,6 +194,14 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
     queryFn: () => isSharedAccess ? contactApi.getShared(id, token!) : contactApi.get(id, token!),
     enabled: !!token,
   })
+
+  const { data: templatesData } = useQuery({
+    queryKey: ['document-templates-contact', token],
+    queryFn: () => documentTemplateApi.list(token!),
+    enabled: !!token && !isSharedAccess,
+    select: (res) => res.data.templates.filter((t) => t.targetEntity === 'CONTACT'),
+  })
+  const contactTemplates = templatesData ?? []
 
   const { data: eventsData } = useQuery({
     queryKey: ['events-contact', id, token],
@@ -226,6 +236,25 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
         </Link>
         {contact && !isSharedAccess && (
           <div className="flex items-center gap-2">
+            {contactTemplates.length > 0 && (
+              <div className="relative group">
+                <Button variant="outline" size="sm">
+                  <FileText className="h-3.5 w-3.5 mr-1.5" />
+                  Générer un document
+                </Button>
+                <div className="absolute right-0 top-full mt-1 z-10 hidden group-hover:block bg-background border rounded-lg shadow-lg py-1 min-w-48">
+                  {contactTemplates.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setGenerateTemplate(t)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <Button variant="outline" size="sm" onClick={() => setShowShare(true)}>
               <Share2 className="h-3.5 w-3.5 mr-1.5" />
               Partager
@@ -474,6 +503,13 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
         </>
       )}
 
+      {generateTemplate && contact && (
+        <GenerateModal
+          template={generateTemplate}
+          preselectedContactId={id}
+          onClose={() => setGenerateTemplate(null)}
+        />
+      )}
       {showShare && contact && (
         <ShareModal
           title="Partager ce contact"
