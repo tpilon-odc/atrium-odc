@@ -2503,3 +2503,88 @@ export const adminChamberCategoryApi = {
       headers: { Authorization: `Bearer ${token}` },
     }),
 }
+
+// ── Document Templates (fusion de documents) ──────────────────────────────────
+
+export interface TemplateVariable {
+  label: string
+  fieldKey: string
+  placeholder: string
+}
+
+export interface DocumentTemplate {
+  id: string
+  name: string
+  description: string | null
+  targetEntity: 'CONTACT' | 'CABINET' | 'COMPLIANCE'
+  variables: TemplateVariable[]
+  createdAt: string
+  updatedAt: string
+  _count?: { generations: number }
+}
+
+export interface DocumentTemplateGeneration {
+  id: string
+  generatedAt: string
+  fileKey: string
+  downloadUrl: string
+  contact: { id: string; firstName: string | null; lastName: string } | null
+  user: { id: string; firstName: string | null; lastName: string | null }
+}
+
+export interface FieldCatalogItem {
+  fieldKey: string
+  label: string
+}
+
+export interface FieldCatalog {
+  CONTACT: FieldCatalogItem[]
+  CABINET: FieldCatalogItem[]
+  COMPLIANCE: FieldCatalogItem[]
+  SYSTEM: FieldCatalogItem[]
+}
+
+export const documentTemplateApi = {
+  list: (token: string) =>
+    call<{ templates: DocumentTemplate[] }>('/api/v1/document-templates', { token }),
+
+  get: (id: string, token: string) =>
+    call<{ template: DocumentTemplate }>(`/api/v1/document-templates/${id}`, { token }),
+
+  create: (formData: FormData, token: string) =>
+    fetch(`${API_URL}/api/v1/document-templates`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    }).then(async (res) => {
+      const json = await res.json()
+      if (!res.ok) throw new ApiError(json.error ?? 'Erreur', json.code ?? 'UNKNOWN', res.status)
+      return json as ApiResponse<{ template: DocumentTemplate }>
+    }),
+
+  update: (id: string, data: { name?: string; description?: string; variables?: TemplateVariable[] }, token: string) =>
+    call<{ template: DocumentTemplate }>(`/api/v1/document-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  delete: (id: string, token: string) =>
+    fetch(`${API_URL}/api/v1/document-templates/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+
+  generate: (id: string, data: { contactId?: string }, token: string) =>
+    call<{ downloadUrl: string; fileKey: string }>(`/api/v1/document-templates/${id}/generate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  generations: (id: string, token: string) =>
+    call<{ generations: DocumentTemplateGeneration[] }>(`/api/v1/document-templates/${id}/generations`, { token }),
+
+  fields: (token: string) =>
+    call<{ catalog: FieldCatalog }>('/api/v1/document-templates/fields', { token }),
+}

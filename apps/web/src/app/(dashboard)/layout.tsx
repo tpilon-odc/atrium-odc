@@ -35,6 +35,7 @@ import {
   Layers,
   Newspaper,
   Radio,
+  FileText,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { cn, withToken } from '@/lib/utils'
@@ -98,6 +99,7 @@ function buildNavGroups(member: CabinetMember | null, hasCabinet: boolean, globa
         allow('canManageContacts') && { href: '/crm', label: 'CRM', icon: Users },
         { href: '/agenda', label: 'Agenda', icon: CalendarDays },
         { href: '/ged', label: 'Documents', icon: FolderOpen },
+        { href: '/modeles-documents', label: 'Modèles de documents', icon: FileText },
         { href: '/partage', label: 'Partage', icon: Share2 },
       ] as (NavItem | false)[]).filter(Boolean) as NavItem[],
     },
@@ -138,6 +140,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   notifications: 'Notifications',
   actualites: 'Actualités',
   communications: 'Communications',
+  'modeles-documents': 'Modèles de documents',
   'contacts-partages': 'Contacts partagés',
   profil: 'Mon profil',
   admin: 'Admin',

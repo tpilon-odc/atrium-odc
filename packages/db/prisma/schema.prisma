@@ -215,6 +215,7 @@ model User {
   supplierUsers          SupplierUser[]
   chamberPosts           ChamberPost[]
   chamberPostReads       ChamberPostRead[]
+  templateGenerations    DocumentTemplateGeneration[]
 
   @@map("users")
 }
@@ -271,6 +272,7 @@ model Cabinet {
   gdprRequests          GdprRequest[]
   pca                   CabinetPca?
   pcaHistory            CabinetPcaHistory[]
+  documentTemplates     DocumentTemplate[]
   supplierCommercialContacts SupplierCommercialContact[]
   contactProducts            ContactProduct[]
   contactAssets              ContactAsset[]
@@ -1092,6 +1094,7 @@ model Contact {
   contactLiabilities ContactLiability[]
   contactIncomes    ContactIncome[]
   contactTax        ContactTax[]
+  templateGenerations DocumentTemplateGeneration[]
 
   @@index([cabinetId])
   @@map("contacts")
@@ -1715,4 +1718,53 @@ model ChamberPostRead {
   @@unique([postId, userId])
   @@index([userId])
   @@map("chamber_post_reads")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// MODÈLES DE DOCUMENTS (FUSION / MAIL MERGE)
+// ──────────────────────────────────────────────────────────────────────────────
+
+enum TemplateTargetEntity {
+  CONTACT
+  CABINET
+  COMPLIANCE
+}
+
+/// Template de document Word (.docx) avec ses variables de fusion configurées.
+model DocumentTemplate {
+  id           String               @id @default(uuid()) @db.Uuid
+  cabinetId    String               @map("cabinet_id") @db.Uuid
+  name         String
+  description  String?              @db.Text
+  fileKey      String               @map("file_key")
+  targetEntity TemplateTargetEntity @map("target_entity")
+  /// Array de { label, fieldKey, placeholder } — config des variables de fusion
+  variables    Json                 @default("[]") @db.JsonB
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime             @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime?            @map("deleted_at") @db.Timestamptz
+
+  cabinet     Cabinet                       @relation(fields: [cabinetId], references: [id])
+  generations DocumentTemplateGeneration[]
+
+  @@index([cabinetId])
+  @@map("document_templates")
+}
+
+/// Historique des documents générés à partir d'un template.
+model DocumentTemplateGeneration {
+  id          String   @id @default(uuid()) @db.Uuid
+  templateId  String   @map("template_id") @db.Uuid
+  contactId   String?  @map("contact_id") @db.Uuid
+  generatedBy String   @map("generated_by") @db.Uuid
+  fileKey     String   @map("file_key")
+  generatedAt DateTime @default(now()) @map("generated_at") @db.Timestamptz
+
+  template DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  contact  Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  user     User             @relation(fields: [generatedBy], references: [id])
+
+  @@index([templateId])
+  @@index([contactId])
+  @@map("document_template_generations")
 }
