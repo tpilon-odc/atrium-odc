@@ -274,7 +274,8 @@ function SubmittedView({ item, onEdit }: { item: Item; onEdit: () => void }) {
   } else if (item.type === 'text') {
     summary = (answer.value as { text?: string })?.text ?? '—'
   } else {
-    const sel = (answer.value as { selected?: string[] })?.selected ?? []
+    const raw = (answer.value as { selected?: unknown })?.selected
+    const sel = Array.isArray(raw) ? raw : []
     summary = sel.join(', ') || '—'
   }
 
