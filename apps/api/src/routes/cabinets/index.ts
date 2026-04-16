@@ -338,6 +338,18 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
 
       if (existingUser) {
         targetUserId = existingUser.id
+        // Vérifie si le compte Supabase est confirmé (a déjà accepté l'invitation)
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(targetUserId)
+        const isConfirmed = !!authUser?.user?.email_confirmed_at
+        if (!isConfirmed) {
+          // Compte non confirmé → régénère un lien d'invitation
+          const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'invite',
+            email,
+            options: { redirectTo: `${process.env.FRONTEND_URL}/accept-invite` },
+          })
+          inviteUrl = linkData?.properties?.action_link ?? null
+        }
       } else {
         // generateLink crée l'utilisateur dans Supabase Auth s'il n'existe pas,
         // ou régénère un lien pour un utilisateur déjà invité non confirmé.
