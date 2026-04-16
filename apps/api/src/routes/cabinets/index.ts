@@ -380,7 +380,7 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
 
       }
 
-      // Vérifie qu'il n'est pas déjà membre (avec compte)
+      // Vérifie qu'il n'est pas déjà membre actif
       const alreadyMember = await prisma.cabinetMember.findFirst({
         where: { cabinetId: request.cabinetId, userId: targetUserId, deletedAt: null },
       })
@@ -391,8 +391,25 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
+      // Réactive un membre soft-deleted s'il existe, sinon crée
+      const existingDeleted = await prisma.cabinetMember.findFirst({
+        where: { cabinetId: request.cabinetId, userId: targetUserId, deletedAt: { not: null } },
+      })
+
       let member
-      try {
+      if (existingDeleted) {
+        member = await prisma.cabinetMember.update({
+          where: { id: existingDeleted.id },
+          data: {
+            deletedAt: null,
+            role: role as MemberRole,
+            canManageSuppliers,
+            canManageProducts,
+            canManageContacts,
+          },
+          include: { user: { select: { id: true, email: true } } },
+        })
+      } else {
         member = await prisma.cabinetMember.create({
           data: {
             cabinetId: request.cabinetId,
@@ -404,15 +421,6 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
           },
           include: { user: { select: { id: true, email: true } } },
         })
-      } catch (err: unknown) {
-        const code = (err as { code?: string }).code
-        if (code === 'P2002') {
-          return reply.status(409).send({
-            error: 'Cet utilisateur est déjà membre du cabinet',
-            code: 'ALREADY_MEMBER',
-          })
-        }
-        throw err
       }
 
       // Envoie le mail d'invitation si un lien a été généré
