@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import { Resend } from 'resend'
 
-const FROM = process.env.MAIL_FROM || 'CGP Platform <noreply@cgp-platform.fr>'
+const FROM = process.env.MAIL_FROM || 'MyGaia <noreply@lab.odc.solutions>'
 const isProd = process.env.NODE_ENV === 'production'
 
 // ── Transport SMTP (dev → Mailpit) ────────────────────────────────────────────
