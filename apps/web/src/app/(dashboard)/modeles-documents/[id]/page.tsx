@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Trash2, Copy, Check, Download, FileText } from 'lucide-react'
+import { ArrowLeft, Trash2, Copy, Check, Download, FileText, Upload } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { documentTemplateApi, type TemplateVariable, type FieldCatalogItem } from '@/lib/api'
+import { useRef } from 'react'
 import FieldCatalogPanel from '../FieldCatalogPanel'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -21,6 +22,7 @@ export default function ModeleDocumentDetailPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [showGenerate, setShowGenerate] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: templateData, isLoading } = useQuery({
     queryKey: ['document-template', id, token],
@@ -46,6 +48,13 @@ export default function ModeleDocumentDetailPage() {
 
   // Initialise l'état local dès que le template est chargé
   const localVariables = variables ?? template?.variables ?? []
+
+  const replaceFileMutation = useMutation({
+    mutationFn: (file: File) => documentTemplateApi.replaceFile(id, file, token!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['document-template', id] })
+    },
+  })
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -110,13 +119,35 @@ export default function ModeleDocumentDetailPage() {
             )}
           </div>
         </div>
-        <button
-          onClick={() => setShowGenerate(true)}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <FileText className="h-4 w-4" />
-          Générer un document
-        </button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) replaceFileMutation.mutate(file)
+              e.target.value = ''
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={replaceFileMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2 border rounded-md text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+            title="Remplacer le fichier .docx"
+          >
+            <Upload className="h-4 w-4" />
+            {replaceFileMutation.isPending ? 'Envoi...' : replaceFileMutation.isSuccess ? 'Fichier mis à jour' : 'Remplacer le .docx'}
+          </button>
+          <button
+            onClick={() => setShowGenerate(true)}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <FileText className="h-4 w-4" />
+            Générer un document
+          </button>
+        </div>
       </div>
 
       {/* Variables */}

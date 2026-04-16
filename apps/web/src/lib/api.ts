@@ -2583,6 +2583,17 @@ export const documentTemplateApi = {
       headers: { Authorization: `Bearer ${token}` },
     }),
 
+  replaceFile: (id: string, file: File, token: string) =>
+    fetch(`${API_URL}/api/v1/document-templates/${id}/file`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: (() => { const f = new FormData(); f.append('file', file); return f })(),
+    }).then(async (res) => {
+      const json = await res.json()
+      if (!res.ok) throw new ApiError(json.error ?? 'Erreur', json.code ?? 'UNKNOWN', res.status)
+      return json as ApiResponse<{ template: DocumentTemplate }>
+    }),
+
   generate: (id: string, data: { contactId?: string }, token: string) =>
     call<{ downloadUrl: string; fileKey: string }>(`/api/v1/document-templates/${id}/generate`, {
       method: 'POST',

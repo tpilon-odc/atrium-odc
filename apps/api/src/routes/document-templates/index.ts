@@ -139,6 +139,37 @@ export const documentTemplateRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: { template } })
   })
 
+  // ── POST /:id/file ────────────────────────────────────────────────────────
+  // Remplacer le fichier .docx d'un template existant
+  app.post('/:id/file', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+
+    const existing = await prisma.documentTemplate.findFirst({
+      where: { id, cabinetId: request.cabinetId, deletedAt: null },
+    })
+    if (!existing) return reply.status(404).send({ error: 'Template introuvable', code: 'NOT_FOUND' })
+
+    const data = await request.file()
+    if (!data) return reply.status(400).send({ error: 'Fichier requis', code: 'VALIDATION_ERROR' })
+    if (data.mimetype !== DOCX_MIME) {
+      return reply.status(400).send({ error: 'Seuls les fichiers .docx sont acceptés', code: 'INVALID_FILE_TYPE' })
+    }
+
+    const buffer = await data.toBuffer()
+    const newFileKey = buildStoragePath(request.cabinetId, data.filename)
+    await uploadToMinio(newFileKey, buffer, DOCX_MIME)
+
+    // Supprimer l'ancien fichier
+    try { await deleteFromMinio(existing.fileKey) } catch { /* ignore si déjà supprimé */ }
+
+    const template = await prisma.documentTemplate.update({
+      where: { id },
+      data: { fileKey: newFileKey },
+    })
+
+    return reply.send({ data: { template } })
+  })
+
   // ── DELETE /:id ───────────────────────────────────────────────────────────
   app.delete('/:id', { preHandler: [authMiddleware, cabinetMiddleware] }, async (request, reply) => {
     const { id } = request.params as { id: string }
