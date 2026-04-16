@@ -125,8 +125,66 @@ export async function resolveVariableValues(
     annee_en_cours: () => String(today.getFullYear()),
   }
 
+  // Séparer les champs compliance_item_<id> des champs standards
+  const complianceItemIds = fieldKeys
+    .filter((k) => k.startsWith('compliance_item_'))
+    .map((k) => k.replace('compliance_item_', ''))
+
+  // Résoudre les réponses conformité du cabinet en une seule requête
+  let complianceValues: Record<string, string> = {}
+  if (complianceItemIds.length > 0) {
+    const answers = await prisma.cabinetComplianceAnswer.findMany({
+      where: {
+        cabinetId: opts.cabinetId,
+        itemId: { in: complianceItemIds },
+        deletedAt: null,
+      },
+      select: {
+        itemId: true,
+        value: true,
+        status: true,
+        submittedAt: true,
+        expiresAt: true,
+        item: { select: { type: true } },
+      },
+    })
+
+    for (const answer of answers) {
+      const key = `compliance_item_${answer.itemId}`
+      const val = answer.value as Record<string, unknown>
+
+      let resolved = ''
+      switch (answer.item.type) {
+        case 'text':
+          resolved = typeof val.text === 'string' ? val.text : ''
+          break
+        case 'radio':
+          resolved = Array.isArray(val.selected) ? String(val.selected[0] ?? '') : ''
+          break
+        case 'checkbox':
+          resolved = Array.isArray(val.selected) ? val.selected.join(', ') : ''
+          break
+        case 'doc':
+          // Pour les documents, on indique juste le statut (le document lui-même n'est pas du texte)
+          resolved = answer.status === 'submitted' ? 'Document fourni' : 'Document manquant'
+          break
+      }
+      complianceValues[key] = resolved
+    }
+
+    // Pour les items sans réponse, retourner une chaîne vide
+    for (const itemId of complianceItemIds) {
+      const key = `compliance_item_${itemId}`
+      if (!(key in complianceValues)) complianceValues[key] = ''
+    }
+  }
+
   for (const key of fieldKeys) {
-    values[key] = fieldMap[key]?.() ?? ''
+    if (key.startsWith('compliance_item_')) {
+      values[key] = complianceValues[key] ?? ''
+    } else {
+      values[key] = fieldMap[key]?.() ?? ''
+    }
   }
 
   return values

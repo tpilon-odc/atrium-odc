@@ -241,8 +241,35 @@ export const documentTemplateRoutes: FastifyPluginAsync = async (app) => {
   })
 
   // ── GET /fields ───────────────────────────────────────────────────────────
-  // Catalogue des champs disponibles par entité cible
+  // Catalogue des champs disponibles par entité cible.
+  // Pour COMPLIANCE, les items sont chargés dynamiquement depuis la DB.
   app.get('/fields', { preHandler: [authMiddleware, cabinetMiddleware] }, async (_request, reply) => {
+    // Charger les phases de conformité actives avec leurs items
+    const compliancePhases = await prisma.compliancePhase.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' },
+      select: {
+        id: true,
+        label: true,
+        items: {
+          orderBy: { order: 'asc' },
+          select: { id: true, label: true, type: true },
+        },
+      },
+    })
+
+    // Chaque item devient un champ avec fieldKey = "compliance_item_<id>"
+    // On groupe par phase pour que le frontend puisse afficher des sections
+    const complianceFields = compliancePhases.map((phase) => ({
+      phaseId: phase.id,
+      phaseLabel: phase.label,
+      items: phase.items.map((item) => ({
+        fieldKey: `compliance_item_${item.id}`,
+        label: item.label,
+        type: item.type,
+      })),
+    }))
+
     const catalog = {
       CONTACT: [
         { fieldKey: 'contact_prenom', label: 'Prénom' },
@@ -268,6 +295,7 @@ export const documentTemplateRoutes: FastifyPluginAsync = async (app) => {
         { fieldKey: 'cabinet_ville', label: 'Ville' },
         { fieldKey: 'cabinet_site_web', label: 'Site web' },
       ],
+      // Pour COMPLIANCE : champs cabinet + items conformité dynamiques
       COMPLIANCE: [
         { fieldKey: 'cabinet_nom', label: 'Nom du cabinet' },
         { fieldKey: 'cabinet_siret', label: 'SIRET' },
@@ -281,6 +309,8 @@ export const documentTemplateRoutes: FastifyPluginAsync = async (app) => {
         { fieldKey: 'conseiller_nom_complet', label: 'Nom complet conseiller' },
         { fieldKey: 'conseiller_email', label: 'Email conseiller' },
       ],
+      // Sections conformité groupées par phase (uniquement pour targetEntity COMPLIANCE)
+      COMPLIANCE_PHASES: complianceFields,
     }
     return reply.send({ data: { catalog } })
   })

@@ -2535,6 +2535,13 @@ export interface DocumentTemplateGeneration {
 export interface FieldCatalogItem {
   fieldKey: string
   label: string
+  type?: string
+}
+
+export interface CompliancePhaseFields {
+  phaseId: string
+  phaseLabel: string
+  items: FieldCatalogItem[]
 }
 
 export interface FieldCatalog {
@@ -2542,6 +2549,7 @@ export interface FieldCatalog {
   CABINET: FieldCatalogItem[]
   COMPLIANCE: FieldCatalogItem[]
   SYSTEM: FieldCatalogItem[]
+  COMPLIANCE_PHASES: CompliancePhaseFields[]
 }
 
 export const documentTemplateApi = {

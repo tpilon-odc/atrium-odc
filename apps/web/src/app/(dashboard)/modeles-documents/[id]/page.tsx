@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Trash2, Copy, Check, Download, FileText } from 'lucide-react'
+import { ArrowLeft, Trash2, Copy, Check, Download, FileText } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { documentTemplateApi, type TemplateVariable, type FieldCatalogItem } from '@/lib/api'
+import FieldCatalogPanel from '../FieldCatalogPanel'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import GenerateModal from '../GenerateModal'
@@ -45,10 +46,6 @@ export default function ModeleDocumentDetailPage() {
 
   // Initialise l'état local dès que le template est chargé
   const localVariables = variables ?? template?.variables ?? []
-
-  const availableFields: FieldCatalogItem[] = template
-    ? [...(catalog?.[template.targetEntity] ?? []), ...(catalog?.SYSTEM ?? [])]
-    : []
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -155,30 +152,16 @@ export default function ModeleDocumentDetailPage() {
           {/* Catalogue */}
           <div>
             <p className="text-sm font-medium mb-2">Champs disponibles</p>
-            <div className="border rounded-md divide-y max-h-80 overflow-y-auto">
-              {availableFields.map((field) => {
-                const added = localVariables.some((v) => v.fieldKey === field.fieldKey)
-                return (
-                  <div key={field.fieldKey} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-accent/30">
-                    <div>
-                      <p className="font-medium">{field.label}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{field.fieldKey}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleAddVariable(field)}
-                      disabled={added}
-                      className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${
-                        added ? 'text-muted-foreground cursor-default' : 'text-primary hover:bg-primary/10'
-                      }`}
-                    >
-                      {added ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                      {added ? 'Ajouté' : 'Ajouter'}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
+            {!catalog ? (
+              <div className="border rounded-md p-3 text-sm text-muted-foreground">Chargement...</div>
+            ) : (
+              <FieldCatalogPanel
+                catalog={catalog}
+                targetEntity={template.targetEntity}
+                variables={localVariables}
+                onAdd={handleAddVariable}
+              />
+            )}
           </div>
 
           {/* Variables configurées */}
