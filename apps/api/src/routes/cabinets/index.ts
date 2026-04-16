@@ -13,6 +13,7 @@ import {
   updateMemberBody,
   addExternalMemberBody,
 } from './schemas'
+import { sendInviteEmail } from '../../lib/mailer'
 
 // Helper : récupère le membre courant avec son rôle
 async function getCurrentMember(userId: string, cabinetId: string) {
@@ -412,6 +413,19 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
           })
         }
         throw err
+      }
+
+      // Envoie le mail d'invitation si un lien a été généré
+      if (inviteUrl) {
+        const cabinet = await prisma.cabinet.findUnique({
+          where: { id: request.cabinetId },
+          select: { name: true },
+        })
+        sendInviteEmail({
+          to: email,
+          inviteUrl,
+          cabinetName: cabinet?.name ?? 'votre cabinet',
+        }).catch((err) => console.error('[invite] sendInviteEmail error:', err))
       }
 
       return reply.status(201).send({ data: { member, inviteUrl } })

@@ -164,6 +164,32 @@ export async function sendGdprRequestConfirmEmail(params: {
   await sendEmail({ to, subject, html })
 }
 
+// ── Template invitation membre ────────────────────────────────────────────────
+
+export async function sendInviteEmail(params: {
+  to: string
+  inviteUrl: string
+  cabinetName: string
+}): Promise<void> {
+  const { to, inviteUrl, cabinetName } = params
+  const subject = `Invitation à rejoindre ${cabinetName} sur MyGaïa`
+  const html = `
+    <p>Bonjour,</p>
+    <p>Vous avez été invité(e) à rejoindre le cabinet <strong>${cabinetName}</strong> sur la plateforme MyGaïa.</p>
+    <p>Cliquez sur le bouton ci-dessous pour créer votre compte et accéder à la plateforme :</p>
+    <p style="margin-top:24px">
+      <a href="${inviteUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600">
+        Accepter l'invitation
+      </a>
+    </p>
+    <p style="margin-top:16px;font-size:12px;color:#6b7280">
+      Ce lien est valable 24 heures. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+    </p>
+    <p>— L'équipe MyGaïa</p>
+  `
+  await sendEmail({ to, subject, html })
+}
+
 export async function sendSupplierReviewEmail(params: {
   to: string
   supplierName: string

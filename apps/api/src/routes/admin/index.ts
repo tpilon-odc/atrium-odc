@@ -6,7 +6,7 @@ import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { supabaseAdmin } from '../../lib/supabase'
 import { updateReportBody } from '../clusters/schemas'
-import { sendGdprRequestConfirmEmail } from '../../lib/mailer'
+import { sendGdprRequestConfirmEmail, sendInviteEmail } from '../../lib/mailer'
 import { getPresignedUrl } from '../../lib/minio'
 
 async function platformAdminMiddleware(request: Parameters<typeof authMiddleware>[0], reply: Parameters<typeof authMiddleware>[1]) {
@@ -83,7 +83,17 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       select: { id: true, email: true, firstName: true, lastName: true, globalRole: true, createdAt: true },
     })
 
-    return reply.status(201).send({ data: { user, inviteUrl: linkData.properties?.action_link ?? null } })
+    const inviteUrl = linkData.properties?.action_link ?? null
+
+    if (inviteUrl) {
+      sendInviteEmail({
+        to: email,
+        inviteUrl,
+        cabinetName: 'MyGaïa',
+      }).catch((err) => console.error('[admin-invite] sendInviteEmail error:', err))
+    }
+
+    return reply.status(201).send({ data: { user, inviteUrl } })
   })
 
   // ── PATCH /api/v1/admin/platform-users/:id ────────────────────────────────
