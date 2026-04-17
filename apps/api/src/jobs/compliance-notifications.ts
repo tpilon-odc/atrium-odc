@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { sendComplianceExpiryEmail } from '../lib/mailer'
+import { sendPushToUser } from '../lib/webpush'
 
 /**
  * Job nuit à 6h UTC — envoie les notifications d'expiration conformité.
@@ -103,8 +104,9 @@ export async function runComplianceNotificationsJob(): Promise<void> {
           skipDuplicates: true,
         })
 
-        // Envoie un email à chaque owner/admin — envoi parallèle
-        await Promise.all(recipients.filter((member) => member.user).map((member) =>
+        // Envoie un email + push à chaque owner/admin — envoi parallèle
+        const validRecipients = recipients.filter((m) => m.user)
+        await Promise.all(validRecipients.map((member) =>
           sendComplianceExpiryEmail({
             to: member.user!.email,
             cabinetName: answer.cabinet.name,
@@ -113,6 +115,13 @@ export async function runComplianceNotificationsJob(): Promise<void> {
             expiresAt: answer.expiresAt!,
             daysBefore,
           })
+        ))
+        await Promise.all(validRecipients.map((member) =>
+          sendPushToUser(member.user!.id, {
+            title,
+            body: message,
+            url: `/conformite/${answer.item.phaseId}`,
+          }).catch(() => {})
         ))
 
         // Trace l'envoi dans compliance_notifications

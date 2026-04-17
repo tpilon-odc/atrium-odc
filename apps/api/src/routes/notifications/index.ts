@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
 import { sendComplianceExpiryEmail } from '../../lib/mailer'
+import { sendPushToUser } from '../../lib/webpush'
 
 export const notificationRoutes: FastifyPluginAsync = async (app) => {
   // ── POST /api/v1/notifications/test ──────────────────────────────────────
@@ -33,6 +34,11 @@ export const notificationRoutes: FastifyPluginAsync = async (app) => {
           entityId: firstPhase?.id ?? request.cabinetId,
         },
       })
+      sendPushToUser(request.user.id, {
+        title: notification.title,
+        body: notification.message,
+        url: firstPhase ? `/conformite/${firstPhase.id}` : '/notifications',
+      }).catch(() => {})
       return reply.status(201).send({ data: { notification } })
     }
   )

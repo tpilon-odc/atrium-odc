@@ -43,6 +43,7 @@ import { folderRulesRoutes } from './routes/folder-rules'
 import { fileRoutes } from './routes/files'
 import { chamberRoutes } from './routes/chamber'
 import { documentTemplateRoutes } from './routes/document-templates'
+import { pushRoutes } from './routes/push'
 
 const app = Fastify({
   logger: {
@@ -146,6 +147,7 @@ const start = async () => {
   app.register(fileRoutes, { prefix: '/api/v1/files' })
   app.register(chamberRoutes, { prefix: '/api/v1/chamber' })
   app.register(documentTemplateRoutes, { prefix: '/api/v1/document-templates' })
+  app.register(pushRoutes, { prefix: '/api/v1/push' })
 
   // Health check
   app.get('/health', async () => ({ status: 'ok' }))

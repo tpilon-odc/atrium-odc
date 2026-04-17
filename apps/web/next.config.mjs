@@ -1,3 +1,16 @@
+import withPWAInit from '@ducanh2912/next-pwa'
+
+const withPWA = withPWAInit({
+  dest: 'public',
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: true,
+  disable: process.env.NODE_ENV === 'development',
+  workboxOptions: {
+    disableDevLogs: true,
+  },
+})
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   // Activé uniquement lors du build Docker (NEXT_BUILD_STANDALONE=true)
@@ -6,6 +19,7 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    NEXT_PUBLIC_VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '',
   },
   transpilePackages: [
     '@fullcalendar/core',
@@ -17,4 +31,5 @@ const nextConfig = {
     '@fullcalendar/rrule',
   ],
 }
-export default nextConfig
+
+export default withPWA(nextConfig)

@@ -44,6 +44,8 @@ import { useAuthStore } from '@/stores/auth'
 import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import { authApi, memberApi, complianceApi, notificationApi, channelApi, consentApi, cabinetApi, chamberApi, displayName, type AppNotification, type CabinetMember } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { InstallPrompt } from '@/components/ui/InstallPrompt'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 // ── Nav groups (desktop sidebar) ───────────────────────────────────────────
 
@@ -438,6 +440,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: notifData } = useNotifications(token)
   const alertCount = notifData?.data.unreadCount ?? 0
   const breadcrumbs = getBreadcrumbs(pathname)
+  usePushNotifications(token)
 
   const { data: membersData } = useQuery({
     queryKey: ['members', token],
@@ -792,6 +795,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </>
       )}
+      <InstallPrompt />
     </div>
   )
 }

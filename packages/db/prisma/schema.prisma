@@ -216,6 +216,7 @@ model User {
   chamberPosts           ChamberPost[]
   chamberPostReads       ChamberPostRead[]
   templateGenerations    DocumentTemplateGeneration[]
+  pushSubscriptions      PushSubscription[]
 
   @@map("users")
 }
@@ -1487,6 +1488,24 @@ model Notification {
   @@index([cabinetId])
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// WEB PUSH SUBSCRIPTIONS
+// ──────────────────────────────────────────────────────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
