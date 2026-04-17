@@ -228,9 +228,17 @@ model Cabinet {
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   settings           Json?              @db.JsonB
   description        String?            @db.Text
+  adresse            String?
+  codePostal         String?            @map("code_postal")
   city               String?
   website            String?
   logoUrl            String?            @map("logo_url")
+  formeJuridique     String?            @map("forme_juridique")
+  capitalSocial      String?            @map("capital_social")
+  dateImmatriculation DateTime?         @map("date_immatriculation") @db.Date
+  categoriesOrias    String[]           @map("categories_orias") @db.Text
+  oriasValiditeJusquau DateTime?        @map("orias_validite_jusquau") @db.Date
+  dateAdhesionCncgp  DateTime?          @map("date_adhesion_cncgp") @db.Date
   icsToken                String             @unique @default(uuid()) @map("ics_token") @db.Uuid
   deletionRequestedAt     DateTime?          @map("deletion_requested_at") @db.Timestamptz
   deletionScheduledAt     DateTime?          @map("deletion_scheduled_at") @db.Timestamptz

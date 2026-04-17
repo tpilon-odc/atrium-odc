@@ -211,10 +211,16 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
         })
       }
 
+      const { dateImmatriculation, oriasValiditeJusquau, dateAdhesionCncgp, ...rest } = result.data as any
+      const dateFields: Record<string, Date | null> = {}
+      for (const [key, val] of Object.entries({ dateImmatriculation, oriasValiditeJusquau, dateAdhesionCncgp })) {
+        if (val === '' || val === null || val === undefined) dateFields[key] = null
+        else { const d = new Date(val as string); dateFields[key] = isNaN(d.getTime()) ? null : d }
+      }
+
       const cabinet = await prisma.cabinet.update({
         where: { id: request.cabinetId },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data: result.data as any,
+        data: { ...rest, ...dateFields },
       })
 
       return reply.send({ data: { cabinet } })

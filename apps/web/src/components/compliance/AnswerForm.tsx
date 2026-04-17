@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { complianceApi, documentApi, type AnswerValue, type PhaseProgress, type Document } from '@/lib/api'
+import { complianceApi, documentApi, folderApi, type AnswerValue, type PhaseProgress, type Document, type Folder } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { DocumentViewer } from '@/components/ui/DocumentViewer'
 
@@ -121,9 +121,20 @@ function DocForm({ item, onSave, saving }: { item: Item; onSave: (v: AnswerValue
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
+  // Trouve le dossier Conformité pour filtrer les docs
+  const { data: foldersData } = useQuery({
+    queryKey: ['folders', token],
+    queryFn: () => folderApi.list(token!),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  })
+  const conformiteFolderId = (foldersData?.data.folders ?? []).find(
+    (f: Folder) => f.name === 'Conformité'
+  )?.id
+
   const { data, isLoading } = useQuery({
-    queryKey: ['docs-picker', token],
-    queryFn: () => documentApi.list(token!, { limit: 50 }),
+    queryKey: ['docs-picker', token, conformiteFolderId],
+    queryFn: () => documentApi.list(token!, { limit: 100, folderId: conformiteFolderId }),
     enabled: !!token,
     staleTime: 30 * 1000,
   })
@@ -198,6 +209,11 @@ function DocForm({ item, onSave, saving }: { item: Item; onSave: (v: AnswerValue
   // Picker
   return (
     <div className="space-y-3">
+      {conformiteFolderId && (
+        <p className="text-xs text-muted-foreground">
+          Documents du dossier <span className="font-medium">Conformité</span>
+        </p>
+      )}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input

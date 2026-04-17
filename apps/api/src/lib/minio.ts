@@ -80,6 +80,16 @@ export async function uploadToMinio(
   )
 }
 
+export async function getBufferFromMinio(key: string): Promise<Buffer> {
+  const stream = await minioNative.getObject(BUCKET, key)
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk))
+    stream.on('end', () => resolve(Buffer.concat(chunks)))
+    stream.on('error', reject)
+  })
+}
+
 export async function deleteFromMinio(key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
 }

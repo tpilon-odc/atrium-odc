@@ -5,9 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Trash2, Plus, X, UserCheck, Building, Globe, Loader2 } from 'lucide-react'
+import { Pencil, Trash2, Plus, X, UserCheck, Building, Globe, Loader2, FileSearch } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
-import { cabinetApi, memberApi, displayName, type CabinetMember } from '@/lib/api'
+import { cabinetApi, memberApi, documentApi, displayName, type CabinetMember } from '@/lib/api'
 import { GenerateDocumentButton } from '@/components/document-templates/GenerateDocumentButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,13 +26,32 @@ const cabinetSchema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
   siret: z.string().optional(),
   oriasNumber: z.string().optional(),
+  formeJuridique: z.string().optional(),
+  capitalSocial: z.string().optional(),
+  dateImmatriculation: z.string().optional(),
+  adresse: z.string().optional(),
+  codePostal: z.string().optional(),
+  categoriesOrias: z.string().optional(),
+  oriasValiditeJusquau: z.string().optional(),
+  dateAdhesionCncgp: z.string().optional(),
 })
 type CabinetForm = z.infer<typeof cabinetSchema>
+
+type DocExtractResult = Awaited<ReturnType<typeof documentApi.uploadCabinetDoc>>['data']
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  kbis: 'KBIS',
+  orias: 'Attestation ORIAS',
+  cncgp: 'Attestation CNCGP',
+}
 
 function CabinetSection() {
   const { token } = useAuthStore()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
+  const [docResult, setDocResult] = useState<DocExtractResult | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data } = useQuery({
     queryKey: ['cabinet-me', token],
@@ -41,15 +60,71 @@ function CabinetSection() {
   })
   const cabinet = data?.data.cabinet as any
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CabinetForm>({
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<CabinetForm>({
     resolver: zodResolver(cabinetSchema),
-    values: cabinet ? { name: cabinet.name, siret: cabinet.siret ?? '', oriasNumber: cabinet.oriasNumber ?? '' } : undefined,
+    values: cabinet ? {
+      name: cabinet.name,
+      siret: cabinet.siret ?? '',
+      oriasNumber: cabinet.oriasNumber ?? '',
+      formeJuridique: cabinet.formeJuridique ?? '',
+      capitalSocial: cabinet.capitalSocial ?? '',
+      dateImmatriculation: cabinet.dateImmatriculation ? cabinet.dateImmatriculation.substring(0, 10) : '',
+      adresse: cabinet.adresse ?? '',
+      codePostal: cabinet.codePostal ?? '',
+      categoriesOrias: cabinet.categoriesOrias?.join(', ') ?? '',
+      oriasValiditeJusquau: cabinet.oriasValiditeJusquau ? cabinet.oriasValiditeJusquau.substring(0, 10) : '',
+      dateAdhesionCncgp: cabinet.dateAdhesionCncgp ? cabinet.dateAdhesionCncgp.substring(0, 10) : '',
+    } : undefined,
   })
 
   const mutation = useMutation({
-    mutationFn: (d: CabinetForm) => cabinetApi.update(d, token!),
+    mutationFn: (d: CabinetForm) => cabinetApi.update({
+      ...d,
+      categoriesOrias: d.categoriesOrias ? d.categoriesOrias.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    } as any, token!),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['cabinet-me'] }); setEditing(false) },
   })
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => documentApi.uploadCabinetDoc(file, token!),
+    onSuccess: ({ data }) => {
+      setUploadError(null)
+      if (!data.extractable) {
+        setUploadError('Document uploadé dans la GED mais impossible d\'en extraire les informations.')
+        return
+      }
+      setDocResult(data)
+    },
+    onError: (e: Error) => setUploadError(e.message),
+  })
+
+  function applyExtracted() {
+    if (!docResult?.extractable) return
+    if (docResult.name) setValue('name', docResult.name)
+    if (docResult.siret) setValue('siret', docResult.siret)
+    if (docResult.oriasNumber) setValue('oriasNumber', docResult.oriasNumber)
+    if (docResult.categories?.length) setValue('categoriesOrias', docResult.categories.join(', '))
+    if ('formeJuridique' in docResult && docResult.formeJuridique) setValue('formeJuridique', docResult.formeJuridique)
+    if ('capital' in docResult && docResult.capital) setValue('capitalSocial', docResult.capital)
+    if ('adresse' in docResult && docResult.adresse) setValue('adresse', docResult.adresse)
+    if ('codePostal' in docResult && docResult.codePostal) setValue('codePostal', docResult.codePostal)
+    if ('validiteJusquau' in docResult && docResult.validiteJusquau) {
+      const parts = docResult.validiteJusquau.split('/')
+      if (parts.length === 3) setValue('oriasValiditeJusquau', `${parts[2]}-${parts[1]}-${parts[0]}`)
+    }
+    if ('dateAdhesion' in docResult && docResult.dateAdhesion) {
+      const parts = docResult.dateAdhesion.split('/')
+      if (parts.length === 3) setValue('dateAdhesionCncgp', `${parts[2]}-${parts[1]}-${parts[0]}`)
+    }
+    if ('dateImmatriculation' in docResult && docResult.dateImmatriculation) {
+      const parts = docResult.dateImmatriculation.split('/')
+      if (parts.length === 3) setValue('dateImmatriculation', `${parts[2]}-${parts[1]}-${parts[0]}`)
+    }
+    setDocResult(null)
+    setEditing(true)
+  }
+
+  const docTypeLabel = docResult?.extractable && docResult.docType ? DOC_TYPE_LABELS[docResult.docType] : 'Document'
 
   return (
     <div className="bg-card border border-border rounded-lg p-5 space-y-4">
@@ -59,11 +134,68 @@ function CabinetSection() {
           Informations du cabinet
         </h3>
         {!editing && (
-          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) { setUploadError(null); setDocResult(null); uploadMutation.mutate(file) }
+                e.target.value = ''
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
+              title="Importer depuis un document officiel (KBIS, ORIAS, CNCGP)"
+            >
+              {uploadMutation.isPending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <FileSearch className="h-3.5 w-3.5" />}
+              <span className="ml-1.5">Importer un doc</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         )}
       </div>
+
+      {uploadError && (
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+          {uploadError}
+        </div>
+      )}
+
+      {docResult?.extractable && (
+        <div className="border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 rounded-lg p-3 space-y-2">
+          <p className="text-xs font-medium text-blue-700 dark:text-blue-300">
+            Données trouvées — {docTypeLabel}
+          </p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            {docResult.name && <><dt className="text-muted-foreground">Nom</dt><dd className="font-medium truncate">{docResult.name}</dd></>}
+            {docResult.siret && <><dt className="text-muted-foreground">SIRET / SIREN</dt><dd className="font-medium">{docResult.siret}</dd></>}
+            {docResult.oriasNumber && <><dt className="text-muted-foreground">N° ORIAS</dt><dd>{docResult.oriasNumber}</dd></>}
+            {'formeJuridique' in docResult && docResult.formeJuridique && <><dt className="text-muted-foreground">Forme juridique</dt><dd>{docResult.formeJuridique}</dd></>}
+            {'ville' in docResult && docResult.ville && <><dt className="text-muted-foreground">Ville</dt><dd>{'codePostal' in docResult && docResult.codePostal ? `${docResult.codePostal} ` : ''}{docResult.ville}</dd></>}
+            {'capital' in docResult && docResult.capital && <><dt className="text-muted-foreground">Capital</dt><dd>{docResult.capital}</dd></>}
+            {docResult.categories?.length && <><dt className="text-muted-foreground">Catégories</dt><dd>{docResult.categories.join(', ')}</dd></>}
+            {'validiteJusquau' in docResult && docResult.validiteJusquau && <><dt className="text-muted-foreground">Valide jusqu&apos;au</dt><dd>{docResult.validiteJusquau}</dd></>}
+            {'dateAdhesion' in docResult && docResult.dateAdhesion && <><dt className="text-muted-foreground">Adhésion depuis</dt><dd>{docResult.dateAdhesion}</dd></>}
+          </dl>
+          <p className="text-xs text-blue-600 dark:text-blue-400">
+            Le document a été enregistré dans votre GED.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={applyExtracted}>Préremplir les champs</Button>
+            <Button size="sm" variant="ghost" onClick={() => setDocResult(null)}>Fermer</Button>
+          </div>
+        </div>
+      )}
 
       {editing ? (
         <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="space-y-3">
@@ -74,13 +206,51 @@ function CabinetSection() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">SIRET</Label>
+              <Label className="text-xs">SIRET / SIREN</Label>
               <Input {...register('siret')} placeholder="12345678901234" className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Forme juridique</Label>
+              <Input {...register('formeJuridique')} placeholder="SARL, SAS…" className="text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Capital social</Label>
+              <Input {...register('capitalSocial')} placeholder="10 000,00 Euros" className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Date d&apos;immatriculation</Label>
+              <Input {...register('dateImmatriculation')} type="date" className="text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Adresse du siège</Label>
+            <Input {...register('adresse')} placeholder="885 Rue Louis Bréguet" className="text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Code postal</Label>
+              <Input {...register('codePostal')} placeholder="62100" className="text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">N° ORIAS</Label>
               <Input {...register('oriasNumber')} placeholder="12345678" className="text-sm" />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Catégories ORIAS</Label>
+              <Input {...register('categoriesOrias')} placeholder="CIF, COA" className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">ORIAS valide jusqu&apos;au</Label>
+              <Input {...register('oriasValiditeJusquau')} type="date" className="text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Date adhésion CNCGP</Label>
+            <Input {...register('dateAdhesionCncgp')} type="date" className="text-sm" />
           </div>
           {mutation.isError && <p className="text-xs text-destructive">{(mutation.error as Error).message}</p>}
           <div className="flex gap-2">
@@ -91,23 +261,25 @@ function CabinetSection() {
           </div>
         </form>
       ) : (
-        <dl className="space-y-2 text-sm">
-          <div>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <div className="col-span-2">
             <dt className="text-xs text-muted-foreground">Nom</dt>
             <dd className="font-medium">{cabinet?.name}</dd>
           </div>
-          {cabinet?.siret && (
-            <div>
-              <dt className="text-xs text-muted-foreground">SIRET</dt>
-              <dd>{cabinet.siret}</dd>
+          {cabinet?.siret && <div><dt className="text-xs text-muted-foreground">SIRET / SIREN</dt><dd>{cabinet.siret}</dd></div>}
+          {cabinet?.formeJuridique && <div><dt className="text-xs text-muted-foreground">Forme juridique</dt><dd>{cabinet.formeJuridique}</dd></div>}
+          {cabinet?.capitalSocial && <div><dt className="text-xs text-muted-foreground">Capital social</dt><dd>{cabinet.capitalSocial}</dd></div>}
+          {cabinet?.dateImmatriculation && <div><dt className="text-xs text-muted-foreground">Immatriculation</dt><dd>{new Date(cabinet.dateImmatriculation).toLocaleDateString('fr-FR')}</dd></div>}
+          {(cabinet?.adresse || cabinet?.codePostal) && (
+            <div className="col-span-2">
+              <dt className="text-xs text-muted-foreground">Adresse</dt>
+              <dd>{[cabinet.adresse, cabinet.codePostal && cabinet.city ? `${cabinet.codePostal} ${cabinet.city}` : cabinet.city].filter(Boolean).join(', ')}</dd>
             </div>
           )}
-          {cabinet?.oriasNumber && (
-            <div>
-              <dt className="text-xs text-muted-foreground">N° ORIAS</dt>
-              <dd>{cabinet.oriasNumber}</dd>
-            </div>
-          )}
+          {cabinet?.oriasNumber && <div><dt className="text-xs text-muted-foreground">N° ORIAS</dt><dd>{cabinet.oriasNumber}</dd></div>}
+          {cabinet?.categoriesOrias?.length > 0 && <div><dt className="text-xs text-muted-foreground">Catégories ORIAS</dt><dd>{cabinet.categoriesOrias.join(', ')}</dd></div>}
+          {cabinet?.oriasValiditeJusquau && <div><dt className="text-xs text-muted-foreground">ORIAS valide jusqu&apos;au</dt><dd>{new Date(cabinet.oriasValiditeJusquau).toLocaleDateString('fr-FR')}</dd></div>}
+          {cabinet?.dateAdhesionCncgp && <div><dt className="text-xs text-muted-foreground">Adhésion CNCGP</dt><dd>{new Date(cabinet.dateAdhesionCncgp).toLocaleDateString('fr-FR')}</dd></div>}
         </dl>
       )}
     </div>

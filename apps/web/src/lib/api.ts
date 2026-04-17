@@ -1881,6 +1881,29 @@ export const documentApi = {
       method: 'DELETE',
       token,
     }),
+
+  uploadCabinetDoc: async (file: File, token: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${API_URL}/api/v1/documents/upload-cabinet-doc`, {
+      method: 'POST',
+      body: form,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+    if (!res.ok) throw new ApiError(json.error ?? 'Erreur API', json.code ?? 'UNKNOWN', res.status)
+    return json as {
+      data: {
+        document: Document
+        extractable: boolean
+        docType?: 'kbis' | 'orias' | 'cncgp'
+        name?: string; siret?: string; siren?: string; formeJuridique?: string
+        adresse?: string; ville?: string; codePostal?: string; capital?: string; dateImmatriculation?: string
+        oriasNumber?: string; categories?: string[]; validiteJusquau?: string
+        dateAdhesion?: string
+      }
+    }
+  },
 }
 
 export type FolderRuleEntityType = 'contact' | 'supplier' | 'product' | 'training' | 'compliance_answer'

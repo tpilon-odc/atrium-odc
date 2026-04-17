@@ -12,8 +12,16 @@ export const updateCabinetBody = z.object({
   oriasNumber: z.string().optional(),
   settings: z.record(z.unknown()).optional(),
   description: z.string().optional(),
+  adresse: z.string().optional(),
+  codePostal: z.string().optional(),
   city: z.string().optional(),
   website: z.string().url('URL invalide').optional().or(z.literal('')),
+  formeJuridique: z.string().optional(),
+  capitalSocial: z.string().optional(),
+  dateImmatriculation: z.string().optional(),
+  categoriesOrias: z.array(z.string()).optional(),
+  oriasValiditeJusquau: z.string().optional(),
+  dateAdhesionCncgp: z.string().optional(),
 })
 
 export const inviteMemberBody = z.object({

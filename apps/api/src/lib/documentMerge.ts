@@ -67,7 +67,11 @@ export async function resolveVariableValues(
   // Cabinet
   const cabinet = await prisma.cabinet.findUnique({
     where: { id: opts.cabinetId },
-    select: { name: true, siret: true, oriasNumber: true, city: true, website: true },
+    select: {
+      name: true, siret: true, oriasNumber: true, city: true, website: true,
+      adresse: true, codePostal: true, formeJuridique: true, capitalSocial: true,
+      dateImmatriculation: true, categoriesOrias: true, oriasValiditeJusquau: true, dateAdhesionCncgp: true,
+    },
   })
 
   // Conseiller (utilisateur qui génère)
@@ -112,7 +116,16 @@ export async function resolveVariableValues(
     cabinet_siret: () => cabinet?.siret ?? '',
     cabinet_orias: () => cabinet?.oriasNumber ?? '',
     cabinet_ville: () => cabinet?.city ?? '',
+    cabinet_adresse: () => cabinet?.adresse ?? '',
+    cabinet_code_postal: () => cabinet?.codePostal ?? '',
+    cabinet_adresse_complete: () => [cabinet?.adresse, cabinet?.codePostal && cabinet?.city ? `${cabinet.codePostal} ${cabinet.city}` : cabinet?.city].filter(Boolean).join(', '),
     cabinet_site_web: () => cabinet?.website ?? '',
+    cabinet_forme_juridique: () => cabinet?.formeJuridique ?? '',
+    cabinet_capital_social: () => cabinet?.capitalSocial ?? '',
+    cabinet_date_immatriculation: () => cabinet?.dateImmatriculation ? new Date(cabinet.dateImmatriculation).toLocaleDateString('fr-FR') : '',
+    cabinet_categories_orias: () => cabinet?.categoriesOrias?.join(', ') ?? '',
+    cabinet_orias_validite: () => cabinet?.oriasValiditeJusquau ? new Date(cabinet.oriasValiditeJusquau).toLocaleDateString('fr-FR') : '',
+    cabinet_date_adhesion_cncgp: () => cabinet?.dateAdhesionCncgp ? new Date(cabinet.dateAdhesionCncgp).toLocaleDateString('fr-FR') : '',
 
     // Conseiller
     conseiller_prenom: () => conseiller?.firstName ?? '',
