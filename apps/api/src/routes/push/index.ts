@@ -1,6 +1,8 @@
 import { FastifyPluginAsync } from 'fastify'
 import { authMiddleware } from '../../middleware/auth'
+import { adminMiddleware } from '../../middleware/admin'
 import { prisma } from '../../lib/prisma'
+import { sendPushToUser } from '../../lib/webpush'
 
 export const pushRoutes: FastifyPluginAsync = async (app) => {
   // ── POST /api/v1/push/subscribe ──────────────────────────────────────────
@@ -43,6 +45,21 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
       })
 
       return reply.send({ data: { message: 'Abonnement supprimé' } })
+    }
+  )
+
+  // ── POST /api/v1/push/test ───────────────────────────────────────────────
+  // Envoie un push de test à l'utilisateur connecté (admin uniquement)
+  app.post(
+    '/test',
+    { preHandler: [authMiddleware, adminMiddleware] },
+    async (request, reply) => {
+      await sendPushToUser(request.user.id, {
+        title: 'Test push CGP Platform',
+        body: 'Les notifications push fonctionnent correctement.',
+        url: '/notifications',
+      })
+      return reply.send({ data: { message: 'Push envoyé' } })
     }
   )
 }
