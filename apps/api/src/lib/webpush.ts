@@ -11,18 +11,22 @@ export interface PushPayload {
   title: string
   body: string
   url?: string
+  badge?: number
 }
 
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
-  const subscriptions = await prisma.pushSubscription.findMany({
-    where: { userId },
-  })
+  const [subscriptions, unreadCount] = await Promise.all([
+    prisma.pushSubscription.findMany({ where: { userId } }),
+    prisma.notification.count({ where: { userId, isRead: false } }),
+  ])
+
+  const fullPayload = { ...payload, badge: unreadCount || 1 }
 
   const results = await Promise.allSettled(
     subscriptions.map((sub) =>
       webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        JSON.stringify(payload)
+        JSON.stringify(fullPayload)
       )
     )
   )

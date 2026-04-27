@@ -8,21 +8,30 @@ self.addEventListener('push', (event) => {
     payload = { title: 'CGP Platform', body: event.data.text() }
   }
 
-  const { title, body, url } = payload
+  const { title, body, url, badge } = payload
 
   event.waitUntil(
-    self.registration.showNotification(title || 'CGP Platform', {
-      body: body || '',
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      data: { url: url || '/' },
-    })
+    Promise.all([
+      self.registration.showNotification(title || 'CGP Platform', {
+        body: body || '',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        data: { url: url || '/' },
+      }),
+      // Pastille sur l'icône de l'app
+      navigator.setAppBadge
+        ? navigator.setAppBadge(badge || 1)
+        : Promise.resolve(),
+    ])
   )
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = event.notification.data?.url || '/'
+
+  // Effacer la pastille quand l'utilisateur clique
+  if (navigator.clearAppBadge) navigator.clearAppBadge()
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
