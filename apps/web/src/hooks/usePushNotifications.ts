@@ -58,12 +58,40 @@ async function subscribeUser(token: string): Promise<void> {
   }
 }
 
+async function updateBadge(token: string): Promise<void> {
+  if (!('setAppBadge' in navigator)) return
+  try {
+    const res = await fetch(`${API_URL}/api/v1/notifications?all=false`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return
+    const { data } = await res.json()
+    const count = data?.unreadCount ?? 0
+    if (count > 0) {
+      await navigator.setAppBadge(count)
+    } else {
+      await navigator.clearAppBadge()
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export function usePushNotifications(token: string | null) {
   useEffect(() => {
     if (!token) return
+
     const t = setTimeout(() => {
       subscribeUser(token).catch(console.error)
     }, 3000)
-    return () => clearTimeout(t)
+
+    // Mettre à jour la pastille au chargement et toutes les minutes
+    updateBadge(token)
+    const interval = setInterval(() => updateBadge(token), 60_000)
+
+    return () => {
+      clearTimeout(t)
+      clearInterval(interval)
+    }
   }, [token])
 }
