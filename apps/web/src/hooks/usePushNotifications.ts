@@ -13,6 +13,15 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)))
 }
 
+function swReady(timeoutMs = 10000): Promise<ServiceWorkerRegistration> {
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('SW ready timeout')), timeoutMs)
+    ),
+  ]) as Promise<ServiceWorkerRegistration>
+}
+
 async function subscribeUser(token: string): Promise<void> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
   if (!VAPID_PUBLIC_KEY) return
@@ -20,10 +29,9 @@ async function subscribeUser(token: string): Promise<void> {
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return
 
-  const registration = await navigator.serviceWorker.ready
+  const registration = await swReady()
   const existing = await registration.pushManager.getSubscription()
 
-  // Déjà abonné avec le même endpoint
   if (existing && localStorage.getItem(STORAGE_KEY) === existing.endpoint) return
 
   const subscription = existing ?? await registration.pushManager.subscribe({
@@ -36,7 +44,7 @@ async function subscribeUser(token: string): Promise<void> {
     keys: { p256dh: string; auth: string }
   }
 
-  await fetch(`${API_URL}/api/v1/push/subscribe`, {
+  const res = await fetch(`${API_URL}/api/v1/push/subscribe`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -45,15 +53,16 @@ async function subscribeUser(token: string): Promise<void> {
     body: JSON.stringify({ endpoint, keys }),
   })
 
-  localStorage.setItem(STORAGE_KEY, endpoint)
+  if (res.ok) {
+    localStorage.setItem(STORAGE_KEY, endpoint)
+  }
 }
 
 export function usePushNotifications(token: string | null) {
   useEffect(() => {
     if (!token) return
-    // Délai pour ne pas bloquer le chargement initial
     const t = setTimeout(() => {
-      subscribeUser(token).catch(() => {})
+      subscribeUser(token).catch(console.error)
     }, 3000)
     return () => clearTimeout(t)
   }, [token])
