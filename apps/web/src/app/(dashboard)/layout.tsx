@@ -485,13 +485,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
       }
 
-      // Vérifie si le token est encore valide (ou vient d'être rafraîchi)
-      const { data: { session }, error } = await supabase.auth.getSession()
+      // Vérifie si le token est encore valide — retry une fois si erreur réseau
+      let session = null
+      let error = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await supabase.auth.getSession()
+        error = result.error
+        session = result.data.session
+        if (session) break
+        if (attempt === 0) await new Promise(r => setTimeout(r, 1000))
+      }
 
       if (error || !session) {
-        useAuthStore.getState().logout()
-        router.replace('/login?reason=session_expired')
-        return
+        // Tentative de refresh explicite avant abandon
+        const { data: refreshData } = await supabase.auth.refreshSession({
+          refresh_token: refreshToken ?? '',
+        })
+        if (!refreshData.session) {
+          useAuthStore.getState().logout()
+          router.replace('/login?reason=session_expired')
+          return
+        }
+        session = refreshData.session
       }
 
       // Met à jour le store si le token a été renouvelé
