@@ -1,6 +1,35 @@
 import { useAuthStore } from '@/stores/auth'
+import { createClient } from '@/lib/supabase/client'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== 'undefined' ? '' : 'http://localhost:3001')
+
+let refreshPromise: Promise<string | null> | null = null
+
+async function tryRefreshToken(): Promise<string | null> {
+  // Éviter les appels parallèles de refresh
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (!refreshToken) return null
+
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken })
+      if (error || !data.session) return null
+
+      const { access_token, refresh_token, expires_in } = data.session
+      useAuthStore.getState().setAuth(access_token, useAuthStore.getState().user!, refresh_token ?? undefined)
+      return access_token
+    } catch {
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
 
 type ApiResponse<T> = { data: T }
 
@@ -33,9 +62,24 @@ async function call<T>(
     return {} as ApiResponse<T>
   }
 
-  // Token expiré ou invalide → déconnexion (côté client uniquement)
+  // Token expiré → tentative de refresh silencieux
   if (res.status === 401) {
     if (typeof window !== 'undefined') {
+      const newToken = await tryRefreshToken()
+      if (newToken) {
+        // Rejouer la requête avec le nouveau token
+        const retryRes = await fetch(`${API_URL}${path}`, {
+          ...fetchOptions,
+          headers: {
+            ...(fetchOptions.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+            Authorization: `Bearer ${newToken}`,
+            ...(fetchOptions.headers ?? {}),
+          },
+        })
+        if (retryRes.status === 204) return {} as ApiResponse<T>
+        if (retryRes.ok) return retryRes.json() as Promise<ApiResponse<T>>
+      }
+      // Refresh échoué → déconnexion
       useAuthStore.getState().logout()
       window.location.href = '/login?reason=session_expired'
     }
