@@ -63,8 +63,9 @@ async function call<T>(
   }
 
   // Token expiré → tentative de refresh silencieux
+  // Ne pas intercepter les 401 émis depuis /login (mauvais identifiants ≠ session expirée)
   if (res.status === 401) {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       const newToken = await tryRefreshToken()
       if (newToken) {
         // Rejouer la requête avec le nouveau token
@@ -83,7 +84,8 @@ async function call<T>(
       useAuthStore.getState().logout()
       window.location.href = '/login?reason=session_expired'
     }
-    throw new ApiError('Session expirée', 'SESSION_EXPIRED', 401)
+    const errJson = await res.json().catch(() => ({}))
+    throw new ApiError(errJson.error ?? 'Session expirée', errJson.code ?? 'SESSION_EXPIRED', 401)
   }
 
   const json = await res.json()

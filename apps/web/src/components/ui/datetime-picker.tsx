@@ -18,6 +18,16 @@ interface DateTimePickerProps {
   className?: string
 }
 
+const INPUT_FORMATS = ['dd/MM/yyyy', 'dd-MM-yyyy', 'ddMMyyyy']
+
+function parseInputText(text: string): Date | undefined {
+  for (const fmt of INPUT_FORMATS) {
+    const d = parse(text, fmt, new Date())
+    if (isValid(d) && d.getFullYear() > 1900) return d
+  }
+  return undefined
+}
+
 export function DateTimePicker({
   value,
   onChange,
@@ -27,15 +37,22 @@ export function DateTimePicker({
   className,
 }: DateTimePickerProps) {
   const [open, setOpen] = React.useState(false)
+  const [inputText, setInputText] = React.useState('')
+  const [inputFocused, setInputFocused] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
 
-  // Parse la date selon le mode
-  const dateStr = value ? (allDay ? value.slice(0, 10) : value.slice(0, 10)) : ''
+  const dateStr = value ? value.slice(0, 10) : ''
   const timeStr = value && !allDay ? (value.includes('T') ? value.slice(11, 16) : '00:00') : ''
 
   const selected = dateStr && isValid(parse(dateStr, 'yyyy-MM-dd', new Date()))
     ? parse(dateStr, 'yyyy-MM-dd', new Date())
     : undefined
+
+  React.useEffect(() => {
+    if (!inputFocused) {
+      setInputText(selected ? format(selected, 'dd/MM/yyyy') : '')
+    }
+  }, [value, inputFocused, selected])
 
   React.useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -48,13 +65,38 @@ export function DateTimePicker({
   function handleSelectDate(date: Date | undefined) {
     if (!date) return
     const d = format(date, 'yyyy-MM-dd')
+    setInputText(format(date, 'dd/MM/yyyy'))
     if (allDay) {
       onChange?.(d)
       setOpen(false)
     } else {
       const t = timeStr || '00:00'
       onChange?.(`${d}T${t}`)
-      // on garde le popover ouvert pour choisir l'heure
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const text = e.target.value
+    setInputText(text)
+    const parsed = parseInputText(text)
+    if (parsed) {
+      const d = format(parsed, 'yyyy-MM-dd')
+      if (allDay) {
+        onChange?.(d)
+      } else {
+        const t = timeStr || '00:00'
+        onChange?.(`${d}T${t}`)
+      }
+    } else if (text === '') {
+      onChange?.('')
+    }
+  }
+
+  function handleInputBlur() {
+    setInputFocused(false)
+    const parsed = parseInputText(inputText)
+    if (!parsed && inputText !== '') {
+      setInputText(selected ? format(selected, 'dd/MM/yyyy') : '')
     }
   }
 
@@ -64,24 +106,41 @@ export function DateTimePicker({
     onChange?.(`${d}T${t}`)
   }
 
-  const label = selected
-    ? allDay
-      ? format(selected, 'd MMMM yyyy', { locale: fr })
-      : `${format(selected, 'd MMM yyyy', { locale: fr })} ${timeStr}`
-    : placeholder
+  const labelDate = selected ? format(selected, 'd MMM yyyy', { locale: fr }) : ''
 
   return (
     <div ref={ref} className={cn('relative', className)}>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        className={cn('w-full justify-start text-left font-normal', !selected && 'text-muted-foreground')}
-      >
-        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-        {label}
-      </Button>
+      <div className="flex items-center gap-1">
+        <input
+          type="text"
+          value={inputText}
+          onChange={handleInputChange}
+          onFocus={() => setInputFocused(true)}
+          onBlur={handleInputBlur}
+          placeholder="JJ/MM/AAAA"
+          disabled={disabled}
+          className={cn(
+            'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors',
+            'placeholder:text-muted-foreground',
+            'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+            'disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+        />
+        {!allDay && timeStr && (
+          <span className="text-sm text-muted-foreground shrink-0">{timeStr}</span>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          disabled={disabled}
+          onClick={() => setOpen((v) => !v)}
+          className="h-9 w-9 shrink-0"
+          aria-label="Ouvrir le calendrier"
+        >
+          <CalendarIcon className="h-4 w-4" />
+        </Button>
+      </div>
 
       {open && (
         <div className="absolute z-50 mt-1 rounded-md border border-border bg-white dark:bg-zinc-900 shadow-lg">

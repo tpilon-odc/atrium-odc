@@ -2,13 +2,78 @@
 
 import * as React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { DayPicker } from 'react-day-picker'
+import { DayPicker, useDayPicker, useNavigation } from 'react-day-picker'
 import { fr } from 'date-fns/locale'
+import { format, setMonth, setYear } from 'date-fns'
 
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
+
+function CaptionWithDropdowns({ displayMonth }: { displayMonth: Date }) {
+  const { goToMonth } = useNavigation()
+  const { fromYear, toYear } = useDayPicker()
+
+  const currentYear = new Date().getFullYear()
+  const startYear = fromYear ?? currentYear - 100
+  const endYear = toYear ?? currentYear + 10
+
+  const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
+  const months = Array.from({ length: 12 }, (_, i) =>
+    format(setMonth(new Date(2000, 0, 1), i), 'MMMM', { locale: fr })
+  )
+
+  return (
+    <div className="flex items-center justify-center gap-1 pt-1 relative">
+      <button
+        type="button"
+        aria-label="Mois précédent"
+        className={cn(
+          buttonVariants({ variant: 'outline' }),
+          'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute left-1'
+        )}
+        onClick={() => goToMonth(setMonth(displayMonth, displayMonth.getMonth() - 1))}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+
+      <div className="flex items-center gap-1">
+        <select
+          value={displayMonth.getMonth()}
+          onChange={(e) => goToMonth(setMonth(displayMonth, Number(e.target.value)))}
+          className="text-sm font-medium capitalize bg-transparent border-0 cursor-pointer outline-none focus:ring-1 focus:ring-ring rounded px-1 py-0.5 hover:bg-accent"
+        >
+          {months.map((m, i) => (
+            <option key={i} value={i}>{m}</option>
+          ))}
+        </select>
+
+        <select
+          value={displayMonth.getFullYear()}
+          onChange={(e) => goToMonth(setYear(displayMonth, Number(e.target.value)))}
+          className="text-sm font-medium bg-transparent border-0 cursor-pointer outline-none focus:ring-1 focus:ring-ring rounded px-1 py-0.5 hover:bg-accent"
+        >
+          {years.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      </div>
+
+      <button
+        type="button"
+        aria-label="Mois suivant"
+        className={cn(
+          buttonVariants({ variant: 'outline' }),
+          'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute right-1'
+        )}
+        onClick={() => goToMonth(setMonth(displayMonth, displayMonth.getMonth() + 1))}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
 
 function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
   return (
@@ -20,14 +85,11 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
         month: 'space-y-4',
         caption: 'flex justify-center pt-1 relative items-center',
-        caption_label: 'text-sm font-medium capitalize',
-        nav: 'space-x-1 flex items-center',
-        nav_button: cn(
-          buttonVariants({ variant: 'outline' }),
-          'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100'
-        ),
-        nav_button_previous: 'absolute left-1',
-        nav_button_next: 'absolute right-1',
+        caption_label: 'hidden',
+        nav: 'hidden',
+        nav_button: 'hidden',
+        nav_button_previous: 'hidden',
+        nav_button_next: 'hidden',
         table: 'w-full border-collapse space-y-1',
         head_row: 'flex',
         head_cell: 'text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]',
@@ -44,8 +106,7 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         ...classNames,
       }}
       components={{
-        IconLeft: () => <ChevronLeft className="h-4 w-4" />,
-        IconRight: () => <ChevronRight className="h-4 w-4" />,
+        Caption: ({ displayMonth }) => <CaptionWithDropdowns displayMonth={displayMonth} />,
       }}
       {...props}
     />

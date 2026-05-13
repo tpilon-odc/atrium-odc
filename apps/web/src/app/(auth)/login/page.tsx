@@ -90,7 +90,7 @@ function LoginForm() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" autoComplete="email" {...register('email')} />
+          <Input id="email" type="email" autoComplete="email" required {...register('email')} />
           {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
         </div>
 
@@ -101,7 +101,7 @@ function LoginForm() {
               Mot de passe oublié ?
             </Link>
           </div>
-          <Input id="password" type="password" autoComplete="current-password" {...register('password')} />
+          <Input id="password" type="password" autoComplete="current-password" required {...register('password')} />
           {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
         </div>
 
