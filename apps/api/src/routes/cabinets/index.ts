@@ -757,24 +757,20 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
           }))
         }
         if (c.profile) {
-          ops.push(prisma.cabinetContactProfile.upsert({
-            where: { cabinetId_contactId: { cabinetId, contactId } } as any,
-            create: {
-              cabinetId, contactId,
-              classificationMifid: c.profile.classificationMifid,
-              connaissance: c.profile.connaissance,
-              capacitePertes: c.profile.capacitePertes,
-              horizon: c.profile.horizon,
-              objectifs: c.profile.objectifs,
-            },
-            update: {
-              classificationMifid: c.profile.classificationMifid,
-              connaissance: c.profile.connaissance,
-              capacitePertes: c.profile.capacitePertes,
-              horizon: c.profile.horizon,
-              objectifs: c.profile.objectifs,
-            },
-          }))
+          const profileData = {
+            classificationMifid: c.profile.classificationMifid,
+            connaissance: c.profile.connaissance,
+            capacitePertes: c.profile.capacitePertes,
+            horizon: c.profile.horizon,
+            objectifs: c.profile.objectifs,
+          }
+          ops.push(
+            prisma.cabinetContactProfile.findFirst({ where: { cabinetId, contactId } }).then((existing) =>
+              existing
+                ? prisma.cabinetContactProfile.update({ where: { id: existing.id }, data: profileData })
+                : prisma.cabinetContactProfile.create({ data: { cabinetId, contactId, ...profileData } })
+            )
+          )
         }
         await Promise.all(ops)
       }
