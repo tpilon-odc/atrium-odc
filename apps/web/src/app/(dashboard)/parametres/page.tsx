@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 
-import { ShieldCheck, User, CalendarDays, Copy, Eye, EyeOff, RefreshCw, Download, Loader2, PackageOpen, Database, AlertTriangle, CheckCircle2, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ShieldCheck, User, CalendarDays, Copy, Eye, EyeOff, RefreshCw, Download, Loader2, PackageOpen, Database, AlertTriangle, CheckCircle2, Pencil, Plus, Trash2, X, Import } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth'
 import { cabinetApi, storageConfigApi, userApi, eventApi, exportJobApi, gdprApi, consentApi, type StorageConfig, type ExportJob, type GdprRequest, type ConsentRecord } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -628,6 +628,148 @@ function MesDonneesSection() {
   )
 }
 
+const KNOWN_TOOLS = [
+  { slug: 'O2S', label: 'O2S (Harvest)', description: 'CRM et back-office CGP' },
+  { slug: 'QUANTALYS', label: 'Quantalys', description: 'Analyse et sélection de fonds' },
+  { slug: 'WEALTHCOME', label: 'Wealthcome', description: 'Bilan patrimonial et modélisation' },
+] as const
+
+function ImportToolsSection() {
+  const { token } = useAuthStore()
+  const queryClient = useQueryClient()
+  const [showOtherForm, setShowOtherForm] = useState(false)
+  const [otherName, setOtherName] = useState('')
+  const [otherComment, setOtherComment] = useState('')
+  const [requestSent, setRequestSent] = useState(false)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['import-tools'],
+    queryFn: () => cabinetApi.getImportTools(token!),
+    enabled: !!token,
+  })
+
+  const selected: string[] = data?.data?.tools ?? []
+
+  const toggleMutation = useMutation({
+    mutationFn: (tools: string[]) => cabinetApi.setImportTools(tools, token!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['import-tools'] }),
+  })
+
+  const requestMutation = useMutation({
+    mutationFn: () => cabinetApi.requestImportTool(otherName, otherComment || undefined, token!),
+    onSuccess: () => {
+      setRequestSent(true)
+      setShowOtherForm(false)
+      setOtherName('')
+      setOtherComment('')
+    },
+  })
+
+  function toggle(slug: string) {
+    const next = selected.includes(slug)
+      ? selected.filter((s) => s !== slug)
+      : [...selected, slug]
+    toggleMutation.mutate(next)
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Import className="h-4 w-4" />
+        <h3 className="font-medium">Outils de gestion utilisés</h3>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Indiquez les logiciels que vous utilisez pour gérer vos clients. Cela activera l'import de contacts depuis ces outils.
+      </p>
+
+      {isLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : (
+        <div className="space-y-2">
+          {KNOWN_TOOLS.map((tool) => {
+            const checked = selected.includes(tool.slug)
+            return (
+              <label
+                key={tool.slug}
+                className={cn(
+                  'flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors',
+                  checked ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'
+                )}
+              >
+                <input
+                  type="checkbox"
+                  className="accent-primary"
+                  checked={checked}
+                  onChange={() => toggle(tool.slug)}
+                  disabled={toggleMutation.isPending}
+                />
+                <div>
+                  <p className="text-sm font-medium">{tool.label}</p>
+                  <p className="text-xs text-muted-foreground">{tool.description}</p>
+                </div>
+              </label>
+            )
+          })}
+        </div>
+      )}
+
+      {!showOtherForm && !requestSent && (
+        <button
+          type="button"
+          className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
+          onClick={() => setShowOtherForm(true)}
+        >
+          Vous utilisez un autre outil ?
+        </button>
+      )}
+
+      {requestSent && (
+        <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          Demande envoyée, nous l'étudierons pour une prochaine mise à jour.
+        </div>
+      )}
+
+      {showOtherForm && (
+        <div className="border border-border rounded-md p-4 space-y-3">
+          <p className="text-sm font-medium">Quel outil utilisez-vous ?</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="other-tool-name">Nom de l'outil</Label>
+            <Input
+              id="other-tool-name"
+              value={otherName}
+              onChange={(e) => setOtherName(e.target.value)}
+              placeholder="Ex : Fidroit, Astria, ..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="other-tool-comment">Commentaire (optionnel)</Label>
+            <Input
+              id="other-tool-comment"
+              value={otherComment}
+              onChange={(e) => setOtherComment(e.target.value)}
+              placeholder="Précisions sur l'usage ou le format d'export..."
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" size="sm" onClick={() => setShowOtherForm(false)}>
+              Annuler
+            </Button>
+            <Button
+              size="sm"
+              disabled={!otherName.trim() || requestMutation.isPending}
+              onClick={() => requestMutation.mutate()}
+            >
+              {requestMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+              Envoyer la demande
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ParametresPage() {
   return (
     <div className="space-y-6 max-w-6xl">
@@ -636,6 +778,7 @@ export default function ParametresPage() {
         <p className="text-muted-foreground mt-1">Votre profil, configurations techniques et données personnelles.</p>
       </div>
       <ProfileSection />
+      <ImportToolsSection />
       <StorageSection />
       <IcsSection />
       <ExportSection />

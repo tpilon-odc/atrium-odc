@@ -324,6 +324,64 @@ export const cabinetApi = {
 
   deleteLogo: (token: string) =>
     call<void>('/api/v1/cabinets/me/logo', { method: 'DELETE', token }),
+
+  getImportTools: (token: string) =>
+    call<{ tools: string[] }>('/api/v1/cabinets/me/import-tools', { token }),
+
+  setImportTools: (tools: string[], token: string) =>
+    call<{ tools: string[] }>('/api/v1/cabinets/me/import-tools', {
+      method: 'PUT',
+      body: JSON.stringify({ tools }),
+      token,
+    }),
+
+  requestImportTool: (toolName: string, comment: string | undefined, token: string) =>
+    call<{ request: { id: string } }>('/api/v1/cabinets/me/import-tools/request', {
+      method: 'POST',
+      body: JSON.stringify({ toolName, comment }),
+      token,
+    }),
+
+  previewImport: async (tool: string, file: File, token: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${API_URL}/api/v1/cabinets/me/contacts/import?tool=${tool}`, {
+      method: 'POST',
+      body: form,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const json = await res.json()
+    if (!res.ok) throw new ApiError(json.error ?? 'Erreur import', json.code ?? 'UNKNOWN', res.status)
+    return json as ApiResponse<{
+      toCreate: ImportContact[]
+      conflicts: Array<{ incoming: ImportContact; existing: ImportContact & { id: string } }>
+      total: number
+    }>
+  },
+
+  confirmImport: (
+    toCreate: ImportContact[],
+    merges: Array<ImportContact & { existingId: string }>,
+    token: string
+  ) =>
+    call<{ created: number; merged: number }>('/api/v1/cabinets/me/contacts/import/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ toCreate, merges }),
+      token,
+    }),
+}
+
+export type ImportContact = {
+  firstName: string
+  lastName: string
+  email: string | null
+  phone: string | null
+  birthDate: string | null
+  address: string | null
+  city: string | null
+  postalCode: string | null
+  country: string | null
+  type: 'prospect' | 'client' | 'ancien_client'
 }
 
 // ── Conformité ────────────────────────────────────────────────────────────────

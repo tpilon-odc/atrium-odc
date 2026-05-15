@@ -288,6 +288,8 @@ model Cabinet {
   contactLiabilities         ContactLiability[]
   contactIncomes             ContactIncome[]
   contactTaxes               ContactTax[]
+  importTools                CabinetImportTool[]
+  importToolRequests         ImportToolRequest[]
 
   @@map("cabinets")
 }
@@ -1794,4 +1796,36 @@ model DocumentTemplateGeneration {
   @@index([templateId])
   @@index([contactId])
   @@map("document_template_generations")
+}
+
+// ── Import outils CGP ─────────────────────────────────────────────────────────
+
+enum ImportToolSlug {
+  O2S
+  QUANTALYS
+  WEALTHCOME
+}
+
+model CabinetImportTool {
+  id        String         @id @default(uuid()) @db.Uuid
+  cabinetId String         @map("cabinet_id") @db.Uuid
+  tool      ImportToolSlug
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@unique([cabinetId, tool])
+  @@map("cabinet_import_tools")
+}
+
+model ImportToolRequest {
+  id        String   @id @default(uuid()) @db.Uuid
+  cabinetId String   @map("cabinet_id") @db.Uuid
+  toolName  String   @map("tool_name")
+  comment   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id], onDelete: Cascade)
+
+  @@map("import_tool_requests")
 }

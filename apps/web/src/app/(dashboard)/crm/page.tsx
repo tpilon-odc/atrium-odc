@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, Search, ChevronRight, User, Mail, Phone, Share2, AlertTriangle, UserX, X, Loader2 } from 'lucide-react'
+import { Plus, Search, ChevronRight, User, Mail, Phone, Share2, AlertTriangle, UserX, X, Loader2, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth'
-import { contactApi, platformUserApi, type Contact, type ContactType, type PlatformUser } from '@/lib/api'
+import { contactApi, cabinetApi, platformUserApi, type Contact, type ContactType, type PlatformUser } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ShareModal } from '@/components/ui/ShareModal'
+import { ImportContactsModal } from '@/components/crm/ImportContactsModal'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
@@ -232,6 +233,7 @@ const TYPES: Array<{ value: ContactType | ''; label: string }> = [
 
 export default function CRMPage() {
   const { token } = useAuthStore()
+  const queryClient = useQueryClient()
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<ContactType | ''>('')
@@ -240,6 +242,14 @@ export default function CRMPage() {
   const [shareOpen, setShareOpen] = useState(false)
   const [shareContact, setShareContact] = useState<Contact | null>(null)
   const [shareAllOpen, setShareAllOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+
+  const { data: importToolsData } = useQuery({
+    queryKey: ['import-tools'],
+    queryFn: () => cabinetApi.getImportTools(token!),
+    enabled: !!token,
+  })
+  const importTools = importToolsData?.data?.tools ?? []
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['contacts', token, search, typeFilter, cursor],
@@ -295,6 +305,12 @@ export default function CRMPage() {
             <Share2 className="h-3.5 w-3.5 mr-1.5" />
             Partager tous
           </Button>
+          {importTools.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Importer
+            </Button>
+          )}
           <Link href="/crm/nouveau">
             <Button size="sm">
               <Plus className="h-4 w-4 mr-1.5" />
@@ -366,6 +382,19 @@ export default function CRMPage() {
       )}
       {shareAllOpen && token && (
         <ShareAllModal onClose={() => setShareAllOpen(false)} token={token} />
+      )}
+      {importOpen && token && (
+        <ImportContactsModal
+          tools={importTools}
+          token={token}
+          onClose={() => setImportOpen(false)}
+          onDone={() => {
+            setImportOpen(false)
+            setCursor(null)
+            setAllItems([])
+            queryClient.invalidateQueries({ queryKey: ['contacts'] })
+          }}
+        />
       )}
       {(shareOpen || shareContact) && (
         <ShareModal

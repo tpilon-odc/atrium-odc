@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify'
 import multipart from '@fastify/multipart'
-import { MemberRole } from '@cgp/db'
+import { MemberRole, ImportToolSlug } from '@cgp/db'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
@@ -14,6 +14,8 @@ import {
   addExternalMemberBody,
 } from './schemas'
 import { sendInviteEmail } from '../../lib/mailer'
+import { parseImportFile, ParsedContact } from '../../lib/importers'
+import { z } from 'zod'
 
 // Helper : récupère le membre courant avec son rôle
 async function getCurrentMember(userId: string, cabinetId: string) {
@@ -573,6 +575,207 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
       })
 
       return reply.status(201).send({ data: { member } })
+    }
+  )
+
+  // ── GET /api/v1/cabinets/me/import-tools ─────────────────────────────────
+  app.get(
+    '/me/import-tools',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const tools = await prisma.cabinetImportTool.findMany({
+        where: { cabinetId: request.cabinetId },
+        select: { tool: true },
+      })
+      return reply.send({ data: { tools: tools.map((t) => t.tool) } })
+    }
+  )
+
+  // ── PUT /api/v1/cabinets/me/import-tools ─────────────────────────────────
+  // Remplace la sélection complète des outils configurés
+  app.put(
+    '/me/import-tools',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const schema = z.object({ tools: z.array(z.nativeEnum(ImportToolSlug)) })
+      const result = schema.safeParse(request.body)
+      if (!result.success) {
+        return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+      }
+
+      const { tools } = result.data
+      await prisma.$transaction([
+        prisma.cabinetImportTool.deleteMany({ where: { cabinetId: request.cabinetId } }),
+        ...(tools.length
+          ? [prisma.cabinetImportTool.createMany({
+              data: tools.map((tool) => ({ cabinetId: request.cabinetId, tool })),
+            })]
+          : []),
+      ])
+
+      return reply.send({ data: { tools } })
+    }
+  )
+
+  // ── POST /api/v1/cabinets/me/import-tools/request ────────────────────────
+  // Remonte une demande d'outil non supporté
+  app.post(
+    '/me/import-tools/request',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const schema = z.object({ toolName: z.string().min(1), comment: z.string().optional() })
+      const result = schema.safeParse(request.body)
+      if (!result.success) {
+        return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+      }
+
+      const req = await prisma.importToolRequest.create({
+        data: {
+          cabinetId: request.cabinetId,
+          toolName: result.data.toolName,
+          comment: result.data.comment ?? null,
+        },
+      })
+
+      return reply.status(201).send({ data: { request: req } })
+    }
+  )
+
+  // ── POST /api/v1/cabinets/me/contacts/import ─────────────────────────────
+  // Upload + parsing + preview (dry run, rien n'est écrit en base)
+  app.post(
+    '/me/contacts/import',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const data = await request.file()
+      if (!data) return reply.status(400).send({ error: 'Fichier manquant', code: 'MISSING_FILE' })
+
+      const toolRaw = (request.query as any).tool as string
+      if (!toolRaw || !Object.values(ImportToolSlug).includes(toolRaw as ImportToolSlug)) {
+        return reply.status(400).send({ error: 'Outil non reconnu', code: 'INVALID_TOOL' })
+      }
+      const tool = toolRaw as ImportToolSlug
+
+      const chunks: Buffer[] = []
+      for await (const chunk of data.file) chunks.push(chunk)
+      const buffer = Buffer.concat(chunks)
+
+      const parsed = parseImportFile(tool, buffer, data.filename)
+      if (!parsed.ok) return reply.status(422).send({ error: parsed.error, code: 'PARSE_ERROR' })
+
+      // Détecter les conflits (email déjà existant dans le cabinet)
+      const emails = parsed.contacts.map((c) => c.email).filter(Boolean) as string[]
+      const existing = await prisma.contact.findMany({
+        where: { cabinetId: request.cabinetId, email: { in: emails }, deletedAt: null },
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          phone: true, birthDate: true, address: true, city: true, postalCode: true, country: true, type: true,
+        },
+      })
+      const existingByEmail = new Map(existing.map((c) => [c.email!.toLowerCase(), c]))
+
+      const toCreate: ParsedContact[] = []
+      const conflicts: Array<{ incoming: ParsedContact; existing: typeof existing[number] }> = []
+
+      for (const contact of parsed.contacts) {
+        const key = contact.email?.toLowerCase()
+        if (key && existingByEmail.has(key)) {
+          conflicts.push({ incoming: contact, existing: existingByEmail.get(key)! })
+        } else {
+          toCreate.push(contact)
+        }
+      }
+
+      return reply.send({ data: { toCreate, conflicts, total: parsed.contacts.length } })
+    }
+  )
+
+  // ── POST /api/v1/cabinets/me/contacts/import/confirm ─────────────────────
+  // Applique l'import avec les décisions de merge pour les conflits
+  const mergeDecisionSchema = z.object({
+    // Contacts sans conflit — à créer directement
+    toCreate: z.array(z.object({
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string().nullable(),
+      phone: z.string().nullable(),
+      birthDate: z.string().nullable(),
+      address: z.string().nullable(),
+      city: z.string().nullable(),
+      postalCode: z.string().nullable(),
+      country: z.string().nullable(),
+      type: z.enum(['prospect', 'client', 'ancien_client']),
+    })),
+    // Décisions pour les conflits : existingId + champs à garder (valeurs finales)
+    merges: z.array(z.object({
+      existingId: z.string(),
+      firstName: z.string(),
+      lastName: z.string(),
+      email: z.string().nullable(),
+      phone: z.string().nullable(),
+      birthDate: z.string().nullable(),
+      address: z.string().nullable(),
+      city: z.string().nullable(),
+      postalCode: z.string().nullable(),
+      country: z.string().nullable(),
+      type: z.enum(['prospect', 'client', 'ancien_client']),
+    })),
+  })
+
+  app.post(
+    '/me/contacts/import/confirm',
+    { preHandler: [authMiddleware, cabinetMiddleware] },
+    async (request, reply) => {
+      const result = mergeDecisionSchema.safeParse(request.body)
+      if (!result.success) {
+        return reply.status(400).send({ error: result.error.errors[0].message, code: 'VALIDATION_ERROR' })
+      }
+
+      const { toCreate, merges } = result.data
+
+      const [created] = await prisma.$transaction([
+        prisma.contact.createMany({
+          data: toCreate.map((c) => ({
+            cabinetId: request.cabinetId,
+            firstName: c.firstName,
+            lastName: c.lastName,
+            email: c.email ?? null,
+            phone: c.phone ?? null,
+            birthDate: c.birthDate ? new Date(c.birthDate) : null,
+            address: c.address ?? null,
+            city: c.city ?? null,
+            postalCode: c.postalCode ?? null,
+            country: c.country ?? null,
+            type: c.type as any,
+          })),
+          skipDuplicates: true,
+        }),
+      ])
+
+      // Mettre à jour les contacts mergés
+      await Promise.all(
+        merges.map((m) =>
+          prisma.contact.update({
+            where: { id: m.existingId },
+            data: {
+              firstName: m.firstName,
+              lastName: m.lastName,
+              email: m.email ?? null,
+              phone: m.phone ?? null,
+              birthDate: m.birthDate ? new Date(m.birthDate) : null,
+              address: m.address ?? null,
+              city: m.city ?? null,
+              postalCode: m.postalCode ?? null,
+              country: m.country ?? null,
+              type: m.type as any,
+            },
+          })
+        )
+      )
+
+      return reply.send({
+        data: { created: created.count, merged: merges.length },
+      })
     }
   )
 }
