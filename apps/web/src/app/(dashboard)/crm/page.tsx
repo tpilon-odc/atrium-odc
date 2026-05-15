@@ -251,7 +251,7 @@ export default function CRMPage() {
   })
   const importTools = importToolsData?.data?.tools ?? []
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['contacts', token, search, typeFilter, cursor],
     queryFn: () => contactApi.list(token!, {
       search: search || undefined,
@@ -392,7 +392,7 @@ export default function CRMPage() {
             setImportOpen(false)
             setCursor(null)
             setAllItems([])
-            queryClient.invalidateQueries({ queryKey: ['contacts'] })
+            refetch()
           }}
         />
       )}
