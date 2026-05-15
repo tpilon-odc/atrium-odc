@@ -58,7 +58,7 @@ function CabinetSection() {
     queryFn: () => cabinetApi.getMe(token!),
     enabled: !!token,
   })
-  const cabinet = data?.data.cabinet as any
+  const cabinet = data?.data.cabinet
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<CabinetForm>({
     resolver: zodResolver(cabinetSchema),
@@ -81,7 +81,7 @@ function CabinetSection() {
     mutationFn: (d: CabinetForm) => cabinetApi.update({
       ...d,
       categoriesOrias: d.categoriesOrias ? d.categoriesOrias.split(',').map((s) => s.trim()).filter(Boolean) : [],
-    } as any, token!),
+    }, token!),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['cabinet-me'] }); setEditing(false) },
   })
 
@@ -277,7 +277,7 @@ function CabinetSection() {
             </div>
           )}
           {cabinet?.oriasNumber && <div><dt className="text-xs text-muted-foreground">N° ORIAS</dt><dd>{cabinet.oriasNumber}</dd></div>}
-          {cabinet?.categoriesOrias?.length > 0 && <div><dt className="text-xs text-muted-foreground">Catégories ORIAS</dt><dd>{cabinet.categoriesOrias.join(', ')}</dd></div>}
+          {(cabinet?.categoriesOrias?.length ?? 0) > 0 && <div><dt className="text-xs text-muted-foreground">Catégories ORIAS</dt><dd>{cabinet?.categoriesOrias.join(', ')}</dd></div>}
           {cabinet?.oriasValiditeJusquau && <div><dt className="text-xs text-muted-foreground">ORIAS valide jusqu&apos;au</dt><dd>{new Date(cabinet.oriasValiditeJusquau).toLocaleDateString('fr-FR')}</dd></div>}
           {cabinet?.dateAdhesionCncgp && <div><dt className="text-xs text-muted-foreground">Adhésion CNCGP</dt><dd>{new Date(cabinet.dateAdhesionCncgp).toLocaleDateString('fr-FR')}</dd></div>}
         </dl>
@@ -315,7 +315,7 @@ function CabinetProfileSection() {
     queryFn: () => cabinetApi.getMe(token!),
     enabled: !!token,
   })
-  const cabinet = data?.data.cabinet as any
+  const cabinet = data?.data.cabinet
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CabinetProfileForm>({
     resolver: zodResolver(cabinetProfileSchema),

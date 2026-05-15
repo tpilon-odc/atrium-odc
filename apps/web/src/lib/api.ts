@@ -255,7 +255,7 @@ export type CabinetDirectoryItem = {
   _count: { members: number }
 }
 
-type Cabinet = {
+export type Cabinet = {
   id: string
   name: string
   subscriptionStatus: string
@@ -265,6 +265,15 @@ type Cabinet = {
   siret: string | null
   oriasNumber: string | null
   logoUrl: string | null
+  formeJuridique: string | null
+  capitalSocial: string | null
+  adresse: string | null
+  codePostal: string | null
+  categoriesOrias: string[]
+  dateImmatriculation: string | null
+  oriasValiditeJusquau: string | null
+  dateAdhesionCncgp: string | null
+  icsToken: string
 }
 
 export type UpdateCabinetData = {
@@ -274,6 +283,14 @@ export type UpdateCabinetData = {
   description?: string
   city?: string
   website?: string
+  formeJuridique?: string
+  capitalSocial?: string
+  adresse?: string
+  codePostal?: string
+  categoriesOrias?: string[]
+  dateImmatriculation?: string
+  oriasValiditeJusquau?: string
+  dateAdhesionCncgp?: string
 }
 
 export const cabinetApi = {
@@ -1349,6 +1366,39 @@ export const adminTrainingCategoryApi = {
 
 // ── Partage ────────────────────────────────────────────────────────────────────
 
+export type ResolvedContact = {
+  id: string
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  email2?: string | null
+  phone?: string | null
+  phone2?: string | null
+  type?: string | null
+  address?: string | null
+  postalCode?: string | null
+  city?: string | null
+  country?: string | null
+  birthDate?: string | null
+  maritalStatus?: string | null
+  dependents?: number | null
+  profession?: string | null
+}
+
+export type ResolvedDocument = {
+  id: string
+  name: string
+  mimeType?: string | null
+  sizeBytes?: string | null
+  storageMode?: string
+  folder?: { id: string; name: string } | null
+}
+
+export type ResolvedComplianceItem = {
+  item: { label: string; type: string; phase: { label: string } }
+  answer: { value: unknown; status: string; submittedAt?: string; expiresAt?: string } | null
+}
+
 export type Share = {
   id: string
   cabinetId: string
@@ -1362,6 +1412,11 @@ export type Share = {
   granterUser?: { id: string; email: string }
   cabinet?: { id: string; name: string }
   resolvedTraining?: CollaboratorTraining | null
+  resolvedContact?: ResolvedContact | null
+  resolvedDocument?: ResolvedDocument | null
+  resolvedComplianceItem?: ResolvedComplianceItem | null
+  member?: { externalFirstName?: string | null; externalLastName?: string | null; externalEmail?: string | null } | null
+  categoryHours?: { hours: number; category: { name: string } }[]
 }
 
 export type ShareViewLog = {

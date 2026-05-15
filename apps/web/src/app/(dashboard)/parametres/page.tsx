@@ -216,7 +216,7 @@ function IcsSection() {
     queryFn: () => cabinetApi.getMe(token!),
     enabled: !!token,
   })
-  const cabinetData = data?.data.cabinet as any
+  const cabinetData = data?.data.cabinet
   const icsUrl = cabinetData && cabinet
     ? eventApi.getIcsUrl(cabinet.id, cabinetData.icsToken)
     : null

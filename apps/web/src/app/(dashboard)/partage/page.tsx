@@ -131,8 +131,8 @@ function ShareRow({ share, onRevoke, inFolder = false }: { share: Share; onRevok
   const who = share.recipientUser?.email ?? share.granterUser?.email ?? '—'
   const cabinetName = share.cabinet?.name
   const training = share.resolvedTraining ?? null
-  const contact = (share as any).resolvedContact ?? null
-  const resolvedDoc = (share as any).resolvedDocument ?? null
+  const contact = share.resolvedContact ?? null
+  const resolvedDoc = share.resolvedDocument ?? null
 
   const cert = training?.certificate ?? null
   const certAsDoc: Document | null = cert
@@ -140,7 +140,7 @@ function ShareRow({ share, onRevoke, inFolder = false }: { share: Share; onRevok
     : null
 
   const sharedDocAsDoc: Document | null = resolvedDoc
-    ? { id: resolvedDoc.id, name: resolvedDoc.name, mimeType: resolvedDoc.mimeType ?? null, description: null, storageMode: resolvedDoc.storageMode ?? 'hosted', sizeBytes: resolvedDoc.sizeBytes ?? null, folderId: resolvedDoc.folderId ?? null, createdAt: '', links: [], tags: [] }
+    ? { id: resolvedDoc.id, name: resolvedDoc.name, mimeType: resolvedDoc.mimeType ?? null, description: null, storageMode: (resolvedDoc.storageMode ?? 'hosted') as 'hosted' | 'external', sizeBytes: resolvedDoc.sizeBytes ?? null, folderId: resolvedDoc.folder?.id ?? null, createdAt: '', links: [], tags: [] }
     : null
 
   const contactName = contact
@@ -234,16 +234,17 @@ function RecipientGrantedGroup({ recipientId, email, shares, onRevoke }: { recip
   const complianceShares = shares.filter((s) => s.entityType === 'compliance_item')
   const trainingShares = shares.filter((s) => s.entityType === 'collaborator_training')
   const contactShares = shares.filter((s) => s.entityType === 'contact')
-  const docSharesWithFolder = shares.filter((s) => s.entityType !== 'compliance_item' && s.entityType !== 'collaborator_training' && s.entityType !== 'contact' && !!(s as any).resolvedDocument?.folder)
+  const docSharesWithFolder = shares.filter((s) => s.entityType !== 'compliance_item' && s.entityType !== 'collaborator_training' && s.entityType !== 'contact' && !!s.resolvedDocument?.folder)
   const folderMap = new Map<string, { name: string; shares: Share[] }>()
   for (const share of docSharesWithFolder) {
-    const folder = (share as any).resolvedDocument.folder
-    const folderId = folder.id as string
-    if (!folderMap.has(folderId)) folderMap.set(folderId, { name: folder.name as string, shares: [] })
+    const folder = share.resolvedDocument?.folder
+    if (!folder) continue
+    const folderId = folder.id
+    if (!folderMap.has(folderId)) folderMap.set(folderId, { name: folder.name, shares: [] })
     folderMap.get(folderId)!.shares.push(share)
   }
   const otherShares = shares.filter(
-    (s) => s.entityType !== 'compliance_item' && s.entityType !== 'collaborator_training' && s.entityType !== 'contact' && !(s as any).resolvedDocument?.folder
+    (s) => s.entityType !== 'compliance_item' && s.entityType !== 'collaborator_training' && s.entityType !== 'contact' && !s.resolvedDocument?.folder
   )
 
   return (
@@ -289,9 +290,9 @@ function RecipientGrantedGroup({ recipientId, email, shares, onRevoke }: { recip
 
 function GrantedShareRow({ share, onRevoke }: { share: Share; onRevoke: () => void }) {
   const training = share.resolvedTraining
-  const contact = (share as any).resolvedContact
-  const doc = (share as any).resolvedDocument
-  const complianceItem = (share as any).resolvedComplianceItem as { item: { label: string; phase: { label: string } }; answer: { status: string } | null } | null
+  const contact = share.resolvedContact
+  const doc = share.resolvedDocument
+  const complianceItem = share.resolvedComplianceItem as { item: { label: string; phase: { label: string } }; answer: { status: string } | null } | null
 
   const label = training
     ? training.training.name
@@ -306,7 +307,7 @@ function GrantedShareRow({ share, onRevoke }: { share: Share; onRevoke: () => vo
   const sublabel = training
     ? [training.user?.firstName, training.user?.lastName].filter(Boolean).join(' ') || training.user?.email
     : contact
-      ? CONTACT_TYPE_LABELS[contact.type] ?? contact.type
+      ? CONTACT_TYPE_LABELS[contact.type ?? ""] ?? contact.type
       : doc?.folder?.name
         ? doc.folder.name
         : complianceItem
@@ -353,7 +354,7 @@ function TrainingShareRow({ share }: { share: Share }) {
   const [viewingCert, setViewingCert] = useState(false)
   if (!t) return <div className="px-4 py-2.5 text-xs text-muted-foreground">Formation introuvable</div>
 
-  const member = (t as any).member as { externalFirstName?: string | null; externalLastName?: string | null; externalEmail?: string | null } | null
+  const member = t.member as { externalFirstName?: string | null; externalLastName?: string | null; externalEmail?: string | null } | null
   const userName =
     [t.user?.firstName, t.user?.lastName].filter(Boolean).join(' ') ||
     t.user?.email ||
@@ -377,9 +378,9 @@ function TrainingShareRow({ share }: { share: Share }) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">{t.training.name}</p>
           <p className="text-xs text-muted-foreground">{userName} · {dateFrom}{dateTo}{t.hoursCompleted ? ` · ${t.hoursCompleted}h` : ''}</p>
-          {(t as any).categoryHours?.length > 0 && (
+          {t.categoryHours?.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1.5">
-              {((t as any).categoryHours as { hours: number; category: { name: string } }[]).map((ch) => (
+              {(t.categoryHours as { hours: number; category: { name: string } }[]).map((ch) => (
                 <span key={ch.category.name} className="inline-flex items-center gap-1 text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground">
                   {ch.category.name} · {ch.hours}h
                 </span>
@@ -406,11 +407,11 @@ const CONTACT_TYPE_LABELS: Record<string, string> = {
 
 function ContactShareRow({ share }: { share: Share }) {
   const { token } = useAuthStore()
-  const contact = (share as any).resolvedContact as { id: string; firstName?: string | null; lastName?: string | null; email?: string | null; type?: string | null } | null
+  const contact = share.resolvedContact as { id: string; firstName?: string | null; lastName?: string | null; email?: string | null; type?: string | null } | null
   if (!contact) return <div className="px-4 py-2.5 text-xs text-muted-foreground">Contact introuvable</div>
 
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.email || '—'
-  const typeLabel = contact.type ? (CONTACT_TYPE_LABELS[contact.type] ?? contact.type) : null
+  const typeLabel = contact.type ? (CONTACT_TYPE_LABELS[contact.type ?? ""] ?? contact.type) : null
 
   return (
     <Link
@@ -466,12 +467,13 @@ function CabinetReceivedGroup({ cabinetName, cabinetId, shares }: { cabinetName:
   const complianceShares = shares.filter((s) => s.entityType === 'compliance_item')
 
   // Sub-group: documents by folder
-  const docSharesWithFolder = shares.filter((s) => s.entityType !== 'compliance_item' && !!(s as any).resolvedDocument?.folder)
+  const docSharesWithFolder = shares.filter((s) => s.entityType !== 'compliance_item' && !!s.resolvedDocument?.folder)
   const folderMap = new Map<string, { name: string; shares: Share[] }>()
   for (const share of docSharesWithFolder) {
-    const folder = (share as any).resolvedDocument.folder
-    const folderId = folder.id as string
-    if (!folderMap.has(folderId)) folderMap.set(folderId, { name: folder.name as string, shares: [] })
+    const folder = share.resolvedDocument?.folder
+    if (!folder) continue
+    const folderId = folder.id
+    if (!folderMap.has(folderId)) folderMap.set(folderId, { name: folder.name, shares: [] })
     folderMap.get(folderId)!.shares.push(share)
   }
 
@@ -483,7 +485,7 @@ function CabinetReceivedGroup({ cabinetName, cabinetId, shares }: { cabinetName:
 
   // Remaining
   const otherShares = shares.filter(
-    (s) => s.entityType !== 'compliance_item' && s.entityType !== 'collaborator_training' && s.entityType !== 'contact' && !(s as any).resolvedDocument?.folder
+    (s) => s.entityType !== 'compliance_item' && s.entityType !== 'collaborator_training' && s.entityType !== 'contact' && !s.resolvedDocument?.folder
   )
 
   const total = shares.length
@@ -546,7 +548,7 @@ function CabinetReceivedGroup({ cabinetName, cabinetId, shares }: { cabinetName:
 }
 
 function ComplianceItemShareRow({ share }: { share: Share }) {
-  const resolved = (share as any).resolvedComplianceItem as { item: { label: string; type: string; phase: { label: string } }; answer: { value: unknown; status: string; submittedAt?: string; expiresAt?: string } | null } | null
+  const resolved = share.resolvedComplianceItem as { item: { label: string; type: string; phase: { label: string } }; answer: { value: unknown; status: string; submittedAt?: string; expiresAt?: string } | null } | null
   const [viewing, setViewing] = useState(false)
 
   if (!resolved) {
@@ -683,9 +685,9 @@ function ActivityShareRow({ share, onRevoke }: { share: ShareWithViewLog; onRevo
   const viewed = !!lastView
 
   const training = share.resolvedTraining
-  const contact = (share as any).resolvedContact
-  const doc = (share as any).resolvedDocument
-  const complianceItem = (share as any).resolvedComplianceItem as { item: { label: string; phase: { label: string } } } | null
+  const contact = share.resolvedContact
+  const doc = share.resolvedDocument
+  const complianceItem = share.resolvedComplianceItem as { item: { label: string; phase: { label: string } } } | null
 
   const label = training
     ? training.training.name
@@ -698,9 +700,9 @@ function ActivityShareRow({ share, onRevoke }: { share: ShareWithViewLog; onRevo
           : ENTITY_LABELS[share.entityType] ?? share.entityType
 
   const sublabel = training
-    ? (() => { const m = (training as any).member; return [training.user?.firstName, training.user?.lastName].filter(Boolean).join(' ') || training.user?.email || [m?.externalFirstName, m?.externalLastName].filter(Boolean).join(' ') || m?.externalEmail })()
+    ? (() => { const m = training.member; return [training.user?.firstName, training.user?.lastName].filter(Boolean).join(' ') || training.user?.email || [m?.externalFirstName, m?.externalLastName].filter(Boolean).join(' ') || m?.externalEmail })()
     : contact
-      ? CONTACT_TYPE_LABELS[contact.type] ?? contact.type
+      ? CONTACT_TYPE_LABELS[contact.type ?? ""] ?? contact.type
       : doc?.folder?.name ?? (complianceItem ? complianceItem.item.phase.label : null)
 
   return (

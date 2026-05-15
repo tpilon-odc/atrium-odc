@@ -71,7 +71,7 @@ function ContactDetail({ contact }: { contact: Contact & { interactions: Interac
             {(contact.address || contact.city) && (
               <span className="flex items-start gap-1.5 text-muted-foreground sm:col-span-2">
                 <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span>{[(contact as any).address, (contact as any).postalCode && contact.city ? `${(contact as any).postalCode} ${contact.city}` : contact.city].filter(Boolean).join(', ')}</span>
+                <span>{[contact.address, contact.postalCode && contact.city ? `${contact.postalCode} ${contact.city}` : contact.city].filter(Boolean).join(', ')}</span>
               </span>
             )}
           </div>
@@ -79,26 +79,26 @@ function ContactDetail({ contact }: { contact: Contact & { interactions: Interac
       )}
 
       {/* Situation personnelle */}
-      {((contact as any).birthDate || (contact as any).maritalStatus || (contact as any).dependents != null) && (
+      {(contact.birthDate || contact.maritalStatus || contact.dependents != null) && (
         <div className="space-y-1.5">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Situation personnelle</p>
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-            {(contact as any).birthDate && (
+            {contact.birthDate && (
               <span className="flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
-                {new Date((contact as any).birthDate).toLocaleDateString('fr-FR')}
+                {new Date(contact.birthDate).toLocaleDateString('fr-FR')}
               </span>
             )}
-            {(contact as any).maritalStatus && (
+            {contact.maritalStatus && (
               <span className="flex items-center gap-1.5">
                 <Heart className="h-3.5 w-3.5" />
-                {MARITAL_STATUS_LABELS[(contact as any).maritalStatus] ?? (contact as any).maritalStatus}
+                {MARITAL_STATUS_LABELS[contact.maritalStatus] ?? contact.maritalStatus}
               </span>
             )}
-            {(contact as any).dependents != null && (
+            {contact.dependents != null && (
               <span className="flex items-center gap-1.5">
                 <Baby className="h-3.5 w-3.5" />
-                {(contact as any).dependents} enfant{(contact as any).dependents !== 1 ? 's' : ''}
+                {contact.dependents} enfant{contact.dependents !== 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -238,13 +238,13 @@ export default function ContactsPartagesPage() {
       ) : (
         <div className="space-y-2">
           {contactShares.map((share) => {
-            const resolvedContact = (share as any).resolvedContact
+            const resolvedContact = share.resolvedContact
             const item: SharedContact = {
               shareId: share.id,
               entityId: share.entityId!,
               cabinetName: share.cabinet?.name ?? null,
               contact: resolvedContact
-                ? { ...resolvedContact, interactions: [], createdAt: '' }
+                ? { ...resolvedContact, interactions: [], createdAt: '' } as Contact & { interactions: Interaction[] }
                 : null,
               loading: false,
             }
