@@ -113,14 +113,52 @@ function parseFicheSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact |
   }
 
   // ── Profil MiFID ──────────────────────────────────────────────────────────
+  // Correspondance libellés O2S → codes internes (contraintes CHECK en base)
+  const CLASSIFICATION_MAP: Record<string, string> = {
+    'non professionnel': 'non_professionnel',
+    'professionnel': 'professionnel',
+    'contrepartie éligible': 'contrepartie_eligible',
+  }
+  const CONNAISSANCE_MAP: Record<string, string> = {
+    'basique': 'basique',
+    'informé': 'informe',
+    'expert': 'expert',
+  }
+  const CAPACITE_MAP: Record<string, string> = {
+    'aucune': 'aucune',
+    'limitée': 'limitee',
+    'capital': 'capital',
+    'très élevée': 'superieure',
+    'élevée': 'superieure',
+    'supérieure': 'superieure',
+  }
+  const HORIZON_MAP: Record<string, string> = {
+    'court terme': 'moins_2_ans',
+    'moins de 2 ans': 'moins_2_ans',
+    'moyen terme': '2_5_ans',
+    '2 à 5 ans': '2_5_ans',
+    'long terme': 'plus_5_ans',
+    'horizon long terme': 'plus_5_ans',
+    'supérieur à 5 ans': 'plus_5_ans',
+  }
+
+  function mapVal(raw: string | undefined, map: Record<string, string>): string | null {
+    if (!raw) return null
+    const key = raw.toLowerCase().trim()
+    for (const [k, v] of Object.entries(map)) {
+      if (key.includes(k)) return v
+    }
+    return null
+  }
+
   const objectifsRaw = dict['Objectifs'] ?? ''
   const objectifs = objectifsRaw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
 
   const profile: ParsedProfile = {
-    classificationMifid: dict['Classification client MIF'] || null,
-    connaissance: dict['Niveau de connaissance et expérience'] || null,
-    capacitePertes: dict['Capacité financière à subir des pertes'] || null,
-    horizon: dict['Horizon de placement'] || null,
+    classificationMifid: mapVal(dict['Classification client MIF'], CLASSIFICATION_MAP),
+    connaissance: mapVal(dict['Niveau de connaissance et expérience'], CONNAISSANCE_MAP),
+    capacitePertes: mapVal(dict['Capacité financière à subir des pertes'], CAPACITE_MAP),
+    horizon: mapVal(dict['Horizon de placement'], HORIZON_MAP),
     objectifs,
   }
   const hasProfile = Object.values(profile).some((v) => (Array.isArray(v) ? v.length > 0 : v !== null))
