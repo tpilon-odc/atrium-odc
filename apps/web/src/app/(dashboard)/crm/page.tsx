@@ -243,6 +243,7 @@ export default function CRMPage() {
   const [shareContact, setShareContact] = useState<Contact | null>(null)
   const [shareAllOpen, setShareAllOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [importRevision, setImportRevision] = useState(0)
 
   const { data: importToolsData } = useQuery({
     queryKey: ['import-tools'],
@@ -252,7 +253,7 @@ export default function CRMPage() {
   const importTools = importToolsData?.data?.tools ?? []
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['contacts', token, search, typeFilter, cursor],
+    queryKey: ['contacts', token, search, typeFilter, cursor, importRevision],
     queryFn: () => contactApi.list(token!, {
       search: search || undefined,
       type: typeFilter || undefined,
@@ -260,6 +261,7 @@ export default function CRMPage() {
       limit: 20,
     }),
     enabled: !!token,
+    staleTime: 0,
   })
 
   useEffect(() => {
@@ -392,7 +394,7 @@ export default function CRMPage() {
             setImportOpen(false)
             setCursor(null)
             setAllItems([])
-            refetch()
+            setImportRevision((r) => r + 1)
           }}
         />
       )}
