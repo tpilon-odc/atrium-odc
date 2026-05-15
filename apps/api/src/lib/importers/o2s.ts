@@ -2,12 +2,59 @@ import * as XLSX from 'xlsx'
 import { ParsedContact, ParseResult } from './types'
 import { normalizeDate } from './utils'
 
-// Format O2S (Harvest) : fiche verticale, une feuille par contact
-// Colonne A = libellé, colonne B = valeur
-// Le nom de la feuille contient la civilité + prénom + nom (ex: "Monsieur Bruce WAYNE")
+// O2S (Harvest) — deux formats possibles :
+// 1. Export masse : tableau avec colonnes techniques (client_nom, client_prenom, …), ligne 1 = libellés humains
+// 2. Fiche individuelle : une feuille par contact, format vertical clé/valeur
 
-function parseSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact | null {
-  // Construire un dictionnaire libellé → valeur depuis les paires A/B
+// ── Format masse ──────────────────────────────────────────────────────────────
+
+function isMassFormat(rows: Record<string, string>[]): boolean {
+  return rows.length >= 1 && 'client_nom' in rows[0]
+}
+
+function parseMassFormat(rows: Record<string, string>[]): ParsedContact[] {
+  const contacts: ParsedContact[] = []
+  // Ligne 0 = libellés humains (on la saute), données à partir de la ligne 1
+  const dataRows = 'client_nom' in rows[0] && rows[0].client_nom === 'WAYNE' ? rows : rows.slice(1)
+
+  for (const row of dataRows) {
+    const lastName = row.client_nom?.trim()
+    const firstName = row.client_prenom?.trim()
+    if (!lastName && !firstName) continue
+
+    const typeRaw = row.type_contact?.toLowerCase() ?? ''
+    const type: ParsedContact['type'] =
+      typeRaw.includes('prospect') ? 'prospect'
+      : typeRaw.includes('ancien') ? 'ancien_client'
+      : 'client'
+
+    // Adresse domicile en priorité
+    const adresse = [row.client_domicile_adresse_ligne1, row.client_domicile_adresse_ligne2]
+      .map((s) => s?.trim()).filter(Boolean).join(', ') || null
+
+    // Date naissance : ignorer "//" (valeur vide O2S)
+    const naissanceRaw = row.client_date_naissance?.trim() ?? ''
+    const birthDate = naissanceRaw && naissanceRaw !== '//' ? normalizeDate(naissanceRaw) : null
+
+    contacts.push({
+      firstName: firstName ?? '',
+      lastName: lastName ?? '',
+      email: row.email_personnel?.trim() || row.email_professionnel?.trim() || null,
+      phone: row.telephone_mobile?.trim() || row.telephone_domicile?.trim() || row.telephone_bureau?.trim() || null,
+      birthDate,
+      address: adresse,
+      city: row.client_domicile_commune?.trim() || null,
+      postalCode: row.client_domicile_cp?.trim() || null,
+      country: row.client_domicile_pays?.trim() || 'France',
+      type,
+    })
+  }
+  return contacts
+}
+
+// ── Format fiche individuelle ─────────────────────────────────────────────────
+
+function parseFicheSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact | null {
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' }) as unknown[][]
   const dict: Record<string, string> = {}
   for (const row of rows) {
@@ -17,12 +64,7 @@ function parseSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact | null
     if (key) dict[key] = val
   }
 
-  // Extraire prénom/nom depuis le nom de la feuille (ex: "Monsieur Bruce WAYNE")
-  // Format : [Civilité] [Prénom(s)] [NOM EN MAJUSCULES]
-  let firstName = ''
-  let lastName = ''
   const sheetClean = sheetName.replace(/^(Monsieur|Madame|M\.|Mme\.?)\s+/i, '').trim()
-  // Le nom de famille est en majuscules, le prénom en mixed case
   const parts = sheetClean.split(' ')
   const lastNameParts: string[] = []
   const firstNameParts: string[] = []
@@ -30,37 +72,20 @@ function parseSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact | null
     if (p === p.toUpperCase() && p.length > 1) lastNameParts.push(p)
     else firstNameParts.push(p)
   }
-  firstName = firstNameParts.join(' ').trim()
-  lastName = lastNameParts.join(' ').trim()
-
+  const firstName = firstNameParts.join(' ').trim()
+  const lastName = lastNameParts.join(' ').trim()
   if (!lastName && !firstName) return null
 
-  // Adresse : peut contenir des retours à la ligne (rue\nCP VILLE\nPays)
-  const adresseRaw = dict['Adresse complète (Domicile)\r\n(adresse de correspondance)']
-    ?? dict['Adresse complète (Domicile) (adresse de correspondance)']
-    ?? dict['Adresse']
-    ?? ''
+  const adresseRaw = dict['Adresse complète (Domicile) (adresse de correspondance)'] ?? dict['Adresse'] ?? ''
   const adresseLines = adresseRaw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   const adresse = adresseLines[0] ?? null
-  // Ligne 2 : "80440 BOVES" → CP + ville
-  const cpVille = adresseLines[1] ?? ''
-  const cpVilleMatch = cpVille.match(/^(\d{5})\s+(.+)$/)
-  const postalCode = cpVilleMatch?.[1] ?? null
-  const city = cpVilleMatch?.[2] ?? (cpVille || null)
+  const cpVilleMatch = (adresseLines[1] ?? '').match(/^(\d{5})\s+(.+)$/)
 
-  // Date de naissance : "14/05/1975 à BOVES (80440)" → on prend juste la date
   const naissanceRaw = dict['Date et lieu de naissance'] ?? ''
   const birthDate = normalizeDate(naissanceRaw.split(' ')[0] ?? '')
 
-  const email = dict['Email (personnel)\r\n(email de correspondance)']
-    ?? dict['Email (personnel) (email de correspondance)']
-    ?? dict['Email']
-    ?? null
-
-  const phone = dict['Téléphone (mobile)']
-    ?? dict['Téléphone (fixe)']
-    ?? dict['Téléphone']
-    ?? null
+  const email = dict['Email (personnel) (email de correspondance)'] ?? dict['Email'] ?? null
+  const phone = dict['Téléphone (mobile)'] ?? dict['Téléphone (fixe)'] ?? dict['Téléphone'] ?? null
 
   return {
     firstName,
@@ -69,24 +94,33 @@ function parseSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact | null
     phone: phone || null,
     birthDate,
     address: adresse,
-    city,
-    postalCode,
+    city: cpVilleMatch?.[2] ?? null,
+    postalCode: cpVilleMatch?.[1] ?? null,
     country: dict['Pays de résidence fiscale'] ?? 'France',
     type: 'client',
   }
 }
+
+// ── Export ────────────────────────────────────────────────────────────────────
 
 export function parseO2S(buffer: Buffer, _filename: string): ParseResult {
   try {
     const wb = XLSX.read(buffer, { type: 'buffer' })
     if (!wb.SheetNames.length) return { ok: false, error: 'Fichier vide ou non lisible' }
 
-    const contacts: ParsedContact[] = []
+    const ws = wb.Sheets[wb.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: '' })
 
-    for (const sheetName of wb.SheetNames) {
-      const ws = wb.Sheets[sheetName]
-      const contact = parseSheet(ws, sheetName)
-      if (contact) contacts.push(contact)
+    let contacts: ParsedContact[]
+
+    if (isMassFormat(rows)) {
+      // Export masse : une feuille, toutes les lignes sont des contacts
+      contacts = parseMassFormat(rows)
+    } else {
+      // Export fiches : une feuille par contact
+      contacts = wb.SheetNames
+        .map((name) => parseFicheSheet(wb.Sheets[name], name))
+        .filter((c): c is ParsedContact => c !== null)
     }
 
     if (!contacts.length) return { ok: false, error: 'Aucun contact valide trouvé dans le fichier' }
