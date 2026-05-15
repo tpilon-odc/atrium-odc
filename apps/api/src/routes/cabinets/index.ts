@@ -692,34 +692,41 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
 
   // ── POST /api/v1/cabinets/me/contacts/import/confirm ─────────────────────
   // Applique l'import avec les décisions de merge pour les conflits
+  const assetSchema = z.object({
+    type: z.string(),
+    label: z.string(),
+    estimatedValue: z.number(),
+  })
+  const incomeSchema = z.object({
+    type: z.string(),
+    label: z.string(),
+    annualAmount: z.number(),
+  })
+  const profileSchema = z.object({
+    classificationMifid: z.string().nullable(),
+    connaissance: z.string().nullable(),
+    capacitePertes: z.string().nullable(),
+    horizon: z.string().nullable(),
+    objectifs: z.array(z.string()),
+  })
+  const contactImportSchema = z.object({
+    firstName: z.string(),
+    lastName: z.string(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+    birthDate: z.string().nullable(),
+    address: z.string().nullable(),
+    city: z.string().nullable(),
+    postalCode: z.string().nullable(),
+    country: z.string().nullable(),
+    type: z.enum(['prospect', 'client', 'ancien_client']),
+    assets: z.array(assetSchema).optional(),
+    incomes: z.array(incomeSchema).optional(),
+    profile: profileSchema.optional(),
+  })
   const mergeDecisionSchema = z.object({
-    // Contacts sans conflit — à créer directement
-    toCreate: z.array(z.object({
-      firstName: z.string(),
-      lastName: z.string(),
-      email: z.string().nullable(),
-      phone: z.string().nullable(),
-      birthDate: z.string().nullable(),
-      address: z.string().nullable(),
-      city: z.string().nullable(),
-      postalCode: z.string().nullable(),
-      country: z.string().nullable(),
-      type: z.enum(['prospect', 'client', 'ancien_client']),
-    })),
-    // Décisions pour les conflits : existingId + champs à garder (valeurs finales)
-    merges: z.array(z.object({
-      existingId: z.string(),
-      firstName: z.string(),
-      lastName: z.string(),
-      email: z.string().nullable(),
-      phone: z.string().nullable(),
-      birthDate: z.string().nullable(),
-      address: z.string().nullable(),
-      city: z.string().nullable(),
-      postalCode: z.string().nullable(),
-      country: z.string().nullable(),
-      type: z.enum(['prospect', 'client', 'ancien_client']),
-    })),
+    toCreate: z.array(contactImportSchema),
+    merges: z.array(contactImportSchema.extend({ existingId: z.string() })),
   })
 
   app.post(
@@ -732,11 +739,52 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { toCreate, merges } = result.data
+      const cabinetId = request.cabinetId
 
-      const [created] = await prisma.$transaction([
-        prisma.contact.createMany({
-          data: toCreate.map((c) => ({
-            cabinetId: request.cabinetId,
+      async function createEnrichedData(
+        contactId: string,
+        c: { assets?: typeof toCreate[number]['assets']; incomes?: typeof toCreate[number]['incomes']; profile?: typeof toCreate[number]['profile'] }
+      ) {
+        const ops: Promise<unknown>[] = []
+        if (c.assets?.length) {
+          ops.push(prisma.contactAsset.createMany({
+            data: c.assets.map((a) => ({ cabinetId, contactId, type: a.type, label: a.label, estimatedValue: a.estimatedValue })),
+          }))
+        }
+        if (c.incomes?.length) {
+          ops.push(prisma.contactIncome.createMany({
+            data: c.incomes.map((i) => ({ cabinetId, contactId, type: i.type, label: i.label, annualAmount: i.annualAmount })),
+          }))
+        }
+        if (c.profile) {
+          ops.push(prisma.cabinetContactProfile.upsert({
+            where: { cabinetId_contactId: { cabinetId, contactId } } as any,
+            create: {
+              cabinetId, contactId,
+              classificationMifid: c.profile.classificationMifid,
+              connaissance: c.profile.connaissance,
+              capacitePertes: c.profile.capacitePertes,
+              horizon: c.profile.horizon,
+              objectifs: c.profile.objectifs,
+            },
+            update: {
+              classificationMifid: c.profile.classificationMifid,
+              connaissance: c.profile.connaissance,
+              capacitePertes: c.profile.capacitePertes,
+              horizon: c.profile.horizon,
+              objectifs: c.profile.objectifs,
+            },
+          }))
+        }
+        await Promise.all(ops)
+      }
+
+      // Créer les nouveaux contacts + données enrichies
+      let createdCount = 0
+      for (const c of toCreate) {
+        const contact = await prisma.contact.create({
+          data: {
+            cabinetId,
             firstName: c.firstName,
             lastName: c.lastName,
             email: c.email ?? null,
@@ -747,15 +795,16 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
             postalCode: c.postalCode ?? null,
             country: c.country ?? null,
             type: c.type as any,
-          })),
-          skipDuplicates: true,
-        }),
-      ])
+          },
+        })
+        await createEnrichedData(contact.id, c)
+        createdCount++
+      }
 
-      // Mettre à jour les contacts mergés
+      // Mettre à jour les contacts mergés + données enrichies
       await Promise.all(
-        merges.map((m) =>
-          prisma.contact.update({
+        merges.map(async (m) => {
+          await prisma.contact.update({
             where: { id: m.existingId },
             data: {
               firstName: m.firstName,
@@ -770,11 +819,12 @@ export const cabinetRoutes: FastifyPluginAsync = async (app) => {
               type: m.type as any,
             },
           })
-        )
+          await createEnrichedData(m.existingId, m)
+        })
       )
 
       return reply.send({
-        data: { created: created.count, merged: merges.length },
+        data: { created: createdCount, merged: merges.length },
       })
     }
   )

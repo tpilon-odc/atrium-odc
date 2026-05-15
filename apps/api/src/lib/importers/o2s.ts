@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx'
-import { ParsedContact, ParseResult } from './types'
+import { ParsedContact, ParsedAsset, ParsedIncome, ParsedProfile, ParseResult } from './types'
 import { normalizeDate } from './utils'
 
 // O2S (Harvest) — deux formats possibles :
@@ -87,6 +87,44 @@ function parseFicheSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact |
   const email = dict['Email (personnel) (email de correspondance)'] ?? dict['Email'] ?? null
   const phone = dict['Téléphone (mobile)'] ?? dict['Téléphone (fixe)'] ?? dict['Téléphone'] ?? null
 
+  // ── Actifs patrimoniaux ───────────────────────────────────────────────────
+  const ASSET_MAP: Array<{ key: string; type: string; label: string }> = [
+    { key: 'Compte courant',           type: 'financier',   label: 'Compte courant' },
+    { key: 'Contrat d\'assurance vie', type: 'financier',   label: 'Assurance vie' },
+    { key: 'Immobilier locatif',       type: 'immobilier',  label: 'Immobilier locatif' },
+    { key: 'Résidence principale',     type: 'immobilier',  label: 'Résidence principale' },
+    { key: 'PEA',                      type: 'financier',   label: 'PEA' },
+    { key: 'Compte titres',            type: 'financier',   label: 'Compte titres' },
+    { key: 'SCPI',                     type: 'immobilier',  label: 'SCPI' },
+  ]
+  const assets: ParsedAsset[] = []
+  for (const { key, type, label } of ASSET_MAP) {
+    const raw = dict[key]?.replace(/\s/g, '').replace('€', '').replace(',', '.') ?? ''
+    const val = parseFloat(raw)
+    if (!isNaN(val) && val > 0) assets.push({ type, label, estimatedValue: val })
+  }
+
+  // ── Revenus ───────────────────────────────────────────────────────────────
+  const incomes: ParsedIncome[] = []
+  const revenusRaw = dict['Revenus annuels']?.replace(/\s/g, '').replace('€', '').replace(',', '.') ?? ''
+  const revenusVal = parseFloat(revenusRaw)
+  if (!isNaN(revenusVal) && revenusVal > 0) {
+    incomes.push({ type: 'salaire', label: 'Revenus annuels', annualAmount: revenusVal })
+  }
+
+  // ── Profil MiFID ──────────────────────────────────────────────────────────
+  const objectifsRaw = dict['Objectifs'] ?? ''
+  const objectifs = objectifsRaw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+
+  const profile: ParsedProfile = {
+    classificationMifid: dict['Classification client MIF'] || null,
+    connaissance: dict['Niveau de connaissance et expérience'] || null,
+    capacitePertes: dict['Capacité financière à subir des pertes'] || null,
+    horizon: dict['Horizon de placement'] || null,
+    objectifs,
+  }
+  const hasProfile = Object.values(profile).some((v) => (Array.isArray(v) ? v.length > 0 : v !== null))
+
   return {
     firstName,
     lastName,
@@ -98,6 +136,9 @@ function parseFicheSheet(ws: XLSX.WorkSheet, sheetName: string): ParsedContact |
     postalCode: cpVilleMatch?.[1] ?? null,
     country: dict['Pays de résidence fiscale'] ?? 'France',
     type: 'client',
+    ...(assets.length ? { assets } : {}),
+    ...(incomes.length ? { incomes } : {}),
+    ...(hasProfile ? { profile } : {}),
   }
 }
 

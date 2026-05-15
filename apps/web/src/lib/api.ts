@@ -382,6 +382,15 @@ export type ImportContact = {
   postalCode: string | null
   country: string | null
   type: 'prospect' | 'client' | 'ancien_client'
+  assets?: Array<{ type: string; label: string; estimatedValue: number }>
+  incomes?: Array<{ type: string; label: string; annualAmount: number }>
+  profile?: {
+    classificationMifid: string | null
+    connaissance: string | null
+    capacitePertes: string | null
+    horizon: string | null
+    objectifs: string[]
+  }
 }
 
 // ── Conformité ────────────────────────────────────────────────────────────────
