@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <!-- Fond arrondi iOS (coin radius 40px sur 180px = ~22%) -->
+  <rect width="180" height="180" rx="40" fill="#e8eae3"/>
+
+  <!-- Anneau tricolore — rayon 62, stroke 26 -->
+  <!-- Circonférence = 2π×62 ≈ 389.6 -->
+  <!-- 1/3 ≈ 129.9 -->
+
+  <!-- Segment 1 : lichen côtier #8aa294 — 0° à 120° -->
+  <circle cx="90" cy="90" r="62"
+    fill="none"
+    stroke="#8aa294"
+    stroke-width="26"
+    stroke-dasharray="129.9 259.7"
+    stroke-dashoffset="0"
+    transform="rotate(-90 90 90)"/>
+
+  <!-- Segment 2 : bouée orange #c75a3a — 120° à 240° -->
+  <circle cx="90" cy="90" r="62"
+    fill="none"
+    stroke="#c75a3a"
+    stroke-width="26"
+    stroke-dasharray="129.9 259.7"
+    stroke-dashoffset="-129.9"
+    transform="rotate(-90 90 90)"/>
+
+  <!-- Segment 3 : eau profonde #3f6068 — 240° à 360° -->
+  <circle cx="90" cy="90" r="62"
+    fill="none"
+    stroke="#3f6068"
+    stroke-width="26"
+    stroke-dasharray="129.9 259.7"
+    stroke-dashoffset="-259.7"
+    transform="rotate(-90 90 90)"/>
+
+  <!-- Disque intérieur -->
+  <circle cx="90" cy="90" r="47" fill="#e8eae3"/>
+
+  <!-- "my" en Inter Tight italic -->
+  <text x="90" y="84"
+    font-family="Georgia, serif"
+    font-size="22"
+    font-style="italic"
+    font-weight="400"
+    fill="#566267"
+    text-anchor="middle">my</text>
+
+  <!-- "Gaïa" en serif -->
+  <text x="90" y="108"
+    font-family="Georgia, serif"
+    font-size="30"
+    font-weight="400"
+    fill="#1d2a2e"
+    letter-spacing="-0.5"
+    text-anchor="middle">Gaïa</text>
+</svg>
