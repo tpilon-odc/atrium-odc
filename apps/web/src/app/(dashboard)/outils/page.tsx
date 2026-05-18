@@ -87,6 +87,8 @@ export default function OutilsPage() {
     queryKey: ['tool-categories', token],
     queryFn: () => toolCategoryApi.list(token!),
     enabled: !!token,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
   const categories = categoriesData?.data.categories ?? []
 

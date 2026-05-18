@@ -131,7 +131,7 @@ function ShareAllModal({ onClose, token }: { onClose: () => void; token: string 
           </div>
 
           {successMsg && (
-            <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{successMsg}</p>
+            <p className="text-sm text-success-subtle-foreground bg-success-subtle border border-success/20 rounded-lg px-3 py-2">{successMsg}</p>
           )}
           {mutation.isError && (
             <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>
@@ -159,8 +159,8 @@ const TYPE_LABELS: Record<ContactType, string> = {
 }
 
 const TYPE_COLORS: Record<ContactType, string> = {
-  prospect: 'bg-blue-100 text-blue-700',
-  client: 'bg-green-100 text-green-700',
+  prospect: 'bg-info-subtle text-info-subtle-foreground',
+  client: 'bg-success-subtle text-success-subtle-foreground',
   ancien_client: 'bg-muted text-muted-foreground',
 }
 
@@ -185,9 +185,10 @@ function ContactCard({ contact, onShare }: { contact: Contact; onShare: () => vo
               {TYPE_LABELS[contact.type]}
             </span>
             {contact.profileStatus?.isDueForReview && (
-              <span className="flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 shrink-0">
+              <span className="flex items-center gap-1 text-xs font-medium text-warning-subtle-foreground bg-warning-subtle rounded-full px-2 py-0.5 shrink-0">
                 <AlertTriangle className="h-3 w-3" />
-                Profil à réviser
+                <span className="hidden sm:inline">Profil à réviser</span>
+                <span className="sm:hidden">À réviser</span>
               </span>
             )}
             {contact.profileStatus && !contact.profileStatus.hasProfile && (
@@ -290,31 +291,35 @@ export default function CRMPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      <div className="flex items-start justify-between">
+    <div className="space-y-4 md:space-y-6 max-w-7xl">
+
+      {/* En-tête — titre + actions */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">CRM</h2>
-          <p className="text-muted-foreground mt-1">Gérez vos contacts et interactions.</p>
+          <h2 className="text-xl md:text-2xl font-semibold">CRM</h2>
+          <p className="text-muted-foreground text-sm mt-0.5">Gérez vos contacts et interactions.</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+
+        {/* Actions — wrappent sur mobile */}
+        <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:shrink-0">
           {allItems.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setShareOpen(true)}>
-              <Share2 className="h-3.5 w-3.5 mr-1.5" />
-              Partager
+            <Button size="sm" variant="outline" onClick={() => setShareOpen(true)} className="min-h-[36px]">
+              <Share2 className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Partager</span>
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => setShareAllOpen(true)}>
-            <Share2 className="h-3.5 w-3.5 mr-1.5" />
-            Partager tous
+          <Button size="sm" variant="outline" onClick={() => setShareAllOpen(true)} className="min-h-[36px]">
+            <Share2 className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Partager tous</span>
           </Button>
           {importTools.length > 0 && (
-            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-              <Upload className="h-3.5 w-3.5 mr-1.5" />
-              Importer
+            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)} className="min-h-[36px]">
+              <Upload className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Importer</span>
             </Button>
           )}
-          <Link href="/crm/nouveau">
-            <Button size="sm">
+          <Link href="/crm/nouveau" className="flex-1 sm:flex-none">
+            <Button size="sm" className="w-full sm:w-auto min-h-[36px]">
               <Plus className="h-4 w-4 mr-1.5" />
               Ajouter
             </Button>
@@ -323,7 +328,7 @@ export default function CRMPage() {
       </div>
 
       {/* Filtres */}
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -335,7 +340,10 @@ export default function CRMPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
-          <Button variant="outline" onClick={handleSearch}>Rechercher</Button>
+          <Button variant="outline" onClick={handleSearch} className="shrink-0">
+            <Search className="h-4 w-4 sm:hidden" />
+            <span className="hidden sm:inline">Rechercher</span>
+          </Button>
         </div>
         <div className="flex gap-2 flex-wrap">
           {TYPES.map(({ value, label }) => (

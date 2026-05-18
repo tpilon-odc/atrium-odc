@@ -33,6 +33,7 @@ export default function NouvelOutilPage() {
     mutationFn: (data: FormData) => toolApi.create(data, token!),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['tools'] })
+      queryClient.invalidateQueries({ queryKey: ['tool-categories'] })
       router.push(`/outils/${res.data.tool.id}`)
     },
   })

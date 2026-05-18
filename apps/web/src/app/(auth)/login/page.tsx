@@ -17,7 +17,7 @@ import { useAuthStore } from '@/stores/auth'
 import { createClient } from '@/lib/supabase/client'
 
 const schema = z.object({
-  email: z.string().email('Email invalide'),
+  email: z.string().min(1, 'Email requis').email('Email invalide'),
   password: z.string().min(1, 'Mot de passe requis'),
 })
 
@@ -87,10 +87,10 @@ function LoginForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" autoComplete="email" required {...register('email')} />
+          <Input id="email" type="email" autoComplete="email" {...register('email')} />
           {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
         </div>
 

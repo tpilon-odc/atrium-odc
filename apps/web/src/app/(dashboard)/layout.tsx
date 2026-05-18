@@ -37,7 +37,6 @@ import {
   Radio,
   FileText,
 } from 'lucide-react'
-import { useTheme } from 'next-themes'
 import { cn, withToken } from '@/lib/utils'
 
 import { useAuthStore } from '@/stores/auth'
@@ -164,19 +163,38 @@ function getBreadcrumbs(pathname: string) {
   return crumbs
 }
 
-// ── Theme toggle ────────────────────────────────────────────────────────────
+// ── Theme toggle — Littoral · Jour ↔ Littoral · Nuit ───────────────────────
 
 function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
+  const [isNuit, setIsNuit] = useState(false)
+
+  useEffect(() => {
+    setIsNuit(document.documentElement.dataset.theme === 'nuit')
+  }, [])
+
+  const toggle = () => {
+    const next = !isNuit
+    document.documentElement.dataset.theme = next ? 'nuit' : ''
+    setIsNuit(next)
+  }
+
   return (
     <button
-      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground dark:text-white hover:text-foreground hover:bg-accent transition-colors shrink-0"
-      title={resolvedTheme === 'dark' ? 'Passer en clair' : 'Passer en sombre'}
+      onClick={toggle}
+      style={{
+        width: 24, height: 24,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 6, border: 'none',
+        background: 'transparent',
+        color: 'var(--gaia-faint)',
+        cursor: 'pointer',
+        flexShrink: 0,
+      }}
+      title={isNuit ? 'Passer en jour' : 'Passer en nuit'}
     >
-      {resolvedTheme === 'dark'
-        ? <Sun className="h-3.5 w-3.5" />
-        : <Moon className="h-3.5 w-3.5" />
+      {isNuit
+        ? <Sun style={{ width: 14, height: 14 }} />
+        : <Moon style={{ width: 14, height: 14 }} />
       }
     </button>
   )
@@ -305,6 +323,10 @@ function NotificationBell({ token }: { token: string }) {
       router.push('/actualites')
       return
     }
+    if (n.type === 'share_received') {
+      router.push('/partage')
+      return
+    }
     const target = n.entityType === 'compliance_phase'
       ? `/conformite/${n.entityId}`
       : '/conformite'
@@ -360,6 +382,8 @@ function NotificationBell({ token }: { token: string }) {
                     ? <Newspaper className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                     : n.type === 'compliance_expired'
                     ? <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
+                    : n.type === 'share_received'
+                    ? <Share2 className="h-4 w-4 text-success shrink-0 mt-0.5" />
                     : <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                   }
                   <div className="flex-1 min-w-0">
@@ -393,6 +417,24 @@ function NotificationBell({ token }: { token: string }) {
   )
 }
 
+// ── Palette sidebar (via variables CSS — s'adapte au mode nuit automatiquement) ─
+
+const S = {
+  paper:    'var(--gaia-paper)',
+  card:     'var(--gaia-card)',
+  ink:      'var(--gaia-ink)',
+  muted:    'var(--gaia-muted)',
+  faint:    'var(--gaia-faint)',
+  rule:     'var(--gaia-rule)',
+  ruleSoft: 'var(--gaia-rule-soft)',
+  layer1:   'var(--gaia-layer-1)',
+  layer2:   'var(--gaia-layer-2)',
+  layer3:   'var(--gaia-layer-3)',
+  accent:   'var(--gaia-accent)',
+  accent2:  'var(--gaia-accent-2)',
+  onAccent: 'var(--gaia-on-accent)',
+}
+
 // ── NavLink helper ──────────────────────────────────────────────────────────
 
 function SidebarLink({
@@ -411,17 +453,33 @@ function SidebarLink({
   return (
     <Link
       href={href}
-      className={cn(
-        'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm transition-colors',
-        isActive
-          ? 'bg-primary/10 text-primary font-medium'
-          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-      )}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '7px 18px',
+        margin: '1px 8px',
+        borderRadius: 10,
+        background: isActive ? S.accent : 'transparent',
+        color: isActive ? S.onAccent : S.muted,
+        fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
+        fontSize: 13.5,
+        fontWeight: isActive ? 600 : 400,
+        textDecoration: 'none',
+        transition: 'background 0.15s',
+      }}
     >
-      <Icon className="h-4 w-4 shrink-0" />
-      <span className="flex-1">{label}</span>
+      <Icon style={{ width: 15, height: 15, flexShrink: 0, opacity: isActive ? 1 : 0.7 }} />
+      <span style={{ flex: 1 }}>{label}</span>
       {badge != null && badge > 0 && (
-        <span className="ml-auto h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center leading-none">
+        <span style={{
+          height: 16, minWidth: 16, padding: '0 4px',
+          borderRadius: 999,
+          background: isActive ? S.onAccent : S.accent,
+          color: isActive ? S.accent : S.onAccent,
+          fontSize: 10, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
           {badge > 9 ? '9+' : badge}
         </span>
       )}
@@ -563,107 +621,250 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!ready) return null
 
   return (
-    <div className="flex h-screen bg-background overflow-x-hidden">
+    <div className="flex h-screen overflow-x-hidden" style={{ background: 'linear-gradient(180deg, var(--gaia-bg) 0%, var(--gaia-bg-deep) 100%)' }}>
 
-      {/* ── Sidebar (desktop) ────────────────────────────────────────────── */}
-      <aside className="hidden md:flex w-60 flex-col bg-card border-r border-border shrink-0">
-        {/* Logo */}
-        <div className="px-4 py-4 border-b border-border flex justify-center">
-          <Link href="/dashboard">
-            <img src="/logo.png" alt="myGaïa" className="h-9 w-auto dark:brightness-0 dark:invert" />
-          </Link>
-        </div>
+      {/* ── Icon rail (tablet 768–1024px) ────────────────────────────────── */}
+      <aside className="hidden md:flex lg:hidden flex-col shrink-0 items-center py-5 gap-2" style={{
+        width: 64,
+        background: S.paper,
+        borderRight: `1px solid ${S.rule}`,
+      }}>
+        {/* Logo anneau seul */}
+        <Link href="/dashboard" style={{ textDecoration: 'none', marginBottom: 10 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: `conic-gradient(${S.layer1} 0deg 120deg, ${S.accent} 120deg 240deg, ${S.layer2} 240deg 360deg)`,
+            position: 'relative',
+          }}>
+            <div style={{ position: 'absolute', inset: 9, borderRadius: '50%', background: S.paper }} />
+          </div>
+        </Link>
+
+        {/* Items nav — icône + tooltip natif */}
+        {navGroups.flatMap((g) => g.items).slice(0, 8).map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const Icon = item.icon
+          const conformitePct = item.href === '/conformite' && token
+            ? null  // affiché via ComplianceProgressBar, pas ici
+            : null
+          return (
+            <Link key={item.href} href={item.href} title={item.label} style={{ textDecoration: 'none' }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                background: isActive ? S.accent : 'transparent',
+                color: isActive ? S.onAccent : S.muted,
+                display: 'grid', placeItems: 'center',
+                cursor: 'pointer',
+                position: 'relative',
+              }}>
+                <Icon style={{ width: 18, height: 18 }} />
+              </div>
+            </Link>
+          )
+        })}
+
+        <div style={{ flex: 1 }} />
+
+        {/* Avatar utilisateur en bas */}
+        <button onClick={handleLogout} title="Déconnexion" style={{
+          width: 36, height: 36, borderRadius: '50%',
+          background: S.accent2, color: S.onAccent,
+          display: 'grid', placeItems: 'center',
+          border: 'none', cursor: 'pointer',
+          fontFamily: "'Fraunces', ui-serif, Georgia, serif",
+          fontSize: 13, fontWeight: 500,
+        }}>
+          {user ? displayName(user).split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+        </button>
+      </aside>
+
+      {/* ── Sidebar (desktop ≥1024px) ─────────────────────────────────────── */}
+      <aside className="hidden lg:flex flex-col shrink-0" style={{
+        width: 234,
+        background: S.paper,
+        borderRight: `1px solid ${S.rule}`,
+      }}>
+        {/* Logo myGaïa */}
+        <Link href="/dashboard" style={{ textDecoration: 'none' }}>
+          <div style={{
+            padding: '24px 22px 20px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            borderBottom: `1px solid ${S.rule}`,
+          }}>
+            {/* Anneau tricolore */}
+            <div style={{
+              width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+              background: `conic-gradient(${S.layer1} 0deg 120deg, ${S.accent} 120deg 240deg, ${S.layer2} 240deg 360deg)`,
+              position: 'relative',
+            }}>
+              <div style={{ position: 'absolute', inset: 7, borderRadius: '50%', background: S.paper }} />
+            </div>
+            <div>
+              <div style={{ lineHeight: 1, display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                <span style={{
+                  fontFamily: "'Inter Tight', system-ui, sans-serif",
+                  fontSize: 13, fontWeight: 400, color: S.muted, fontStyle: 'italic',
+                }}>my</span>
+                <span style={{
+                  fontFamily: "'Fraunces', ui-serif, Georgia, serif",
+                  fontSize: 22, fontWeight: 400, color: S.ink, letterSpacing: '-0.01em',
+                }}>Gaïa</span>
+              </div>
+            </div>
+          </div>
+        </Link>
 
         {/* Nav groupée */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2.5 space-y-5">
+        <nav style={{ flex: 1, overflowY: 'auto', padding: '16px 0' }}>
           {navGroups.map((group) => (
-            <div key={group.label}>
-              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+            <div key={group.label} style={{ marginBottom: 20 }}>
+              <div style={{
+                fontFamily: "'Inter Tight', system-ui, sans-serif",
+                fontSize: 10, fontWeight: 500, textTransform: 'uppercase',
+                letterSpacing: '0.18em', color: S.faint,
+                marginBottom: 10, paddingLeft: 18,
+              }}>
                 {group.label}
-              </p>
-              <ul className="space-y-0.5">
-                {group.items.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                  const badge = item.href === '/actualites' ? (chamberUnread ?? 0) : undefined
-                  return (
-                    <li key={item.href}>
-                      <SidebarLink
-                        href={item.href}
-                        label={item.label}
-                        icon={item.icon}
-                        isActive={isActive}
-                        badge={badge}
-                      />
-                      {'showProgress' in item && item.showProgress && token && (
-                        <ComplianceProgressBar token={token} />
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
+              </div>
+              {group.items.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                const badge = item.href === '/actualites' ? (chamberUnread ?? 0) : undefined
+                return (
+                  <div key={item.href}>
+                    <SidebarLink
+                      href={item.href}
+                      label={item.label}
+                      icon={item.icon}
+                      isActive={isActive}
+                      badge={badge}
+                    />
+                    {'showProgress' in item && item.showProgress && token && (
+                      <ComplianceProgressBar token={token} />
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ))}
 
           {user?.globalRole === 'platform_admin' && (
-            <div>
-              <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                fontFamily: "'Inter Tight', system-ui, sans-serif",
+                fontSize: 10, fontWeight: 500, textTransform: 'uppercase',
+                letterSpacing: '0.18em', color: S.faint,
+                marginBottom: 10, paddingLeft: 18,
+              }}>
                 Administration
-              </p>
-              <ul className="space-y-0.5">
-                <li>
-                  <SidebarLink
-                    href="/admin"
-                    label="Administration"
-                    icon={Settings}
-                    isActive={pathname.startsWith('/admin')}
-                  />
-                </li>
-              </ul>
+              </div>
+              <SidebarLink
+                href="/admin"
+                label="Administration"
+                icon={Settings}
+                isActive={pathname.startsWith('/admin')}
+              />
             </div>
           )}
         </nav>
 
-        {/* Footer utilisateur */}
-        <div className="px-2.5 py-3 border-t border-border">
-          <div className="flex items-center gap-2 px-2 py-1.5 mb-1 min-w-0">
-            <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} token={token} />
-            <Link href="/profil" className="flex-1 min-w-0 rounded-md hover:bg-accent px-1 py-0.5 transition-colors">
-              <p className="text-xs font-medium truncate">{user ? displayName(user) : '…'}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
-            </Link>
-            <ThemeToggle />
+        {/* User card */}
+        <div style={{ padding: '8px 12px 16px' }}>
+          <div style={{
+            background: S.card,
+            border: `1px solid ${S.rule}`,
+            borderRadius: 12,
+            padding: '12px 14px',
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            {/* Avatar initiales */}
+            {user?.avatarUrl ? (
+              <img
+                src={withToken(user.avatarUrl, token) ?? user.avatarUrl}
+                alt={displayName(user)}
+                style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+              />
+            ) : (
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                background: S.accent2, color: S.onAccent,
+                display: 'grid', placeItems: 'center',
+                fontFamily: "'Fraunces', ui-serif, Georgia, serif",
+                fontSize: 13, fontWeight: 500,
+              }}>
+                {user ? displayName(user).split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+              </div>
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <Link href="/profil" style={{ textDecoration: 'none' }}>
+                <div style={{
+                  fontFamily: "'Inter Tight', system-ui, sans-serif",
+                  fontSize: 12.5, color: S.ink, fontWeight: 600,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {user ? displayName(user) : '…'}
+                </div>
+                <div style={{
+                  fontFamily: "'Inter Tight', system-ui, sans-serif",
+                  fontSize: 11, color: S.faint,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {user?.email}
+                </div>
+              </Link>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+              <ThemeToggle />
+              <button
+                onClick={handleLogout}
+                title="Déconnexion"
+                style={{
+                  width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 6, border: 'none', background: 'transparent',
+                  color: S.faint, cursor: 'pointer',
+                }}
+              >
+                <LogOut style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 text-xs"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-3.5 w-3.5 mr-2" />
-            Déconnexion
-          </Button>
         </div>
       </aside>
 
       {/* ── Zone principale ───────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Header mobile (md:hidden) */}
-        <header className="md:hidden h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
+        {/* Header mobile — sticky top bar (<768px) */}
+        <header className="lg:hidden h-14 flex items-center justify-between px-4 shrink-0" style={{
+          background: S.paper,
+          borderBottom: `1px solid ${S.rule}`,
+          position: 'sticky', top: 0, zIndex: 10,
+        }}>
           <div className="flex items-center gap-2">
             <Link href="/dashboard">
-              <img src="/logo.png" alt="Logo" className="h-10 w-auto dark:brightness-0 dark:invert" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: '50%',
+                  background: `conic-gradient(${S.layer1} 0deg 120deg, ${S.accent} 120deg 240deg, ${S.layer2} 240deg 360deg)`,
+                  position: 'relative',
+                }}>
+                  <div style={{ position: 'absolute', inset: 6, borderRadius: '50%', background: S.paper }} />
+                </div>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                  <span style={{ fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 13, fontWeight: 400, color: S.muted, fontStyle: 'italic' }}>my</span>
+                  <span style={{ fontFamily: "'Fraunces', ui-serif, Georgia, serif", fontSize: 18, fontWeight: 400, color: S.ink, letterSpacing: '-0.01em' }}>Gaïa</span>
+                </span>
+              </div>
             </Link>
           </div>
           <div className="flex items-center gap-1">
             {token && <NotificationBell token={token} />}
-            <ThemeToggle />
             <UserAvatar name={user ? displayName(user) : 'U'} avatarUrl={user?.avatarUrl} token={token} />
+            <ThemeToggle />
           </div>
         </header>
 
-        {/* Header desktop (hidden md:flex) */}
-        <header className="hidden md:flex h-12 border-b border-border bg-card items-center px-6 gap-4 shrink-0">
+        {/* Header desktop (≥1024px) */}
+        <header className="hidden lg:flex h-12 items-center px-6 gap-4 shrink-0" style={{ background: S.paper, borderBottom: `1px solid ${S.rule}` }}>
           <nav className="flex items-center gap-1 text-sm flex-1 min-w-0">
             {/* Breadcrumb uniquement en profondeur (≥2 segments) pour éviter la redondance avec le titre de page */}
             {breadcrumbs.length > 1 && breadcrumbs.map((crumb, i) => (
@@ -687,12 +888,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {token && <NotificationBell token={token} />}
         </header>
 
-        {/* Contenu — pb pour bottom nav mobile */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">{children}</main>
+        {/* Contenu — pb 20 pour laisser place bottom nav mobile */}
+        <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6" style={{ background: 'transparent' }}>{children}</main>
       </div>
 
-      {/* ── Bottom nav (mobile) ──────────────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-card border-t border-border z-40">
+      {/* ── Bottom nav (mobile) — groupes nav + Compte ───────────────────── */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40" style={{
+        background: S.paper,
+        borderTop: `1px solid ${S.rule}`,
+      }}>
         <div className="flex">
           {navGroups.map((group) => {
             const isActive = group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + '/'))
@@ -701,115 +905,170 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 key={group.label}
                 onClick={() => { setDrawerSection(group.label); setDrawerOpen(true) }}
-                className={cn(
-                  'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
-                  isActive ? 'text-primary' : 'text-muted-foreground'
-                )}
+                style={{
+                  flex: 1, background: 'none', border: 'none', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                  padding: '8px 4px 10px', minHeight: 44,
+                  color: isActive ? S.accent : S.muted,
+                  fontFamily: "'Inter Tight', system-ui, sans-serif",
+                }}
               >
-                <Icon className={cn('h-5 w-5', isActive ? 'text-primary' : 'text-muted-foreground')} />
-                <span className="truncate">{group.label}</span>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: isActive ? S.accent : 'transparent' }} />
+                <Icon style={{ width: 20, height: 20 }} />
+                <span style={{ fontSize: 10, fontWeight: isActive ? 600 : 500 }}>{group.label}</span>
               </button>
             )
           })}
+          {/* Compte */}
           <button
             onClick={() => { setDrawerSection(null); setDrawerOpen(true) }}
-            className={cn(
-              'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
-              drawerOpen && drawerSection === null ? 'text-primary' : 'text-muted-foreground'
-            )}
+            style={{
+              flex: 1, background: 'none', border: 'none', cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              padding: '8px 4px 10px', minHeight: 44,
+              color: drawerOpen && drawerSection === null ? S.accent : S.muted,
+              fontFamily: "'Inter Tight', system-ui, sans-serif",
+            }}
           >
-            <User className="h-5 w-5" />
-            <span>Compte</span>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: drawerOpen && drawerSection === null ? S.accent : 'transparent' }} />
+            <User style={{ width: 20, height: 20 }} />
+            <span style={{ fontSize: 10, fontWeight: 500 }}>Compte</span>
           </button>
         </div>
       </nav>
 
-      {/* ── Drawer (mobile) ─────────────────────────────────────────────── */}
+      {/* ── Drawer mobile — slide-in depuis la gauche ────────────────────── */}
       {drawerOpen && (
         <>
-          <div className="md:hidden fixed inset-0 bg-foreground/20 z-40" onClick={() => setDrawerOpen(false)} />
-          <div className="md:hidden fixed bottom-0 inset-x-0 bg-card rounded-t-2xl border-t border-border z-50 pb-safe">
-            <div className="flex items-center justify-between px-4 pt-4 pb-2">
-              <span className="text-sm font-semibold">{drawerSection ?? 'Compte'}</span>
+          <div
+            className="lg:hidden fixed inset-0 z-40"
+            style={{ background: 'rgba(0,0,0,0.4)' }}
+            onClick={() => setDrawerOpen(false)}
+          />
+          <div className="lg:hidden fixed bottom-0 inset-x-0 z-50 flex flex-col overflow-hidden"
+            style={{
+              background: S.paper,
+              borderTop: `1px solid ${S.rule}`,
+              borderRadius: '20px 20px 0 0',
+              maxHeight: '70vh',
+              animation: 'gaiaSlideUp 220ms ease-out',
+            }}
+          >
+            {/* En-tête */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '18px 18px 14px',
+              borderBottom: `1px solid ${S.rule}`,
+            }}>
+              <span style={{
+                fontFamily: "'Inter Tight', system-ui, sans-serif",
+                fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+                letterSpacing: '0.15em', color: S.faint,
+              }}>
+                {drawerSection ?? 'Compte'}
+              </span>
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
+                style={{
+                  width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 10, border: `1px solid ${S.rule}`, background: 'transparent',
+                  color: S.muted, cursor: 'pointer',
+                }}
               >
-                <X className="h-4 w-4" />
+                <X style={{ width: 16, height: 16 }} />
               </button>
             </div>
 
-            <div className="px-3 pb-4 overflow-y-auto max-h-[70vh]">
+            {/* Corps */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
               {drawerSection !== null ? (
-                /* Section filtrée */
-                <div className="space-y-0.5">
-                  {navGroups.find((g) => g.label === drawerSection)?.items.map((item) => {
-                    const Icon = item.icon
-                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setDrawerOpen(false)}
-                        className={cn(
-                          'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
-                          isActive ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'
-                        )}
-                      >
-                        <Icon className="h-5 w-5 shrink-0" />
-                        {item.label}
-                      </Link>
-                    )
-                  })}
-                </div>
+                // Items du groupe sélectionné
+                navGroups.find((g) => g.label === drawerSection)?.items.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                  return (
+                    <Link key={item.href} href={item.href}
+                      onClick={() => setDrawerOpen(false)}
+                      style={{
+                        textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '0 12px', borderRadius: 10, minHeight: 44,
+                        background: isActive ? S.accent : 'transparent',
+                        color: isActive ? S.onAccent : S.ink,
+                        fontFamily: "'Inter Tight', system-ui, sans-serif",
+                        fontSize: 14, fontWeight: isActive ? 600 : 400,
+                        marginBottom: 2,
+                      }}>
+                      <Icon style={{ width: 18, height: 18, flexShrink: 0, opacity: isActive ? 1 : 0.7 }} />
+                      {item.label}
+                    </Link>
+                  )
+                })
               ) : (
-                /* Section Compte */
-                <div className="space-y-0.5">
+                // Section Compte
+                <>
                   {user && (
-                    <div className="px-3 py-2 mb-2">
-                      <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                    <div style={{ padding: '10px 12px 12px', marginBottom: 4, borderBottom: `1px solid ${S.rule}` }}>
+                      <div style={{ fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 13, fontWeight: 600, color: S.ink }}>
+                        {displayName(user)}
+                      </div>
+                      <div style={{ fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 11, color: S.faint, marginTop: 2 }}>
+                        {user.email}
+                      </div>
                     </div>
                   )}
-                  <Link
-                    href="/parametres"
-                    onClick={() => setDrawerOpen(false)}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
-                      pathname === '/parametres' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'
-                    )}
-                  >
-                    <Settings className="h-5 w-5 shrink-0" />
+                  <Link href="/profil" onClick={() => setDrawerOpen(false)} style={{
+                    textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '0 12px', borderRadius: 10, minHeight: 44,
+                    background: pathname === '/profil' ? S.accent : 'transparent',
+                    color: pathname === '/profil' ? S.onAccent : S.ink,
+                    fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 14, marginBottom: 2,
+                  }}>
+                    <User style={{ width: 18, height: 18, opacity: 0.7 }} />
+                    Mon profil
+                  </Link>
+                  <Link href="/parametres" onClick={() => setDrawerOpen(false)} style={{
+                    textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '0 12px', borderRadius: 10, minHeight: 44,
+                    background: pathname === '/parametres' ? S.accent : 'transparent',
+                    color: pathname === '/parametres' ? S.onAccent : S.ink,
+                    fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 14, marginBottom: 2,
+                  }}>
+                    <Settings style={{ width: 18, height: 18, opacity: 0.7 }} />
                     Paramètres
                   </Link>
                   {user?.globalRole === 'platform_admin' && (
-                    <Link
-                      href="/admin"
-                      onClick={() => setDrawerOpen(false)}
-                      className={cn(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
-                        pathname.startsWith('/admin') ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'
-                      )}
-                    >
-                      <Settings className="h-5 w-5 shrink-0" />
+                    <Link href="/admin" onClick={() => setDrawerOpen(false)} style={{
+                      textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '0 12px', borderRadius: 10, minHeight: 44,
+                      background: pathname.startsWith('/admin') ? S.accent : 'transparent',
+                      color: pathname.startsWith('/admin') ? S.onAccent : S.ink,
+                      fontFamily: "'Inter Tight', system-ui, sans-serif", fontSize: 14, marginBottom: 2,
+                    }}>
+                      <Settings style={{ width: 18, height: 18, opacity: 0.7 }} />
                       Administration
                     </Link>
                   )}
-                  <div className="pt-2 border-t border-border mt-2">
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-destructive hover:bg-destructive/10 w-full transition-colors"
-                    >
-                      <LogOut className="h-5 w-5 shrink-0" />
-                      Déconnexion
-                    </button>
-                  </div>
-                </div>
+                </>
               )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '8px 12px 16px', borderTop: `1px solid ${S.rule}` }}>
+              <button onClick={handleLogout} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+                padding: '0 12px', minHeight: 44, borderRadius: 10,
+                border: 'none', background: 'transparent', cursor: 'pointer',
+                fontFamily: "'Inter Tight', system-ui, sans-serif",
+                fontSize: 13.5, color: S.accent,
+              }}>
+                <LogOut style={{ width: 16, height: 16, flexShrink: 0 }} />
+                Déconnexion
+              </button>
             </div>
           </div>
         </>
       )}
+
       <InstallPrompt />
     </div>
   )

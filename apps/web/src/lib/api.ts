@@ -62,13 +62,15 @@ async function call<T>(
     return {} as ApiResponse<T>
   }
 
-  // Token expiré → tentative de refresh silencieux
-  // Ne pas intercepter les 401 émis depuis /login (mauvais identifiants ≠ session expirée)
+  // 401 depuis /login = mauvais identifiants, pas une session expirée
   if (res.status === 401) {
-    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    const errJson = await res.json().catch(() => ({}))
+    const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login'
+
+    if (!isLoginPage) {
+      // Tentative de refresh silencieux
       const newToken = await tryRefreshToken()
       if (newToken) {
-        // Rejouer la requête avec le nouveau token
         const retryRes = await fetch(`${API_URL}${path}`, {
           ...fetchOptions,
           headers: {
@@ -84,8 +86,8 @@ async function call<T>(
       useAuthStore.getState().logout()
       window.location.href = '/login?reason=session_expired'
     }
-    const errJson = await res.json().catch(() => ({}))
-    throw new ApiError(errJson.error ?? 'Session expirée', errJson.code ?? 'SESSION_EXPIRED', 401)
+
+    throw new ApiError(errJson.error ?? 'Email ou mot de passe incorrect', errJson.code ?? 'INVALID_CREDENTIALS', 401)
   }
 
   const json = await res.json()
@@ -421,6 +423,7 @@ export type PhaseProgress = {
     id: string
     label: string
     type: string
+    isRequired: boolean
     validityMonths: number | null
     answer: {
       id: string

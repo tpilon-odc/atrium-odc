@@ -102,6 +102,14 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
       data: { ...parsed.data, createdBy: request.user.id },
     })
 
+    if (parsed.data.category) {
+      await prisma.toolCategory.upsert({
+        where: { label: parsed.data.category },
+        update: { isActive: true },
+        create: { label: parsed.data.category },
+      })
+    }
+
     return reply.status(201).send({ data: { tool } })
   })
 
@@ -128,6 +136,14 @@ export const toolRoutes: FastifyPluginAsync = async (app) => {
         },
       }),
     ])
+
+    if (parsed.data.category) {
+      await prisma.toolCategory.upsert({
+        where: { label: parsed.data.category },
+        update: { isActive: true },
+        create: { label: parsed.data.category },
+      })
+    }
 
     return reply.send({ data: { tool } })
   })

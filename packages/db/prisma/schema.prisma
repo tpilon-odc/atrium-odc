@@ -972,7 +972,7 @@ model SupplierReview {
 
 model ToolCategory {
   id        String   @id @default(uuid()) @db.Uuid
-  label     String
+  label     String   @unique
   order     Int      @default(0)
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz

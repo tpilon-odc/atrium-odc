@@ -49,6 +49,7 @@ export default function ModifierOutilPage({ params }: { params: { id: string } }
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tool', id, token] })
       queryClient.invalidateQueries({ queryKey: ['tools'] })
+      queryClient.invalidateQueries({ queryKey: ['tool-categories'] })
       router.push(`/outils/${id}`)
     },
   })

@@ -1,11 +1,11 @@
 {
-  "name": "CGP Platform",
-  "short_name": "CGP Platform",
-  "description": "Plateforme de gestion pour cabinets CGP",
+  "name": "myGaïa",
+  "short_name": "myGaïa",
+  "description": "Plateforme de gestion de patrimoine pour cabinets CGP",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#e8eae3",
+  "theme_color": "#e8eae3",
   "orientation": "portrait-primary",
   "icons": [
     {

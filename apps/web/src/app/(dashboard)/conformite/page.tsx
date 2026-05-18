@@ -35,9 +35,10 @@ function statusIcon(status: string) {
 // ── Résumé statuts d'une phase ─────────────────────────────────────────────
 
 function PhaseStatusSummary({ items }: { items: PhaseProgress['items'] }) {
-  const submitted = items.filter((i) => i.status === 'submitted' || i.status === 'expiring_soon').length
-  const expired   = items.filter((i) => i.status === 'expired').length
-  const pending   = items.filter((i) => i.status === 'not_started' || i.status === 'draft').length
+  const required  = items.filter((i) => i.isRequired)
+  const submitted = required.filter((i) => i.status === 'submitted' || i.status === 'expiring_soon').length
+  const expired   = required.filter((i) => i.status === 'expired').length
+  const pending   = required.filter((i) => i.status === 'not_started').length
 
   return (
     <div className="flex items-center gap-3 mt-2 text-xs">

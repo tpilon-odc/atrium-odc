@@ -2,132 +2,208 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    /* ── Neutrals ─────────────────────────────────────────────────────────── */
-    --background: 180 20% 98%;          /* Blanc légèrement teinté teal */
-    --foreground: 200 35% 12%;          /* Bleu-ardoise foncé (texte "myGaïa") */
+/* ==========================================================================
+   myGaïa — Design Tokens LITTORAL · JOUR & NUIT
+   Source de vérité : /design_handoff_mygaia_terroir/tokens.css
+   Mode nuit : <html data-theme="nuit">
+   ========================================================================== */
 
-    --card: 0 0% 100%;
-    --card-foreground: 200 35% 12%;
+:root {
+  /* —— Palette Littoral · Jour (galet / varech / sel) ————————————————————— */
+  --gaia-bg:        #d8dad4;
+  --gaia-bg-deep:   #c4c8c0;
+  --gaia-paper:     #e8eae3;
+  --gaia-card:      #f1f2ec;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 200 35% 12%;
+  --gaia-ink:       #1d2a2e;
+  --gaia-muted:     #566267;
+  --gaia-faint:     #8c969a;
 
-    --muted: 174 18% 95%;               /* Teal très désaturé */
-    --muted-foreground: 192 14% 46%;
+  --gaia-rule:      rgba(29, 42, 46, 0.13);
+  --gaia-rule-soft: rgba(29, 42, 46, 0.07);
 
-    --border: 174 18% 88%;              /* Bordure teintée teal */
-    --input: 174 18% 88%;
+  /* —— Couches géologiques ———————————————————————————————————————————————— */
+  --gaia-layer-1:   #8aa294;   /* lichen côtier  */
+  --gaia-layer-2:   #3f6068;   /* eau profonde   */
+  --gaia-layer-3:   #2d4047;   /* ardoise mouillée */
+  --gaia-layer-4:   #5a4632;   /* varech séché   */
 
-    --accent: 174 18% 93%;
-    --accent-foreground: 200 35% 12%;
+  /* —— Sémantique ————————————————————————————————————————————————————————— */
+  --gaia-accent:    #c75a3a;   /* bouée orange — primaire / urgence */
+  --gaia-accent-2:  #3f6068;   /* eau — succès / info */
+  --gaia-accent-3:  #d4a23a;   /* sable doré — warning */
+  --gaia-stone:     #9aa39e;
+  --gaia-on-accent: #f1f2ec;
 
-    /* ── Primary — Teal myGaïa ────────────────────────────────────────────── */
-    --primary: 175 48% 35%;             /* #2D7D78 — teal profond du logo */
-    --primary-foreground: 0 0% 100%;
+  /* —— Typographie ————————————————————————————————————————————————————————— */
+  --gaia-font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  --gaia-font-sans:  'Inter Tight', 'Inter', system-ui, sans-serif;
 
-    /* ── Primary light — dégradé clair ───────────────────────────────────── */
-    --primary-light: 174 42% 52%;       /* #5BBFB5 — teal clair du logo */
+  --gaia-text-micro: 10px;
+  --gaia-text-xs:    11px;
+  --gaia-text-sm:    11.5px;
+  --gaia-text-base:  13.5px;
+  --gaia-text-lg:    16px;
+  --gaia-text-xl:    22px;
+  --gaia-text-2xl:   28px;
+  --gaia-text-3xl:   44px;
+  --gaia-text-kpi:   46px;
 
-    /* ── Secondary — ardoise douce ───────────────────────────────────────── */
-    --secondary: 174 18% 92%;
-    --secondary-foreground: 200 35% 22%;
+  --gaia-tracking-micro: 0.18em;
+  --gaia-tracking-tight: -0.01em;
 
-    /* ── Statuts sémantiques ──────────────────────────────────────────────── */
-    --success: 152 55% 36%;
-    --success-foreground: 0 0% 100%;
-    --success-subtle: 152 45% 94%;
-    --success-subtle-foreground: 152 55% 28%;
+  /* —— Radius —————————————————————————————————————————————————————————————— */
+  --gaia-radius-pill:  999px;
+  --gaia-radius-input: 10px;
+  --gaia-radius-card:  14px;
+  --gaia-radius-large: 18px;
 
-    --warning: 38 90% 46%;
-    --warning-foreground: 38 80% 12%;
-    --warning-subtle: 38 90% 94%;
-    --warning-subtle-foreground: 38 80% 28%;
+  /* —— Élévation ——————————————————————————————————————————————————————————— */
+  --gaia-shadow-card:  0 1px 2px rgba(29, 42, 46, 0.05);
+  --gaia-shadow-hover: 0 8px 24px rgba(29, 42, 46, 0.10);
+  --gaia-shadow-modal: 0 30px 80px rgba(29, 42, 46, 0.15);
 
-    --danger: 4 80% 52%;
-    --danger-foreground: 0 0% 100%;
-    --danger-subtle: 4 75% 95%;
-    --danger-subtle-foreground: 4 80% 38%;
+  /* ==========================================================================
+     Remapping Littoral · Jour → variables shadcn/Tailwind
+     ========================================================================== */
 
-    --info: 199 68% 40%;
-    --info-foreground: 0 0% 100%;
-    --info-subtle: 199 60% 94%;
-    --info-subtle-foreground: 199 68% 28%;
+  --background: 120 5% 84%;         /* #d8dad4 — gaia-bg */
+  --foreground: 196 20% 14%;        /* #1d2a2e — gaia-ink */
 
-    /* ── Destructive (alias danger — shadcn compat) ───────────────────────── */
-    --destructive: 4 80% 52%;
-    --destructive-foreground: 0 0% 100%;
+  --card: 80 8% 95%;                /* #f1f2ec — gaia-card */
+  --card-foreground: 196 20% 14%;
 
-    /* ── Ring ─────────────────────────────────────────────────────────────── */
-    --ring: 175 48% 35%;
+  --popover: 80 8% 95%;
+  --popover-foreground: 196 20% 14%;
 
-    /* ── Radius — légèrement plus doux, nature ────────────────────────────── */
-    --radius: 0.5rem;
+  --muted: 100 6% 89%;
+  --muted-foreground: 196 10% 37%;  /* #566267 — gaia-muted */
 
-    /* ── Sidebar ──────────────────────────────────────────────────────────── */
-    --sidebar-width: 240px;
-  }
+  --border: 196 14% 80%;             /* gaia-rule approximé en HSL pur */
+  --input: 196 14% 80%;
 
-  .dark {
-    /* ── Neutrals ─────────────────────────────────────────────────────────── */
-    --background: 200 30% 7%;           /* Ardoise très foncé */
-    --foreground: 174 20% 92%;
+  --accent: 100 6% 89%;
+  --accent-foreground: 196 20% 14%;
 
-    --card: 200 28% 10%;
-    --card-foreground: 174 20% 92%;
+  /* Primary → bouée orange (gaia-accent) */
+  --primary: 14 56% 49%;            /* #c75a3a */
+  --primary-foreground: 80 8% 95%;  /* #f1f2ec — gaia-on-accent */
+  --primary-light: 14 50% 62%;
 
-    --popover: 200 28% 10%;
-    --popover-foreground: 174 20% 92%;
+  --secondary: 100 6% 89%;
+  --secondary-foreground: 196 20% 14%;
 
-    --muted: 196 22% 15%;
-    --muted-foreground: 192 14% 56%;
+  /* Statuts sémantiques */
+  --success: 178 25% 32%;           /* #3f6068 — eau (gaia-accent-2) */
+  --success-foreground: 80 8% 95%;
+  --success-subtle: 178 25% 90%;
+  --success-subtle-foreground: 178 25% 22%;
 
-    --border: 196 20% 18%;
-    --input: 196 20% 18%;
+  --warning: 40 67% 53%;            /* #d4a23a — sable doré (gaia-accent-3) */
+  --warning-foreground: 196 20% 14%;
+  --warning-subtle: 40 67% 92%;
+  --warning-subtle-foreground: 40 67% 28%;
 
-    --accent: 196 22% 14%;
-    --accent-foreground: 174 20% 92%;
+  --danger: 14 56% 49%;             /* bouée orange */
+  --danger-foreground: 80 8% 95%;
+  --danger-subtle: 14 56% 92%;
+  --danger-subtle-foreground: 14 56% 30%;
 
-    /* ── Primary — teal lumineux sur fond sombre ──────────────────────────── */
-    --primary: 174 42% 52%;             /* #5BBFB5 — teal clair, lisible sur sombre */
-    --primary-foreground: 200 35% 8%;
+  --info: 196 25% 38%;              /* ardoise côtière */
+  --info-foreground: 80 8% 95%;
+  --info-subtle: 196 25% 90%;
+  --info-subtle-foreground: 196 25% 24%;
 
-    /* ── Primary light ────────────────────────────────────────────────────── */
-    --primary-light: 174 38% 64%;
+  --destructive: 14 56% 49%;
+  --destructive-foreground: 80 8% 95%;
 
-    /* ── Secondary ────────────────────────────────────────────────────────── */
-    --secondary: 196 22% 15%;
-    --secondary-foreground: 174 20% 80%;
+  --ring: 14 56% 49%;
+  --radius: 0.625rem;
+  --sidebar-width: 240px;
+}
 
-    /* ── Statuts sémantiques (ton réduit sur fond sombre) ─────────────────── */
-    --success: 152 48% 44%;
-    --success-foreground: 0 0% 100%;
-    --success-subtle: 152 28% 13%;
-    --success-subtle-foreground: 152 48% 62%;
+/* ──────────────────────────────────────────────────────────────────────────
+   LITTORAL · NUIT — ardoise mouillée / eau profonde / phare
+   Activer avec : document.documentElement.dataset.theme = 'nuit'
+   ────────────────────────────────────────────────────────────────────────── */
+:root[data-theme="nuit"] {
+  --gaia-bg:        #0f1518;
+  --gaia-bg-deep:   #080c0e;
+  --gaia-paper:     #16201f;
+  --gaia-card:      #131b1d;
 
-    --warning: 38 82% 50%;
-    --warning-foreground: 38 80% 10%;
-    --warning-subtle: 38 45% 13%;
-    --warning-subtle-foreground: 38 82% 66%;
+  --gaia-ink:       #e4e7e0;
+  --gaia-muted:     #8a9498;
+  --gaia-faint:     #565f63;
 
-    --danger: 4 72% 56%;
-    --danger-foreground: 0 0% 100%;
-    --danger-subtle: 4 45% 13%;
-    --danger-subtle-foreground: 4 72% 70%;
+  --gaia-rule:      rgba(228, 231, 224, 0.08);
+  --gaia-rule-soft: rgba(228, 231, 224, 0.04);
 
-    --info: 199 62% 48%;
-    --info-foreground: 0 0% 100%;
-    --info-subtle: 199 40% 13%;
-    --info-subtle-foreground: 199 62% 66%;
+  --gaia-layer-1:   #6b8a8a;
+  --gaia-layer-2:   #4a7480;
+  --gaia-layer-3:   #2f4854;
+  --gaia-layer-4:   #6e5538;
 
-    /* ── Destructive ──────────────────────────────────────────────────────── */
-    --destructive: 4 72% 56%;
-    --destructive-foreground: 0 0% 100%;
+  --gaia-accent:    #e07a3a;   /* phare — plus vif sur le sombre */
+  --gaia-accent-2:  #6b9aa8;
+  --gaia-accent-3:  #d4a23a;
+  --gaia-stone:     #5a6266;
+  --gaia-on-accent: #0a0d10;
 
-    /* ── Ring ─────────────────────────────────────────────────────────────── */
-    --ring: 174 42% 52%;
-  }
+  --gaia-shadow-card:  0 1px 2px rgba(0, 0, 0, 0.4);
+  --gaia-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --gaia-shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.6);
+
+  /* Remapping Nuit → shadcn */
+  --background: 200 25% 7%;         /* #0f1518 */
+  --foreground: 90 8% 88%;          /* #e4e7e0 */
+
+  --card: 196 20% 9%;               /* #131b1d */
+  --card-foreground: 90 8% 88%;
+
+  --popover: 196 20% 9%;
+  --popover-foreground: 90 8% 88%;
+
+  --muted: 196 20% 13%;
+  --muted-foreground: 196 8% 57%;   /* #8a9498 */
+
+  --border: 200 15% 20%;             /* gaia-rule nuit approximé */
+  --input: 200 15% 20%;
+
+  --accent: 196 20% 13%;
+  --accent-foreground: 90 8% 88%;
+
+  --primary: 25 72% 56%;            /* #e07a3a — phare */
+  --primary-foreground: 200 25% 7%;
+  --primary-light: 25 65% 65%;
+
+  --secondary: 196 20% 13%;
+  --secondary-foreground: 90 8% 80%;
+
+  --success: 191 24% 47%;           /* #6b9aa8 */
+  --success-foreground: 200 25% 7%;
+  --success-subtle: 191 24% 13%;
+  --success-subtle-foreground: 191 24% 68%;
+
+  --warning: 40 67% 53%;
+  --warning-foreground: 200 25% 7%;
+  --warning-subtle: 40 67% 13%;
+  --warning-subtle-foreground: 40 67% 70%;
+
+  --danger: 25 72% 56%;
+  --danger-foreground: 200 25% 7%;
+  --danger-subtle: 25 72% 13%;
+  --danger-subtle-foreground: 25 72% 68%;
+
+  --info: 196 30% 38%;
+  --info-foreground: 90 8% 88%;
+  --info-subtle: 196 30% 13%;
+  --info-subtle-foreground: 196 30% 62%;
+
+  --destructive: 25 72% 56%;
+  --destructive-foreground: 200 25% 7%;
+
+  --ring: 25 72% 56%;
 }
 
 /* ── FullCalendar overrides ────────────────────────────────────────────────── */
@@ -247,20 +323,53 @@
   }
 }
 
-/* ── Dégradé de marque myGaïa ──────────────────────────────────────────────── */
+/* ── Dégradé de marque myGaïa (Littoral) ──────────────────────────────────── */
 
 .brand-gradient {
-  background: linear-gradient(135deg, hsl(175 48% 35%), hsl(174 42% 52%));
+  background: linear-gradient(135deg, var(--gaia-accent) 0%, var(--gaia-accent-2) 100%);
 }
 
 .brand-gradient-text {
-  background: linear-gradient(135deg, hsl(175 48% 35%), hsl(174 42% 52%));
+  background: linear-gradient(135deg, var(--gaia-accent) 0%, var(--gaia-accent-2) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Sidebar avec légère teinte teal */
+/* Fond page gradient (suit automatiquement la palette active) */
+.page-bg-gaia {
+  background: linear-gradient(180deg, var(--gaia-bg) 0%, var(--gaia-bg-deep) 100%);
+}
+
+/* Sidebar fond paper */
 .sidebar-bg {
-  background: linear-gradient(180deg, hsl(200 28% 10%) 0%, hsl(196 26% 9%) 100%);
+  background: var(--gaia-paper);
+}
+
+/* Classes utilitaires Terroir (micro-label, titres, boutons) */
+.gaia-micro-label {
+  font-family: var(--gaia-font-sans);
+  font-size: var(--gaia-text-micro);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--gaia-tracking-micro);
+  color: var(--gaia-faint);
+}
+
+.gaia-serif {
+  font-family: var(--gaia-font-serif);
+  letter-spacing: var(--gaia-tracking-tight);
+}
+
+/* Drawer slide-up — respecte prefers-reduced-motion */
+@keyframes gaiaSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes gaiaSlideUp {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
 }

@@ -4,6 +4,56 @@ import { ShareEntityType } from '@cgp/db'
 import { authMiddleware } from '../../middleware/auth'
 import { cabinetMiddleware } from '../../middleware/cabinet'
 import { prisma } from '../../lib/prisma'
+import { sendPushToUser } from '../../lib/webpush'
+
+// ── Helper — notification in-app + push pour un nouveau partage ───────────────
+
+const ENTITY_LABELS: Record<string, string> = {
+  contact: 'contact',
+  document: 'document',
+  collaborator_training: 'formation',
+  cabinet_compliance: 'conformité cabinet',
+  compliance_item: 'item de conformité',
+  cabinet: 'cabinet',
+}
+
+async function notifyShareRecipients(params: {
+  recipientIds: string[]
+  cabinetId: string
+  cabinetName: string
+  entityType: string
+  count: number
+}): Promise<void> {
+  const { recipientIds, cabinetId, cabinetName, entityType, count } = params
+  if (recipientIds.length === 0 || count === 0) return
+
+  const label = ENTITY_LABELS[entityType] ?? entityType
+  const title = `Nouveau partage — ${cabinetName}`
+  const message = count === 1
+    ? `Un ${label} a été partagé avec vous par ${cabinetName}.`
+    : `${count} ${label}s ont été partagés avec vous par ${cabinetName}.`
+
+  // In-app
+  await prisma.notification.createMany({
+    data: recipientIds.map((userId) => ({
+      userId,
+      cabinetId,
+      type: 'share_received',
+      title,
+      message,
+      entityType: 'share',
+      entityId: cabinetId,
+    })),
+    skipDuplicates: true,
+  })
+
+  // Push — fire and forget
+  await Promise.all(
+    recipientIds.map((userId) =>
+      sendPushToUser(userId, { title, body: message, url: '/partage' }).catch(() => {})
+    )
+  )
+}
 
 const SHARE_ENTITY_TYPES = ['contact', 'document', 'collaborator_training', 'cabinet_compliance', 'cabinet', 'compliance_item'] as const
 
@@ -99,6 +149,15 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
 
     if (toCreate.length > 0) {
       await prisma.share.createMany({ data: toCreate })
+
+      const cabinet = await prisma.cabinet.findUnique({ where: { id: request.cabinetId }, select: { name: true } })
+      notifyShareRecipients({
+        recipientIds: validRecipientIds,
+        cabinetId: request.cabinetId,
+        cabinetName: cabinet?.name ?? '',
+        entityType,
+        count: entityIds.length,
+      }).catch(() => {})
     }
 
     return reply.status(201).send({ data: { created: toCreate.length, skipped: existing.length } })
@@ -163,6 +222,15 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
 
     if (toCreate.length > 0) {
       await prisma.share.createMany({ data: toCreate })
+
+      const cabinet = await prisma.cabinet.findUnique({ where: { id: request.cabinetId }, select: { name: true } })
+      notifyShareRecipients({
+        recipientIds: validRecipientIds,
+        cabinetId: request.cabinetId,
+        cabinetName: cabinet?.name ?? '',
+        entityType: 'contact',
+        count: contactIds.length,
+      }).catch(() => {})
     }
 
     return reply.status(201).send({ data: { created: toCreate.length, skipped: existing.length, total: contactIds.length } })
@@ -250,6 +318,15 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
 
     if (toCreate.length > 0) {
       await prisma.share.createMany({ data: toCreate })
+
+      const cabinet = await prisma.cabinet.findUnique({ where: { id: request.cabinetId }, select: { name: true } })
+      notifyShareRecipients({
+        recipientIds: validRecipientIds,
+        cabinetId: request.cabinetId,
+        cabinetName: cabinet?.name ?? '',
+        entityType: 'document',
+        count: documentIds.length,
+      }).catch(() => {})
     }
 
     return reply.status(201).send({ data: { created: toCreate.length, skipped: existing.length, total: documentIds.length } })
@@ -308,8 +385,17 @@ export const shareRoutes: FastifyPluginAsync = async (app) => {
       },
       include: {
         recipientUser: { select: { id: true, email: true } },
+        cabinet: { select: { name: true } },
       },
     })
+
+    notifyShareRecipients({
+      recipientIds: [result.data.grantedTo],
+      cabinetId: request.cabinetId,
+      cabinetName: share.cabinet.name,
+      entityType: result.data.entityType,
+      count: 1,
+    }).catch(() => {})
 
     return reply.status(201).send({ data: { share } })
   })
