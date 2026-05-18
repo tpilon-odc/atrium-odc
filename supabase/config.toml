@@ -223,8 +223,8 @@ otp_expiry = 3600
 enabled = true
 host = "localhost"
 port = 1025
-user = ""
-pass = ""
+user = "dev"
+pass = "dev"
 admin_email = "noreply@lab.odc.solutions"
 sender_name = "myGaïa"
 
